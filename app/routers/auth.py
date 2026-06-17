@@ -1,10 +1,12 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.orm import Session
+from werkzeug.security import generate_password_hash, check_password_hash
 from app.data.database import get_db, construir_nombre_completo
 from app.data.models import Usuario
 from app.security.auth import create_token, get_current_tienda_user
+from app.security.rate_limit import limiter
 
 router = APIRouter(prefix="/api", tags=["auth"])
 
@@ -42,7 +44,8 @@ class AuthRegister(BaseModel):
 
 
 @router.post("/user/login")
-async def user_login(data: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+async def user_login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
     try:
         if not data.email or not data.password:
             raise HTTPException(status_code=400, detail="Email y contraseña son requeridos")
@@ -52,7 +55,7 @@ async def user_login(data: UserLogin, db: Session = Depends(get_db)):
             Usuario.activo == True
         ).first()
 
-        if user and user.password_hash == data.password:
+        if user and check_password_hash(user.password_hash, data.password):
             nombre_completo = construir_nombre_completo(
                 user.nombre, user.apellido_paterno, user.apellido_materno
             )
@@ -86,7 +89,8 @@ async def user_login(data: UserLogin, db: Session = Depends(get_db)):
 
 
 @router.post("/user/register")
-async def user_register(data: UserRegister, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+async def user_register(request: Request, data: UserRegister, db: Session = Depends(get_db)):
     try:
         existente = db.query(Usuario).filter(Usuario.email == data.email).first()
         if existente:
@@ -96,7 +100,7 @@ async def user_register(data: UserRegister, db: Session = Depends(get_db)):
             existente.nombre = data.nombre
             existente.apellido_paterno = data.apellidoPaterno
             existente.apellido_materno = data.apellidoMaterno
-            existente.password_hash = data.password
+            existente.password_hash = generate_password_hash(data.password)
             existente.telefono = data.telefono
             existente.fecha_nacimiento = data.fecha_nacimiento
             if data.newsletter:
@@ -111,7 +115,7 @@ async def user_register(data: UserRegister, db: Session = Depends(get_db)):
                 apellido_paterno=data.apellidoPaterno,
                 apellido_materno=data.apellidoMaterno,
                 email=data.email,
-                password_hash=data.password,
+                password_hash=generate_password_hash(data.password),
                 telefono=data.telefono,
                 fecha_nacimiento=data.fecha_nacimiento,
                 suscrito_newsletter=data.newsletter,
@@ -154,12 +158,14 @@ async def user_register(data: UserRegister, db: Session = Depends(get_db)):
 
 
 @router.post("/user/logout")
-async def logout():
+@limiter.limit("60/minute")
+async def logout(request: Request):
     return {"success": True, "message": "Sesión cerrada exitosamente"}
 
 
 @router.get("/user/status")
-async def user_status(current_user: dict = Depends(get_current_tienda_user), db: Session = Depends(get_db)):
+@limiter.limit("60/minute")
+async def user_status(request: Request, current_user: dict = Depends(get_current_tienda_user), db: Session = Depends(get_db)):
     try:
         user_id = int(current_user["sub"])
 
@@ -190,7 +196,8 @@ async def user_status(current_user: dict = Depends(get_current_tienda_user), db:
 
 
 @router.post("/auth/register")
-async def auth_register(data: AuthRegister, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+async def auth_register(request: Request, data: AuthRegister, db: Session = Depends(get_db)):
     try:
         existente = db.query(Usuario).filter(Usuario.email == data.email).first()
         if existente:
@@ -211,7 +218,7 @@ async def auth_register(data: AuthRegister, db: Session = Depends(get_db)):
             apellido_paterno=apellido_paterno,
             apellido_materno=apellido_materno,
             email=data.email,
-            password_hash=data.password,
+            password_hash=generate_password_hash(data.password),
             telefono=data.telefono,
             fecha_nacimiento=data.fecha_nacimiento,
             suscrito_newsletter=data.newsletter or False
@@ -234,14 +241,15 @@ async def auth_register(data: AuthRegister, db: Session = Depends(get_db)):
 
 
 @router.post("/auth/login")
-async def auth_login(data: AuthLogin, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+async def auth_login(request: Request, data: AuthLogin, db: Session = Depends(get_db)):
     try:
         user = db.query(Usuario).filter(
             Usuario.email == data.email,
-            Usuario.password_hash == data.password
+            Usuario.activo == True
         ).first()
 
-        if not user or not user.activo:
+        if not user or not check_password_hash(user.password_hash, data.password):
             raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
         nombre_completo = construir_nombre_completo(
