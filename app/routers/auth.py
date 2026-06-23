@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional
+from datetime import date
 from sqlalchemy.orm import Session
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.data.database import get_db, construir_nombre_completo
@@ -25,6 +26,19 @@ class UserRegister(BaseModel):
     telefono: Optional[str] = None
     fecha_nacimiento: Optional[str] = None
     newsletter: Optional[bool] = False
+
+    @field_validator("fecha_nacimiento", mode="before")
+    @classmethod
+    def validar_fecha(cls, v):
+        if v is None:
+            return v
+        from datetime import datetime
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+            try:
+                return datetime.strptime(v, fmt).strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+        raise ValueError("fecha_nacimiento debe estar en formato YYYY-MM-DD")
 
 
 class AuthLogin(BaseModel):

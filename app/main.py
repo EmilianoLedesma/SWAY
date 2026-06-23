@@ -9,7 +9,8 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from fastapi import Depends
+from fastapi import Depends, Security
+from fastapi.openapi.utils import get_openapi
 from app.routers import auth, colaboradores, especies, productos, pedidos, eventos, estadisticas, direcciones, catalogos
 from app.security.rate_limit import limiter
 from app.security.api_key import require_api_key
@@ -41,7 +42,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     print(f"[422] Errors: {exc.errors()}")
     return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
-_api_key_dep = [Depends(require_api_key)]
+_api_key_dep = [Security(require_api_key)]
 
 app.include_router(auth.router, dependencies=_api_key_dep)
 app.include_router(colaboradores.router, dependencies=_api_key_dep)
@@ -52,6 +53,27 @@ app.include_router(eventos.router, dependencies=_api_key_dep)
 app.include_router(estadisticas.router, dependencies=_api_key_dep)
 app.include_router(direcciones.router, dependencies=_api_key_dep)
 app.include_router(catalogos.router, dependencies=_api_key_dep)
+
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    schemes = schema.setdefault("components", {}).setdefault("securitySchemes", {})
+    schemes["ApiKeyAuth"] = {"type": "apiKey", "in": "header", "name": "x-api-key"}
+    for path_item in schema.get("paths", {}).values():
+        for operation in path_item.values():
+            if isinstance(operation, dict):
+                operation.setdefault("security", []).append({"ApiKeyAuth": []})
+    app.openapi_schema = schema
+    return schema
+
+app.openapi = custom_openapi
 
 
 @app.get("/")
