@@ -1,10 +1,7 @@
-# ============================================================
-# ARCHIVO DE REFERENCIA — configuración monolítica original
-# Este compose ya NO se usa en producción.
-# Usar en su lugar:
-#   docker-compose.private.yml  → VM privada (10.10.10.2)
-#   docker-compose.public.yml   → VM pública (10.10.10.1)
-# ============================================================
+# Servidor PRIVADO (10.10.10.2)
+# Adaptador: Solo red interna (10.10.10.0/24) — no alcanzable desde la LAN
+# Servicios: api_1, api_2 (FastAPI) + PostgreSQL
+# Requiere .env con JWT_SECRET_KEY, API_KEY y credenciales de BD
 
 services:
   postgres:
@@ -17,8 +14,7 @@ services:
       POSTGRES_DB: sway
       POSTGRES_HOST_AUTH_METHOD: trust
     command: postgres -c log_statement=all
-    ports:
-      - "5433:5432"
+    # Sin puertos expuestos al host — solo accesible por api_1 y api_2 internamente
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./SWAY_PostgreSQL.sql:/docker-entrypoint-initdb.d/01_init.sql
@@ -32,6 +28,8 @@ services:
     build: .
     container_name: sway_api_1
     restart: on-failure
+    ports:
+      - "8001:8000"
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://sway_app:sway123@postgres:5432/sway
@@ -43,6 +41,8 @@ services:
     build: .
     container_name: sway_api_2
     restart: on-failure
+    ports:
+      - "8002:8000"
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://sway_app:sway123@postgres:5432/sway
@@ -50,29 +50,5 @@ services:
       postgres:
         condition: service_healthy
 
-  nginx:
-    image: nginx:alpine
-    container_name: sway_nginx
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro,z
-      - ./nginx/certs:/etc/nginx/certs:ro,z
-    depends_on:
-      - api_1
-      - api_2
-
-  monitoring:
-    image: louislam/uptime-kuma:1
-    container_name: sway_monitoring
-    restart: always
-    ports:
-      - "3001:3001"
-    volumes:
-      - uptime_kuma_data:/app/data
-
 volumes:
   postgres_data:
-  uptime_kuma_data:
