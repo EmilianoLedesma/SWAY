@@ -1,25 +1,33 @@
 # Servidor PRIVADO (10.10.10.2)
 # Adaptador: Solo red interna (10.10.10.0/24) — no alcanzable desde la LAN
 # Servicios: api_1, api_2 (FastAPI) + PostgreSQL
-# Requiere .env con JWT_SECRET_KEY, API_KEY y credenciales de BD
+# Requiere .env con DB_USER, DB_PASSWORD, DB_NAME, JWT_SECRET_KEY, API_KEY
+#
+# IMPORTANTE — volumen existente:
+#   Si existe un volumen postgres_data creado con POSTGRES_HOST_AUTH_METHOD=trust,
+#   el pg_hba.conf ya está escrito y no se regenera. Hay que recrear el volumen:
+#     docker compose -f docker-compose.private.yml down -v
+#   ESTO BORRA TODOS LOS DATOS. En la VM privada (despliegue nuevo) no aplica.
 
 services:
   postgres:
     image: postgres:15
     container_name: sway_postgres
     restart: always
+    # Las credenciales se leen del .env — nunca hardcodeadas aquí.
+    # Docker Compose sustituye ${VAR} desde el archivo .env del mismo directorio.
     environment:
-      POSTGRES_USER: sway_app
-      POSTGRES_PASSWORD: sway123
-      POSTGRES_DB: sway
-      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     command: postgres -c log_statement=all
-    # Sin puertos expuestos al host — solo accesible por api_1 y api_2 internamente
+    # Sin puertos expuestos al host — solo api_1 y api_2 lo alcanzan internamente.
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./SWAY_PostgreSQL.sql:/docker-entrypoint-initdb.d/01_init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sway_app -d sway"]
+      # $$VAR en el YAML → $VAR al shell del contenedor (escapa la sustitución de Compose)
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       retries: 5
       timeout: 5s
@@ -32,7 +40,7 @@ services:
       - "8001:8000"
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg://sway_app:sway123@postgres:5432/sway
+      DATABASE_URL: postgresql+psycopg://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
     depends_on:
       postgres:
         condition: service_healthy
@@ -45,7 +53,7 @@ services:
       - "8002:8000"
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg://sway_app:sway123@postgres:5432/sway
+      DATABASE_URL: postgresql+psycopg://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
     depends_on:
       postgres:
         condition: service_healthy

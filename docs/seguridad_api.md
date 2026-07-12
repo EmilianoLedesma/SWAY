@@ -405,23 +405,27 @@ volumes:
 
 #### `docker-compose.private.yml` — VM privada (10.10.10.2)
 
+> **Volumen existente:** si hay un `postgres_data` previo creado con `POSTGRES_HOST_AUTH_METHOD=trust`, el `pg_hba.conf` ya está escrito en el volumen y no se regenera. Hay que destruirlo con `docker compose -f docker-compose.private.yml down -v` **antes** de levantar. Esto borra todos los datos; en la VM privada (despliegue fresco) no aplica.
+
 ```yaml
 services:
   postgres:
     image: postgres:15
     container_name: sway_postgres
     restart: always
+    # Credenciales desde .env — Docker Compose sustituye ${VAR} automáticamente.
+    # Sin POSTGRES_HOST_AUTH_METHOD: Postgres 15 usa scram-sha-256 por defecto.
     environment:
-      POSTGRES_USER: sway_app
-      POSTGRES_PASSWORD: sway123
-      POSTGRES_DB: sway
-      POSTGRES_HOST_AUTH_METHOD: trust
-    # Sin puertos expuestos — solo accesible por api_1 y api_2 internamente
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    # Sin puertos expuestos — solo api_1 y api_2 lo alcanzan internamente.
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./SWAY_PostgreSQL.sql:/docker-entrypoint-initdb.d/01_init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sway_app -d sway"]
+      # $$VAR en YAML → $VAR al shell del contenedor (evita sustitución prematura de Compose)
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       retries: 5
       timeout: 5s
@@ -434,7 +438,7 @@ services:
       - "8001:8000"
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg://sway_app:sway123@postgres:5432/sway
+      DATABASE_URL: postgresql+psycopg://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
     depends_on:
       postgres:
         condition: service_healthy
@@ -447,7 +451,7 @@ services:
       - "8002:8000"
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg://sway_app:sway123@postgres:5432/sway
+      DATABASE_URL: postgresql+psycopg://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
     depends_on:
       postgres:
         condition: service_healthy
@@ -593,18 +597,26 @@ To           Action    From
 
 ## 7. Variables de entorno
 
-El archivo `.env` **solo es necesario en la VM privada**. El servidor público no maneja secretos de la aplicación.
+El archivo `.env` **solo es necesario en la VM privada**. El servidor público (Nginx + Uptime Kuma) no maneja secretos de la aplicación.
 
 ```env
 # Solo en el servidor privado (10.10.10.2)
+
+# ── PostgreSQL ────────────────────────────────────────────────────────────────
+# Usadas por: servicio postgres (POSTGRES_USER/PASSWORD/DB) y DATABASE_URL de las APIs.
+# Docker Compose sustituye ${DB_*} en docker-compose.private.yml desde este archivo.
 DB_USER=sway_app
 DB_PASSWORD=sway123
 DB_NAME=sway
 
+# ── JWT (FastAPI) ─────────────────────────────────────────────────────────────
 JWT_SECRET_KEY=<clave_hex_64_chars>
+
+# ── API Key ───────────────────────────────────────────────────────────────────
 API_KEY=<clave_hex_48_chars>
 
-# IP o dominio del servidor público para peticiones CORS desde el navegador
+# ── CORS ──────────────────────────────────────────────────────────────────────
+# IP o dominio del servidor público (con https://) para peticiones desde el navegador
 CORS_ORIGINS=https://<IP_LAN_VM_PUBLICA>
 ```
 
@@ -613,6 +625,14 @@ Generación de claves:
 ```bash
 python3 -c "import secrets; print(secrets.token_hex(32))"   # JWT (64 chars)
 python3 -c "import secrets; print(secrets.token_hex(24))"   # API Key (48 chars)
+```
+
+**Flujo de las variables de BD:**
+```
+.env (DB_USER / DB_PASSWORD / DB_NAME)
+  ├── postgres: POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB  (init de la BD)
+  ├── api_1: DATABASE_URL  (URL de conexión SQLAlchemy)
+  └── api_2: DATABASE_URL  (idem)
 ```
 
 ---
