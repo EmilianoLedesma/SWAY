@@ -462,6 +462,8 @@ volumes:
 
 ### 4.5 Orden de despliegue
 
+> **Rama de trabajo:** `seguridad_api` es la rama actual con todos los cambios de seguridad. Al hacer merge a `master`, cambiar `git checkout seguridad_api` por `git checkout master` en los comandos de abajo.
+
 Siempre levantar primero la VM privada para que las APIs estén disponibles cuando Nginx arranque.
 
 **En la VM privada (10.10.10.2):**
@@ -525,14 +527,19 @@ Uptime Kuma corre en la VM pública. Al estar en la misma máquina que Nginx, pu
 
 **Acceso:** `http://<IP_LAN_VM_PUBLICA>:3001`
 
-**Configuración:** crear cuenta de administrador en el primer acceso, luego agregar dos monitores:
+**Configuración:** crear cuenta de administrador en el primer acceso, luego agregar los siguientes monitores:
 
 | Monitor | Tipo | URL | Intervalo | Descripción |
 |---|---|---|---|---|
-| SWAY Frente HTTPS | HTTP(s) | `https://localhost/` | 60 s | Prueba el frente completo (Nginx + SSL + APIs) |
-| SWAY API Privada | HTTP(s) | `http://10.10.10.2:8001/` | 60 s | Salud directa de la API sin pasar por Nginx |
+| SWAY Frente HTTPS | HTTP(s) | `https://<IP_LAN_VM_PUBLICA>/` | 60 s | Prueba el frente completo (Nginx + SSL + APIs) |
+| SWAY API Privada (api_1) | HTTP(s) | `http://10.10.10.2:8001/` | 60 s | Salud directa de api_1 sin pasar por Nginx |
+| SWAY API Privada (api_2) *(opcional)* | HTTP(s) | `http://10.10.10.2:8002/` | 60 s | Salud directa de api_2 sin pasar por Nginx |
 
-El segundo monitor solo es posible porque Uptime Kuma tiene ruta a `10.10.10.2` por la red interna. Desde la LAN ese monitor no sería alcanzable.
+> **SWAY Frente HTTPS:** en la configuración avanzada del monitor, activar **"Ignore TLS/SSL errors"** — el certificado es autofirmado y Uptime Kuma lo rechaza por defecto. Sin este flag el monitor aparecerá en rojo aunque Nginx esté funcionando correctamente.
+
+Los monitores de API privada solo son posibles porque Uptime Kuma tiene ruta a `10.10.10.2` por la red interna. Desde la LAN esos endpoints no serían alcanzables.
+
+> **Prueba de tolerancia a fallos:** detener el contenedor `sway_api_1` con `docker stop sway_api_1`. El monitor "SWAY API Privada (api_1)" se pone en rojo; sin embargo, el monitor "SWAY Frente HTTPS" permanece verde porque Nginx redirige todo el tráfico a `api_2` automáticamente (round-robin). Restaurar con `docker start sway_api_1`.
 
 ---
 
@@ -649,7 +656,7 @@ python3 -c "import secrets; print(secrets.token_hex(24))"   # API Key (48 chars)
 | Certificado SSL | Nginx con certificado autofirmado RSA-2048 | Completo |
 | Balanceador de carga | Nginx upstream round-robin entre `api_1:8001` y `api_2:8002` | Completo |
 | Dos servidores | VM Debian pública (Nginx + monitoreo) y VM Debian privada (API + BD) en red interna VirtualBox | Completo |
-| Monitoreo | Uptime Kuma en VM pública con dos monitores (frente HTTPS y API privada) | Completo |
+| Monitoreo | Uptime Kuma en VM pública con tres monitores (frente HTTPS, api_1 y api_2) | Completo |
 | Firewall | UFW diferenciado: público (22/80/443/3001) y privado (8001/8002 solo desde 10.10.10.1) | Completo |
 
 ---

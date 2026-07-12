@@ -41,8 +41,8 @@ Este documento es bitácora interna para Claude web (orquestador del proyecto). 
 
 | Archivo | Tipo | Qué cambió |
 |---|---|---|
-| `docs/seguridad_api.md` | Nuevo | Reporte de seguridad completo para entrega académica. Incluye instrucciones para que Claude web genere un PDF. Cubre todas las medidas implementadas con código, tablas de prueba y arquitectura de dos VMs. |
-| `docs/handoff_claude_web.md` | Nuevo | Este archivo. Bitácora interna. |
+| `docs/seguridad_api.md` | Nuevo → Actualizado | Reporte de seguridad completo para entrega académica. Incluye instrucciones para que Claude web genere un PDF. Cubre todas las medidas implementadas con código, tablas de prueba y arquitectura de dos VMs. **Correcciones post-despliegue (Julio 2026):** monitor URL `localhost` → `<IP_LAN_VM_PUBLICA>`, nota "Ignore TLS/SSL errors", tercer monitor `api_2`, nota tolerancia a fallos, `sway-internal` → `sway_net`, nota de rama en sección 4.5, tabla de requerimientos actualizada a 3 monitores. |
+| `docs/handoff_claude_web.md` | Nuevo → Actualizado | Este archivo. Bitácora interna. Sección 4 reescrita: pendientes VM marcados como completados, Uptime Kuma con URLs correctas. Sección 5 nueva: solo 3 pendientes de código. |
 
 ---
 
@@ -114,45 +114,50 @@ FastAPI cachea el schema en `app.openapi_schema`. La función `custom_openapi()`
 
 ---
 
-## 4. Pendientes — requieren acción manual en las VMs
+## 4. Estado del despliegue en VMs ✓
 
-### VM privada (10.10.10.2)
+**Todo ejecutado — ambas VMs están en producción (Julio 2026).**
 
-| Acción | Comando / Detalle |
+### VM privada (10.10.10.2) — completado
+
+| Acción | Estado |
 |---|---|
-| Configurar red interna en VirtualBox | Apagar VM → Settings → Network → Adapter 2 → Internal Network, nombre `sway-internal`. Asignar IP `10.10.10.2/24` manualmente en Debian: editar `/etc/network/interfaces`. |
-| Clonar repo y hacer checkout | `git clone <repo> && git checkout seguridad_api` |
-| Crear `.env` con valores reales | `cp .env.example .env && nano .env` — rellenar `DB_PASSWORD`, `JWT_SECRET_KEY`, `API_KEY`, `CORS_ORIGINS=https://<IP_LAN_PUBLICA>` |
-| Si existe volumen con `trust` | `docker compose -f docker-compose.private.yml down -v` ANTES de levantar. Borra datos. |
-| Levantar servicios | `docker compose -f docker-compose.private.yml up -d --build` |
-| Aplicar firewall | `sudo bash scripts/ufw_private.sh` |
-| Verificar APIs | `curl http://localhost:8001/` y `curl http://localhost:8002/` |
+| Red interna VirtualBox configurada (nombre `sway_net`) | ✓ |
+| IP `10.10.10.2/24` asignada en Debian | ✓ |
+| Repo clonado, rama `seguridad_api` activa | ✓ |
+| `.env` creado con credenciales reales | ✓ |
+| Volumen `postgres_data` recreado sin `trust` (scram-sha-256) | ✓ |
+| `docker compose -f docker-compose.private.yml up -d --build` ejecutado | ✓ |
+| UFW aplicado (`scripts/ufw_private.sh`) y verificado | ✓ |
+| `curl localhost:8001/` y `localhost:8002/` responden OK | ✓ |
 
-### VM pública (10.10.10.1)
+### VM pública (10.10.10.1) — completado
 
-| Acción | Comando / Detalle |
+| Acción | Estado |
 |---|---|
-| Configurar red en VirtualBox | Adapter 1: Bridged (para LAN). Adapter 2: Internal Network, mismo nombre `sway-internal`. Asignar `10.10.10.1/24` al adaptador interno en Debian. |
-| Clonar repo | `git clone <repo> && git checkout seguridad_api` |
-| Generar certificado SSL | `mkdir -p nginx/certs && openssl req -x509 -newkey rsa:2048 -keyout nginx/certs/sway.key -out nginx/certs/sway.crt -days 365 -nodes -subj "/CN=sway.local/O=SWAY/C=MX"` |
-| Verificar conectividad a VM privada | `curl http://10.10.10.2:8001/` debe devolver `{"message":"SWAY FastAPI v2.0",...}` |
-| Levantar servicios | `docker compose -f docker-compose.public.yml up -d` |
-| Aplicar firewall | `sudo bash scripts/ufw_public.sh` |
-| Configurar Uptime Kuma | Abrir `http://<IP_LAN>:3001`, crear admin, agregar monitor HTTPS (`https://localhost/`) y monitor API privada (`http://10.10.10.2:8001/`) |
+| Red VirtualBox: Adapter 1 Bridged + Adapter 2 Internal (`sway_net`) | ✓ |
+| IP `10.10.10.1/24` asignada en Debian | ✓ |
+| Repo clonado, rama `seguridad_api` activa | ✓ |
+| Certificado SSL autofirmado generado en `nginx/certs/` | ✓ |
+| `docker compose -f docker-compose.public.yml up -d` ejecutado | ✓ |
+| UFW aplicado (`scripts/ufw_public.sh`) y verificado | ✓ |
+| Uptime Kuma configurado con tres monitores (ver abajo) | ✓ |
+| Prueba de aislamiento ejecutada: `10.10.10.2` no responde desde la LAN | ✓ |
 
-### Prueba de aislamiento (desde el host Fedora)
+### Configuración final de Uptime Kuma
 
-```bash
-# Esto NO debe responder:
-ping 10.10.10.2
-curl --connect-timeout 3 http://10.10.10.2:8001/
+| Monitor | URL configurada | Nota |
+|---|---|---|
+| SWAY Frente HTTPS | `https://<IP_LAN_VM_PUBLICA>/` | "Ignore TLS/SSL errors" activado (cert autofirmado) |
+| SWAY API Privada (api_1) | `http://10.10.10.2:8001/` | Solo alcanzable desde la red interna |
+| SWAY API Privada (api_2) | `http://10.10.10.2:8002/` | Opcional — confirma balanceo |
 
-# Esto SÍ debe responder:
-curl -k https://<IP_LAN_VM_PUBLICA>/
-```
+Tolerancia a fallos verificada: detener `sway_api_1` pone el monitor api_1 en rojo pero el frente HTTPS permanece verde (Nginx redirige a `api_2`).
 
-### Pendiente de código (para futura sesión)
+---
 
-- El rate limiter usa `storage_uri="memory://"`. Con dos instancias (`api_1`, `api_2`), cada una lleva su propio contador. Para bloqueo coordinado se necesita Redis. No es crítico para la entrega académica.
-- `CORS_ORIGINS` en `.env` debe incluir exactamente la IP/dominio que use el frontend web y la app móvil. Actualmente apunta a la IP del servidor Nginx. Si cambia la IP de la VM pública, hay que actualizar `.env` y reiniciar las APIs.
-- El certificado SSL autofirmado expira en 365 días (generado en Julio 2026). Para renovar: regenerar con `openssl` y reiniciar Nginx.
+## 5. Pendientes de código (futura sesión)
+
+- **Rate limiter Redis:** el limiter usa `storage_uri="memory://"`, contadores independientes por instancia. Para bloqueo coordinado entre `api_1` y `api_2` se necesita Redis. No es crítico para la entrega académica.
+- **CORS al cambiar IP:** `CORS_ORIGINS` en `.env` apunta a la IP actual del servidor Nginx. Si cambia la IP de la VM pública, hay que actualizar `.env` y reiniciar las APIs.
+- **Renovación del certificado SSL:** el cert autofirmado expira ~Julio 2027 (365 días desde Julio 2026). Para renovar: regenerar con `openssl req -x509 ...` y reiniciar el contenedor `sway_nginx`.
