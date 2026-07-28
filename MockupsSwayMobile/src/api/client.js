@@ -13,6 +13,14 @@ async function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+async function buildErrorResult(res, data, fallback) {
+  if (res.status === 401) {
+    await AsyncStorage.removeItem(TOKEN_KEY);
+    return { success: false, sessionExpired: true, message: 'Sesión expirada, inicia sesión de nuevo.' };
+  }
+  return { success: false, message: typeof data.detail === 'string' ? data.detail : fallback };
+}
+
 // Unica llamada POST habilitada por ahora: sin token no hay forma de leer
 // avistamientos/eventos/perfil del colaborador (requieren sesion).
 export async function login(email, password) {
@@ -46,7 +54,7 @@ export async function createEspecie(payload) {
       body: JSON.stringify(payload),
     });
     const data = await res.json();
-    if (!res.ok) return { success: false, message: data.detail || 'Error al crear especie' };
+    if (!res.ok) return buildErrorResult(res, data, 'Error al crear especie');
     return data;
   } catch (error) {
     console.error('Error en createEspecie:', error);
@@ -62,7 +70,7 @@ export async function updateEspecie(id, payload) {
       body: JSON.stringify(payload),
     });
     const data = await res.json();
-    if (!res.ok) return { success: false, message: data.detail || 'Error al actualizar especie' };
+    if (!res.ok) return buildErrorResult(res, data, 'Error al actualizar especie');
     return data;
   } catch (error) {
     console.error('Error en updateEspecie:', error);
@@ -77,7 +85,7 @@ export async function deleteEspecie(id) {
       headers: await authHeaders(),
     });
     const data = await res.json();
-    if (!res.ok) return { success: false, message: data.detail || 'Error al eliminar especie' };
+    if (!res.ok) return buildErrorResult(res, data, 'Error al eliminar especie');
     return data;
   } catch (error) {
     console.error('Error en deleteEspecie:', error);
@@ -93,7 +101,7 @@ export async function updatePerfil(payload) {
       body: JSON.stringify(payload),
     });
     const data = await res.json();
-    if (!res.ok) return { success: false, message: data.detail || 'Error al actualizar perfil' };
+    if (!res.ok) return buildErrorResult(res, data, 'Error al actualizar perfil');
     return data;
   } catch (error) {
     console.error('Error en updatePerfil:', error);
@@ -109,7 +117,7 @@ export async function changePassword(payload) {
       body: JSON.stringify(payload),
     });
     const data = await res.json();
-    if (!res.ok) return { success: false, message: data.detail || 'Error al cambiar contraseña' };
+    if (!res.ok) return buildErrorResult(res, data, 'Error al cambiar contraseña');
     return data;
   } catch (error) {
     console.error('Error en changePassword:', error);
@@ -124,7 +132,7 @@ export async function deletePerfil() {
       headers: await authHeaders(),
     });
     const data = await res.json();
-    if (!res.ok) return { success: false, message: data.detail || 'Error al desactivar cuenta' };
+    if (!res.ok) return buildErrorResult(res, data, 'Error al desactivar cuenta');
     return data;
   } catch (error) {
     console.error('Error en deletePerfil:', error);

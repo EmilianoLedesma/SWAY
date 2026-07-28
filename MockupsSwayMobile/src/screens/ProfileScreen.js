@@ -104,6 +104,8 @@ export default function ProfileScreen() {
   const [editingProfesional, setEditingProfesional] = useState(false);
   const [reporteLoading, setReporteLoading] = useState(false);
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const streakPulse = useBreathe();
   const [trackWidth, setTrackWidth] = useState(0);
@@ -184,6 +186,7 @@ export default function ProfileScreen() {
         motivacion: c.motivacion,
       });
       setEstadoSolicitud(c.estado_solicitud);
+      setProfileLoaded(true);
     });
     return () => {
       active = false;
@@ -207,6 +210,7 @@ export default function ProfileScreen() {
   ];
 
   const handleSavePersonal = async () => {
+    setSaving(true);
     const result = await updatePerfil({
       nombre: personal.nombre || '',
       apellido_paterno: personal.apellidoPaterno || '',
@@ -214,14 +218,17 @@ export default function ProfileScreen() {
       telefono: personal.telefono || '',
       fecha_nacimiento: personal.fechaNacimiento || '',
     });
+    setSaving(false);
     if (!result.success) {
       Alert.alert('Error', result.message || 'No se pudo actualizar el perfil.');
+      if (result.sessionExpired) setIsLoggedIn(false);
       return;
     }
     setEditingPersonal(false);
   };
 
   const handleSaveProfesional = async () => {
+    setSaving(true);
     const result = await updatePerfil({
       especialidad: profesional.especialidad || '',
       grado_academico: profesional.gradoAcademico || '',
@@ -231,8 +238,10 @@ export default function ProfileScreen() {
       orcid: profesional.orcid || '',
       motivacion: profesional.motivacion || '',
     });
+    setSaving(false);
     if (!result.success) {
       Alert.alert('Error', result.message || 'No se pudo actualizar el perfil.');
+      if (result.sessionExpired) setIsLoggedIn(false);
       return;
     }
     setEditingProfesional(false);
@@ -251,12 +260,15 @@ export default function ProfileScreen() {
       Alert.alert('Error', 'La contraseña debe tener al menos 6 caracteres.');
       return;
     }
+    setSaving(true);
     const result = await changePassword({
       password_actual: pwForm.actual,
       password_nuevo: pwForm.nueva,
     });
+    setSaving(false);
     if (!result.success) {
       Alert.alert('Error', result.message || 'No se pudo actualizar la contraseña.');
+      if (result.sessionExpired) setIsLoggedIn(false);
       return;
     }
     setPwForm({ actual: '', nueva: '', confirmar: '' });
@@ -272,12 +284,16 @@ export default function ProfileScreen() {
   };
 
   const handleDeactivate = async () => {
-    setConfirmDeactivate(false);
+    setSaving(true);
     const result = await deletePerfil();
+    setSaving(false);
     if (!result.success) {
       Alert.alert('Error', result.message || 'No se pudo desactivar la cuenta.');
+      setConfirmDeactivate(false);
+      if (result.sessionExpired) setIsLoggedIn(false);
       return;
     }
+    setConfirmDeactivate(false);
     await logout();
     Alert.alert('Cuenta desactivada', 'Tu cuenta de colaborador fue desactivada.');
     setIsLoggedIn(false);
@@ -387,9 +403,13 @@ export default function ProfileScreen() {
                   >
                     <Text style={styles.cancelBtnText}>Cancelar</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.saveBtn} onPress={handleSavePersonal}>
+                  <TouchableOpacity
+                    style={styles.saveBtn}
+                    onPress={handleSavePersonal}
+                    disabled={saving || !profileLoaded}
+                  >
                     <Ionicons name="checkmark" size={16} color="#fff" />
-                    <Text style={styles.saveBtnText}>Guardar</Text>
+                    <Text style={styles.saveBtnText}>{saving ? 'Guardando…' : 'Guardar'}</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -562,9 +582,13 @@ export default function ProfileScreen() {
                   >
                     <Text style={styles.cancelBtnText}>Cancelar</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.saveBtn} onPress={handleSaveProfesional}>
+                  <TouchableOpacity
+                    style={styles.saveBtn}
+                    onPress={handleSaveProfesional}
+                    disabled={saving || !profileLoaded}
+                  >
                     <Ionicons name="checkmark" size={16} color="#fff" />
-                    <Text style={styles.saveBtnText}>Guardar</Text>
+                    <Text style={styles.saveBtnText}>{saving ? 'Guardando…' : 'Guardar'}</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -634,8 +658,8 @@ export default function ProfileScreen() {
                 onChangeText={(v) => setPwForm({ ...pwForm, confirmar: v })}
               />
             </View>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleChangePassword}>
-              <Text style={styles.saveBtnText}>Actualizar contraseña</Text>
+            <TouchableOpacity style={styles.saveBtn} onPress={handleChangePassword} disabled={saving}>
+              <Text style={styles.saveBtnText}>{saving ? 'Guardando…' : 'Actualizar contraseña'}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -676,8 +700,8 @@ export default function ProfileScreen() {
                     >
                       <Text style={styles.cancelBtnText}>Cancelar</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.dangerBtn} onPress={handleDeactivate}>
-                      <Text style={styles.dangerBtnText}>Sí, desactivar</Text>
+                    <TouchableOpacity style={styles.dangerBtn} onPress={handleDeactivate} disabled={saving}>
+                      <Text style={styles.dangerBtnText}>{saving ? 'Guardando…' : 'Sí, desactivar'}</Text>
                     </TouchableOpacity>
                   </View>
                 </>

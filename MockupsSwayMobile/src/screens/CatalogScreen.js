@@ -32,6 +32,7 @@ import {
   deleteEspecie,
 } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
+import { useAuth } from '../context/AuthContext';
 
 const ESTADO_SLUG_TO_STATUS = {
   'extincion-critica': 'CRITICAL',
@@ -54,17 +55,23 @@ const ESTADO_NOMBRE_TO_STATUS = {
   'datos insuficientes': 'LEAST_CONCERN',
 };
 
+function parseEsperanzaVida(v) {
+  if (typeof v !== 'string') return v ?? '';
+  const match = v.match(/\d+/);
+  return match ? Number(match[0]) : '';
+}
+
 function mapEspecieFromApi(e) {
   return {
     id: String(e.id),
     commonName: e.nombre_comun,
     scientificName: e.nombre_cientifico,
     status: ESTADO_SLUG_TO_STATUS[e.estado_conservacion] || 'LEAST_CONCERN',
-    description: e.descripcion,
+    description: e.descripcion === 'Sin descripción disponible' ? '' : e.descripcion,
     habitat: e.habitat,
     image: e.imagen_url || null,
     idEstadoConservacion: e.id_estado_conservacion ?? '',
-    esperanzaVida: e.esperanza_vida ?? '',
+    esperanzaVida: parseEsperanzaVida(e.esperanza_vida),
     poblacionEstimada: e.poblacion_estimada ?? '',
     amenazaIds: e.amenaza_ids || [],
     habitatIds: e.habitat_ids || [],
@@ -94,6 +101,7 @@ const initialForm = {
 
 export default function CatalogScreen() {
   const { incrementSpecies } = useGamification();
+  const { setIsLoggedIn } = useAuth();
   const [species, setSpecies] = useState(speciesList);
   const [search, setSearch] = useState('');
   const [selectedFilter, setSelectedFilter] = useState(null);
@@ -102,6 +110,7 @@ export default function CatalogScreen() {
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(initialForm);
   const [loadingApi, setLoadingApi] = useState(true);
+  const [dataFromServer, setDataFromServer] = useState(false);
   const [saving, setSaving] = useState(false);
   const [estadosCatalog, setEstadosCatalog] = useState([]);
   const [amenazasCatalog, setAmenazasCatalog] = useState([]);
@@ -111,8 +120,9 @@ export default function CatalogScreen() {
     let active = true;
     getEspecies().then((data) => {
       if (!active) return;
-      if (data?.especies?.length) {
+      if (data?.success && Array.isArray(data.especies)) {
         setSpecies(data.especies.map(mapEspecieFromApi));
+        setDataFromServer(true);
       }
       setLoadingApi(false);
     });
@@ -203,6 +213,7 @@ export default function CatalogScreen() {
     setSaving(false);
     if (!result.success) {
       Alert.alert('Error', result.message || 'No se pudo guardar la especie.');
+      if (result.sessionExpired) setIsLoggedIn(false);
       return;
     }
     const estadoNombre = estadosCatalog.find(
@@ -244,6 +255,7 @@ export default function CatalogScreen() {
             const result = await deleteEspecie(item.id);
             if (!result.success) {
               Alert.alert('Error', result.message || 'No se pudo eliminar la especie.');
+              if (result.sessionExpired) setIsLoggedIn(false);
               return;
             }
             setSelectedSpecies(null);
@@ -508,26 +520,28 @@ export default function CatalogScreen() {
                       : '—'}
                   </Text>
 
-                  <View style={styles.detailActions}>
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => openEdit(selectedSpecies)}
-                    >
-                      <Ionicons name="pencil-outline" size={16} color={colors.blue} />
-                      <Text style={[styles.actionText, { color: colors.blue }]}>
-                        Editar
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => handleDelete(selectedSpecies)}
-                    >
-                      <Ionicons name="trash-outline" size={16} color={colors.red} />
-                      <Text style={[styles.actionText, { color: colors.red }]}>
-                        Eliminar
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
+                  {dataFromServer && (
+                    <View style={styles.detailActions}>
+                      <TouchableOpacity
+                        style={styles.actionBtn}
+                        onPress={() => openEdit(selectedSpecies)}
+                      >
+                        <Ionicons name="pencil-outline" size={16} color={colors.blue} />
+                        <Text style={[styles.actionText, { color: colors.blue }]}>
+                          Editar
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.actionBtn}
+                        onPress={() => handleDelete(selectedSpecies)}
+                      >
+                        <Ionicons name="trash-outline" size={16} color={colors.red} />
+                        <Text style={[styles.actionText, { color: colors.red }]}>
+                          Eliminar
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               </ScrollView>
             )}
