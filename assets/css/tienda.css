@@ -741,21 +741,92 @@
     padding: 15px;
   }
   
+  .modal-overlay {
+    align-items: flex-start;
+    padding: 10px 0;
+    overflow-y: auto;
+  }
+
   .modal-content {
-    padding: 30px 20px;
-    margin: 10px;
+    padding: 50px 20px 25px;
+    margin: 0 auto;
+    width: 95%;
     max-width: 95%;
+    max-height: none;
     border-radius: 15px;
   }
-  
+
+  .modal-close {
+    top: 12px;
+    right: 15px;
+    width: 36px;
+    height: 36px;
+    font-size: 24px;
+  }
+
+  .modal-body h4 {
+    font-size: 1.3rem;
+    margin-bottom: 20px;
+  }
+
+  .modal-body .form-control {
+    font-size: 16px; /* Previene zoom automático en iOS */
+    padding: 10px 12px;
+  }
+
+  .modal-body .btn-primary {
+    width: 100%;
+    padding: 14px;
+    font-size: 15px;
+    margin-top: 10px;
+  }
+
+  .modal-body .row > [class*="col-"] {
+    width: 100%;
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+
   .toast-notification {
     top: 20px;
     right: 20px;
   }
-  
+
   .toast-content {
     min-width: 200px;
     padding: 12px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-content {
+    padding: 45px 15px 20px;
+    border-radius: 12px;
+  }
+
+  .modal-close {
+    top: 10px;
+    right: 12px;
+    width: 34px;
+    height: 34px;
+    font-size: 22px;
+  }
+
+  .modal-body h4 {
+    font-size: 1.2rem;
+    margin-bottom: 15px;
+  }
+
+  .modal-body .mb-3 {
+    margin-bottom: 0.75rem !important;
+  }
+
+  .modal-body .form-control {
+    padding: 9px 11px;
+  }
+
+  .modal-body .form-check-label {
+    font-size: 13px;
   }
 }
 
@@ -953,6 +1024,67 @@
 }
 
 /* ===== USER MENU STYLES ===== */
+
+/* Fix orden del header en móvil:
+   sin esto, header-actions toma order:0 (default) y aparece
+   antes del logo (order:1) empujando el hamburger fuera del contenedor */
+@media (max-width: 1200px) {
+  /* Corrección de orden: header-actions debe ir ANTES del hamburger (navmenu order:3) */
+  .header-actions {
+    order: 2;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Neutralizar el margen derecho del Donar que empuja el hamburger fuera */
+  .header-actions .btn-getstarted {
+    margin-right: 0 !important;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Ocultar texto del botón de usuario — solo mostrar ícono */
+  #user-name {
+    display: none !important;
+  }
+
+  /* Btn-user solo icono: reducir padding */
+  .btn-user {
+    padding: 8px 10px !important;
+    gap: 0 !important;
+  }
+
+  /* Dropdown alineado a la derecha del botón */
+  .user-dropdown {
+    right: 0;
+    left: auto;
+    min-width: 150px;
+  }
+
+  /* Neutralizar margin-right del hamburger para evitar overflow */
+  .mobile-nav-toggle {
+    margin-right: 0 !important;
+  }
+
+  /* Donar compacto en móvil */
+  .header-actions .btn-getstarted {
+    padding: 6px 10px !important;
+    font-size: 13px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-actions {
+    gap: 4px;
+  }
+
+  .header-actions .btn-getstarted {
+    padding: 5px 8px !important;
+    font-size: 12px !important;
+  }
+}
+
 .user-menu {
     position: relative;
     display: inline-block;

@@ -477,19 +477,24 @@
         }
 
         .collaborator-form .form-group {
-          margin-bottom: 1.2rem;
+          margin-bottom: 1rem;
+          min-height: auto !important; /* Anular min-height fijo en móvil */
         }
 
         .collaborator-modal-content {
-          margin: 1rem;
-          max-height: 90vh;
-          width: 95vw !important;
-          max-width: 95vw !important;
+          margin: 0.5rem auto !important;
+          max-height: 92vh;
+          width: calc(100vw - 1rem) !important;
+          max-width: calc(100vw - 1rem) !important;
         }
 
         /* Reducir padding en móvil */
         #collaborator-modal .modal-body {
-          padding: 1.5rem 1rem !important;
+          padding: 1.2rem 0.875rem !important;
+        }
+
+        #collaborator-modal .collaborator-header {
+          padding: 1rem 0 0.75rem !important;
         }
 
         /* Resetear ajustes específicos en móvil */
@@ -512,7 +517,58 @@
 
         .sighting-form .form-section .form-row .form-group {
           flex: 1 !important;
-          margin-bottom: 1.2rem;
+          margin-bottom: 1rem;
+          min-height: auto !important;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .collaborator-modal-content {
+          margin: 0 !important;
+          width: 100vw !important;
+          max-width: 100vw !important;
+          max-height: 100vh !important;
+          border-radius: 0 !important;
+        }
+
+        #collaborator-modal .modal-body {
+          padding: 1rem 0.75rem !important;
+        }
+
+        .collaborator-form .form-group,
+        .sighting-form .form-group {
+          min-height: auto !important;
+          margin-bottom: 0.75rem !important;
+        }
+
+        .collaborator-form .form-group label,
+        .sighting-form .form-group label {
+          min-height: auto !important;
+          font-size: 0.875rem !important;
+        }
+
+        .collaborator-form .form-group input,
+        .collaborator-form .form-group select,
+        .collaborator-form .form-group textarea,
+        .sighting-form .form-group input,
+        .sighting-form .form-group select,
+        .sighting-form .form-group textarea {
+          padding: 9px 11px !important;
+          font-size: 16px !important; /* Previene zoom en iOS */
+        }
+
+        .collaborator-form .form-section h3 {
+          font-size: 1rem !important;
+          margin-bottom: 0.75rem !important;
+        }
+
+        .sighting-form-header h2 {
+          font-size: 1.2rem !important;
+        }
+
+        .tab-btn {
+          padding: 0.75rem 0.5rem !important;
+          font-size: 0.875rem !important;
         }
       }
     </style>

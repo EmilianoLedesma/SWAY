@@ -39,7 +39,11 @@
       "Bash(powershell \"Get-WmiObject Win32_Process -Filter 'ProcessId=6540' | Select-Object ProcessId, ExecutablePath, CommandLine\" 2>&1)",
       "Bash(powershell \"Get-Service | Where-Object {$_.DisplayName -like '*postgres*' -or $_.Name -like '*postgres*'} | Select-Object Name, DisplayName, Status, StartType\" 2>&1)",
       "Bash(powershell \"Stop-Process -Id 6540 -Force; Write-Host 'Proceso 6540 terminado'\" 2>&1)",
-      "Bash(powershell \"Get-WmiObject Win32_Service | Where-Object {$_.PathName -like '*postgres*'} | Select-Object Name, DisplayName, State, StartMode, PathName\" 2>&1)"
+      "Bash(powershell \"Get-WmiObject Win32_Service | Where-Object {$_.PathName -like '*postgres*'} | Select-Object Name, DisplayName, State, StartMode, PathName\" 2>&1)",
+      "Bash(npx skills *)",
+      "Skill(security-audit)",
+      "Skill(ghost-report)",
+      "Bash(python3 -c ' *)"
     ],
     "deny": []
   }

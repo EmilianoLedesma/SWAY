@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "ghost-report": {
+      "source": "ghostsecurity/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/ghost/skills/report/SKILL.md",
+      "computedHash": "bba83bf211f745c2f4673c4f50b4e920be26b192b6dea50271e4d66ee9916102"
+    },
+    "security-audit": {
+      "source": "somnio-software/somnio-ai-tools",
+      "sourceType": "github",
+      "skillPath": "skills/security-audit/SKILL.md",
+      "computedHash": "54445a757fdf40532b07d855a5d42c132018004ff41b2f3c7ff7bea5a7958735"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "overallScore": 39,
+  "posture": "Critical",
+  "scores": {
+    "sensitiveFile": 65,
+    "secretDetection": 0,
+    "dependencySecurity": 70,
+    "supplyChainIntegrity": 85,
+    "securityAutomation": 0
+  },
+  "findings": {
+    "high": 4,
+    "medium": 5,
+    "low": 6
+  },
+  "timestamp": "2026-06-04T00:00:00Z",
+  "projectType": "python+nodejs (FastAPI+Flask+React)"
+}
