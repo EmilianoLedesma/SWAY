@@ -22,7 +22,7 @@ import useBreathe from '../hooks/useBreathe';
 import { sightingsList } from '../data/sightings';
 import { eventsList } from '../data/events';
 import { speciesList } from '../data/species';
-import { getProfile, logout } from '../api/client';
+import { getProfile, logout, updatePerfil, changePassword, deletePerfil } from '../api/client';
 
 const TABS = [
   { key: 'personal', label: 'Personal' },
@@ -206,10 +206,39 @@ export default function ProfileScreen() {
     { key: 'system', label: 'Sistema', desc: 'Actualizaciones de la plataforma y mensajes del equipo' },
   ];
 
-  const handleSavePersonal = () => setEditingPersonal(false);
-  const handleSaveProfesional = () => setEditingProfesional(false);
+  const handleSavePersonal = async () => {
+    const result = await updatePerfil({
+      nombre: personal.nombre || '',
+      apellido_paterno: personal.apellidoPaterno || '',
+      apellido_materno: personal.apellidoMaterno || '',
+      telefono: personal.telefono || '',
+      fecha_nacimiento: personal.fechaNacimiento || '',
+    });
+    if (!result.success) {
+      Alert.alert('Error', result.message || 'No se pudo actualizar el perfil.');
+      return;
+    }
+    setEditingPersonal(false);
+  };
 
-  const handleChangePassword = () => {
+  const handleSaveProfesional = async () => {
+    const result = await updatePerfil({
+      especialidad: profesional.especialidad || '',
+      grado_academico: profesional.gradoAcademico || '',
+      institucion: profesional.institucion || '',
+      años_experiencia: profesional.aniosExperiencia || '',
+      numero_cedula: profesional.numeroCedula || '',
+      orcid: profesional.orcid || '',
+      motivacion: profesional.motivacion || '',
+    });
+    if (!result.success) {
+      Alert.alert('Error', result.message || 'No se pudo actualizar el perfil.');
+      return;
+    }
+    setEditingProfesional(false);
+  };
+
+  const handleChangePassword = async () => {
     if (!pwForm.actual || !pwForm.nueva) {
       Alert.alert('Datos incompletos', 'Completa todos los campos.');
       return;
@@ -220,6 +249,14 @@ export default function ProfileScreen() {
     }
     if (pwForm.nueva.length < 6) {
       Alert.alert('Error', 'La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    const result = await changePassword({
+      password_actual: pwForm.actual,
+      password_nuevo: pwForm.nueva,
+    });
+    if (!result.success) {
+      Alert.alert('Error', result.message || 'No se pudo actualizar la contraseña.');
       return;
     }
     setPwForm({ actual: '', nueva: '', confirmar: '' });
@@ -236,6 +273,11 @@ export default function ProfileScreen() {
 
   const handleDeactivate = async () => {
     setConfirmDeactivate(false);
+    const result = await deletePerfil();
+    if (!result.success) {
+      Alert.alert('Error', result.message || 'No se pudo desactivar la cuenta.');
+      return;
+    }
     await logout();
     Alert.alert('Cuenta desactivada', 'Tu cuenta de colaborador fue desactivada.');
     setIsLoggedIn(false);
