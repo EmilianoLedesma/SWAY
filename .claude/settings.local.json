@@ -43,7 +43,25 @@
       "Bash(npx skills *)",
       "Skill(security-audit)",
       "Skill(ghost-report)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(node - ultra --dry-run)",
+      "Bash(node - ultra)",
+      "Bash(node -e \"const d=require\\('C:/Users/Emiliano/.claude/plugins/cache/ecc/ecc/1.10.0/hooks/hooks.json'\\); console.log\\(Object.keys\\(d.hooks||d\\)\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(node *)",
+      "Bash(git fetch *)",
+      "Bash(git ls-tree *)",
+      "Bash(git clone *)",
+      "Bash(docker compose *)",
+      "Bash(npm run *)",
+      "mcp__chrome-devtools__list_console_messages",
+      "mcp__chrome-devtools__take_snapshot",
+      "Bash(ssh *)",
+      "Bash(npx expo *)",
+      "Read(//tmp/**)",
+      "Bash(git -C \"C:/Users/Emiliano/Videos/SWAY POO/.claude/worktrees/agent-a10318f7984c3c86b\" ls-files)",
+      "Bash(git -C \"C:/Users/Emiliano/Videos/SWAY POO/.claude/worktrees/agent-a10318f7984c3c86b\" status --porcelain=v1)",
+      "Skill(impeccable)"
     ],
     "deny": []
   }
