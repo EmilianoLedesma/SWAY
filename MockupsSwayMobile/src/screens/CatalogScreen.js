@@ -27,6 +27,9 @@ import {
   getEstadosConservacion,
   getAmenazas,
   getHabitats,
+  createEspecie,
+  updateEspecie,
+  deleteEspecie,
 } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
 
@@ -99,6 +102,7 @@ export default function CatalogScreen() {
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(initialForm);
   const [loadingApi, setLoadingApi] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [estadosCatalog, setEstadosCatalog] = useState([]);
   const [amenazasCatalog, setAmenazasCatalog] = useState([]);
   const [habitatsCatalog, setHabitatsCatalog] = useState([]);
@@ -165,7 +169,7 @@ export default function CatalogScreen() {
     setFormVisible(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.commonName.trim() || !form.scientificName.trim()) {
       Alert.alert(
         'Datos incompletos',
@@ -173,8 +177,32 @@ export default function CatalogScreen() {
       );
       return;
     }
+    if (form.commonName.trim().length < 2 || form.scientificName.trim().length < 2) {
+      Alert.alert('Datos incompletos', 'Los nombres deben tener al menos 2 caracteres.');
+      return;
+    }
     if (!form.idEstadoConservacion) {
       Alert.alert('Datos incompletos', 'Selecciona un estado de conservación.');
+      return;
+    }
+    const payload = {
+      nombre_comun: form.commonName.trim(),
+      nombre_cientifico: form.scientificName.trim(),
+      descripcion: form.description || '',
+      esperanza_vida: form.esperanzaVida !== '' ? Number(form.esperanzaVida) : null,
+      poblacion_estimada: form.poblacionEstimada !== '' ? Number(form.poblacionEstimada) : null,
+      id_estado_conservacion: Number(form.idEstadoConservacion),
+      imagen_url: form.imagenUrl || '',
+      amenazas: form.amenazaIds,
+      habitats: form.habitatIds,
+    };
+    setSaving(true);
+    const result = editId
+      ? await updateEspecie(editId, payload)
+      : await createEspecie(payload);
+    setSaving(false);
+    if (!result.success) {
+      Alert.alert('Error', result.message || 'No se pudo guardar la especie.');
       return;
     }
     const estadoNombre = estadosCatalog.find(
@@ -190,16 +218,14 @@ export default function CatalogScreen() {
       ...form,
       status,
       habitat,
-      population:
-        form.poblacionEstimada !== '' ? String(form.poblacionEstimada) : '—',
+      population: form.poblacionEstimada !== '' ? String(form.poblacionEstimada) : '—',
       image: form.imagenUrl || null,
     };
     if (editId) {
-      setSpecies((prev) =>
-        prev.map((s) => (s.id === editId ? { ...s, ...merged } : s)),
-      );
+      setSpecies((prev) => prev.map((s) => (s.id === editId ? { ...s, ...merged } : s)));
     } else {
-      setSpecies((prev) => [{ ...merged, id: String(Date.now()) }, ...prev]);
+      const newId = result.especie_id != null ? String(result.especie_id) : String(Date.now());
+      setSpecies((prev) => [{ ...merged, id: newId }, ...prev]);
       incrementSpecies();
     }
     setFormVisible(false);
@@ -214,7 +240,12 @@ export default function CatalogScreen() {
         {
           text: 'Eliminar',
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
+            const result = await deleteEspecie(item.id);
+            if (!result.success) {
+              Alert.alert('Error', result.message || 'No se pudo eliminar la especie.');
+              return;
+            }
             setSelectedSpecies(null);
             setSpecies((prev) => prev.filter((s) => s.id !== item.id));
           },
@@ -705,9 +736,9 @@ export default function CatalogScreen() {
                 >
                   <Text style={styles.cancelText}>Cancelar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>
                   <Ionicons name="checkmark" size={18} color="#fff" />
-                  <Text style={styles.saveText}>Guardar</Text>
+                  <Text style={styles.saveText}>{saving ? 'Guardando…' : 'Guardar'}</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
