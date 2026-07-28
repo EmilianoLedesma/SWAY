@@ -1,0 +1,48 @@
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Open+Sans:wght@400;600&display=swap');
+  .sway-logo { font-family:'Open Sans',system-ui,sans-serif; color:#1d1d1f; }
+  .sway-logo h3 { font-family:'Poppins',system-ui,sans-serif; font-size:13px; font-weight:700;
+    text-transform:uppercase; letter-spacing:.06em; color:#6e6e73; margin:26px 0 12px; }
+  .sway-logo h3:first-child { margin-top:0; }
+  .sway-logo p { font-size:13px; line-height:1.55; color:#1d1d1f; margin:0 0 14px; }
+  .sway-logo .sway-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:14px; }
+  .sway-logo .sway-card { border:1px solid rgba(0,0,0,.08); border-radius:12px; overflow:hidden; background:#fff; }
+  .sway-logo .sway-chip { height:120px; display:flex; align-items:center; justify-content:center; background:#f5f5f7;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.05); font-family:'Poppins',system-ui,sans-serif; font-size:32px;
+    font-weight:700; letter-spacing:-.03em; color:#1d1d1f; }
+  .sway-logo .sway-meta { padding:10px 12px; }
+  .sway-logo .sway-name { font-family:'Poppins',system-ui,sans-serif; font-weight:600; font-size:13px; }
+  .sway-logo .sway-hex  { font-size:12px; color:#6e6e73; margin-top:2px; }
+  .sway-logo .sway-use  { font-size:11px; color:#aeaeb2; margin-top:5px; line-height:1.35; }
+  .sway-logo .sway-list { list-style:none; padding:0; margin:0; }
+  .sway-logo .sway-list li { font-size:13px; padding:8px 12px; border:1px solid rgba(0,0,0,.08);
+    border-radius:12px; margin-bottom:6px; background:#fff; }
+  .sway-logo .sway-list li span { color:#6e6e73; }
+</style>
+
+<div class="sway-logo">
+  <h3>Identidad de marca</h3>
+  <p>El logotipo de SWAY consiste en un isotipo representativo junto con el nombre de la marca. Se utiliza como elemento central en la pantalla de Login y como parte del header en las pantallas principales del aplicativo.</p>
+
+  <h3>Especificaciones</h3>
+  <div class="sway-grid">
+    <div class="sway-card">
+      <div class="sway-chip">SWAY</div>
+      <div class="sway-meta"><div class="sway-name">Logotipo</div><div class="sway-hex">assets/SwayLogo.jpeg</div><div class="sway-use">Marca principal de la aplicación</div></div>
+    </div>
+    <div class="sway-card">
+      <div class="sway-chip" style="font-size:16px; letter-spacing:0;">Nombre de la marca</div>
+      <div class="sway-meta"><div class="sway-name">SWAY</div><div class="sway-hex">Estilizado en mayúsculas</div><div class="sway-use">Usado en headers y pantalla de login</div></div>
+    </div>
+  </div>
+
+  <h3>Ubicación en la app</h3>
+  <ul class="sway-list">
+    <li><strong>LoginScreen</strong> <span>— Centrado en la parte superior</span></li>
+    <li><strong>CatalogScreen</strong> <span>— Header vía componente ScreenHeader</span></li>
+    <li><strong>AnimalCrudScreen</strong> <span>— Header vía componente ScreenHeader</span></li>
+    <li><strong>SightingsScreen</strong> <span>— Header vía componente ScreenHeader</span></li>
+    <li><strong>EventsScreen</strong> <span>— Header vía componente ScreenHeader</span></li>
+    <li><strong>ProfileScreen</strong> <span>— Header vía componente ScreenHeader</span></li>
+  </ul>
+</div>

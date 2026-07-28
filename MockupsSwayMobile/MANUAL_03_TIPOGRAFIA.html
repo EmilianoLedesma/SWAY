@@ -1,0 +1,75 @@
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Open+Sans:wght@400;600&display=swap');
+  .sway-tipo { font-family:'Open Sans',system-ui,sans-serif; color:#1d1d1f; }
+  .sway-tipo h3 { font-family:'Poppins',system-ui,sans-serif; font-size:13px; font-weight:700;
+    text-transform:uppercase; letter-spacing:.06em; color:#6e6e73; margin:26px 0 12px; }
+  .sway-tipo h3:first-child { margin-top:0; }
+  .sway-tipo p { font-size:13px; line-height:1.55; color:#1d1d1f; margin:0 0 14px; }
+  .sway-tipo .sway-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:14px; }
+  .sway-tipo .sway-grid.cols-3 { grid-template-columns:repeat(3,1fr); }
+  .sway-tipo .sway-card { border:1px solid rgba(0,0,0,.08); border-radius:12px; overflow:hidden; background:#fff; }
+  .sway-tipo .sway-chip { height:60px; display:flex; align-items:center; justify-content:center;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.05); background:#f5f5f7; }
+  .sway-tipo .sway-meta { padding:10px 12px; }
+  .sway-tipo .sway-name { font-family:'Poppins',system-ui,sans-serif; font-weight:600; font-size:13px; }
+  .sway-tipo .sway-hex  { font-size:12px; color:#6e6e73; margin-top:2px; }
+  .sway-tipo .sway-use  { font-size:11px; color:#aeaeb2; margin-top:5px; line-height:1.35; }
+  .sway-tipo .sway-table { width:100%; border-collapse:collapse; font-size:13px; margin-bottom:20px; }
+  .sway-tipo .sway-table th { font-family:'Poppins',system-ui,sans-serif; font-weight:600; font-size:11px;
+    text-transform:uppercase; letter-spacing:.06em; color:#6e6e73; text-align:left; padding:8px 12px;
+    border-bottom:1px solid rgba(0,0,0,.08); }
+  .sway-tipo .sway-table td { padding:10px 12px; border-bottom:1px solid rgba(0,0,0,.06); }
+  .sway-tipo .sway-table tr:last-child td { border-bottom:none; }
+  .sway-tipo .sway-tag { display:inline-block; background:#f5f5f7; font-family:'SF Mono',Menlo,monospace;
+    font-size:11px; padding:2px 8px; border-radius:4px; }
+</style>
+
+<div class="sway-tipo">
+  <h3>Familias tipográficas</h3>
+  <table class="sway-table">
+    <tr><th>Rol</th><th>iOS</th><th>Android</th><th>Uso</th></tr>
+    <tr><td><strong>Display</strong></td><td>SF Pro Display</td><td>Poppins</td><td>Títulos principales, headers</td></tr>
+    <tr><td><strong>Body</strong></td><td>SF Pro Text</td><td>Open Sans</td><td>Texto general, párrafos</td></tr>
+    <tr><td><strong>Mono</strong></td><td>SF Mono</td><td>Menlo</td><td>Código o datos técnicos</td></tr>
+  </table>
+
+  <h3>Escala de tamaños</h3>
+  <table class="sway-table">
+    <tr><th>Token</th><th>Tamaño</th><th>Uso</th></tr>
+    <tr><td><span class="sway-tag">xs</span></td><td>11px</td><td>Texto auxiliar, etiquetas</td></tr>
+    <tr><td><span class="sway-tag">sm</span></td><td>12px</td><td>Metadatos, badges pequeños</td></tr>
+    <tr><td><span class="sway-tag">md</span></td><td>14px</td><td>Cuerpo de texto estándar</td></tr>
+    <tr><td><span class="sway-tag">lg</span></td><td>15px</td><td>Texto destacado</td></tr>
+    <tr><td><span class="sway-tag">xl</span></td><td>17px</td><td>Subtítulos</td></tr>
+    <tr><td><span class="sway-tag">xxl</span></td><td>22px</td><td>Títulos de sección</td></tr>
+    <tr><td><span class="sway-tag">hero</span></td><td>32px</td><td>Título principal (Login)</td></tr>
+  </table>
+
+  <h3>Pesos</h3>
+  <table class="sway-table">
+    <tr><th>Token</th><th>Peso</th><th>Uso</th></tr>
+    <tr><td><span class="sway-tag">regular</span></td><td>400</td><td>Texto de cuerpo</td></tr>
+    <tr><td><span class="sway-tag">medium</span></td><td>500</td><td>Texto semidestacado</td></tr>
+    <tr><td><span class="sway-tag">semibold</span></td><td>600</td><td>Subtítulos, botones</td></tr>
+    <tr><td><span class="sway-tag">bold</span></td><td>700</td><td>Títulos</td></tr>
+    <tr><td><span class="sway-tag">extrabold</span></td><td>800</td><td>Títulos principales</td></tr>
+  </table>
+
+  <h3>Radios de borde</h3>
+  <div class="sway-grid">
+    <div class="sway-card"><div class="sway-chip" style="font-size:11px; color:#6e6e73;">4px</div><div class="sway-meta"><div class="sway-name">r4</div><div class="sway-hex">4px</div><div class="sway-use">Badges pequeños</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:11px; color:#6e6e73;">8px</div><div class="sway-meta"><div class="sway-name">r8</div><div class="sway-hex">8px</div><div class="sway-use">Inputs, chips</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:11px; color:#6e6e73;">12px</div><div class="sway-meta"><div class="sway-name">r12</div><div class="sway-hex">12px</div><div class="sway-use">Tarjetas</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:11px; color:#6e6e73;">16px</div><div class="sway-meta"><div class="sway-name">r16</div><div class="sway-hex">16px</div><div class="sway-use">Modales</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:11px; color:#6e6e73;">20px</div><div class="sway-meta"><div class="sway-name">r20</div><div class="sway-hex">20px</div><div class="sway-use">Componentes especiales</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:11px; color:#6e6e73;">24px</div><div class="sway-meta"><div class="sway-name">r24</div><div class="sway-hex">24px</div><div class="sway-use">Secciones principales</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:11px; color:#6e6e73;">999px</div><div class="sway-meta"><div class="sway-name">r99</div><div class="sway-hex">999px</div><div class="sway-use">Avatares, botones redondos</div></div></div>
+  </div>
+
+  <h3>Sombras</h3>
+  <div class="sway-grid">
+    <div class="sway-card"><div class="sway-chip" style="box-shadow:0 1px 3px rgba(0,0,0,.06); font-size:11px; color:#6e6e73;">Sutil</div><div class="sway-meta"><div class="sway-name">xs</div><div class="sway-hex">6% · elev. 1</div><div class="sway-use">Sombras ligeras</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="box-shadow:0 2px 10px rgba(0,0,0,.07); font-size:11px; color:#6e6e73;">Media</div><div class="sway-meta"><div class="sway-name">sm</div><div class="sway-hex">7% · elev. 2</div><div class="sway-use">Tarjetas, modales ligeros</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="box-shadow:0 4px 28px rgba(0,0,0,.1); font-size:11px; color:#6e6e73;">Fuerte</div><div class="sway-meta"><div class="sway-name">md</div><div class="sway-hex">10% · elev. 4</div><div class="sway-use">Modales destacados</div></div></div>
+  </div>
+</div>

@@ -1,0 +1,71 @@
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Open+Sans:wght@400;600&display=swap');
+  .sway-screen { font-family:'Open Sans',system-ui,sans-serif; color:#1d1d1f; }
+  .sway-screen h3 { font-family:'Poppins',system-ui,sans-serif; font-size:13px; font-weight:700;
+    text-transform:uppercase; letter-spacing:.06em; color:#6e6e73; margin:26px 0 12px; }
+  .sway-screen h3:first-child { margin-top:0; }
+  .sway-screen p { font-size:13px; line-height:1.55; color:#1d1d1f; margin:0 0 14px; }
+  .sway-screen .sway-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:14px; }
+  .sway-screen .sway-card { border:1px solid rgba(0,0,0,.08); border-radius:12px; overflow:hidden; background:#fff; }
+  .sway-screen .sway-chip { height:72px; display:flex; align-items:center; justify-content:center;
+    background:#f5f5f7; box-shadow:inset 0 0 0 1px rgba(0,0,0,.05);
+    font-family:'Poppins',system-ui,sans-serif; font-weight:600; font-size:22px; color:#1d1d1f; }
+  .sway-screen .sway-meta { padding:10px 12px; }
+  .sway-screen .sway-name { font-family:'Poppins',system-ui,sans-serif; font-weight:600; font-size:13px; }
+  .sway-screen .sway-hex  { font-size:12px; color:#6e6e73; margin-top:2px; }
+  .sway-screen .sway-use  { font-size:11px; color:#aeaeb2; margin-top:5px; line-height:1.35; }
+  .sway-screen .sway-list { list-style:none; padding:0; margin:0 0 20px; }
+  .sway-screen .sway-list li { font-size:13px; padding:8px 12px; border:1px solid rgba(0,0,0,.08);
+    border-radius:12px; margin-bottom:6px; background:#fff; }
+  .sway-screen .sway-list li span { color:#6e6e73; }
+  .sway-screen .sway-badge { display:inline-block; background:#f5f5f7; font-size:11px; font-weight:600;
+    padding:2px 10px; border-radius:99px; color:#6e6e73; }
+  .sway-screen .sway-table { width:100%; border-collapse:collapse; font-size:13px; margin-bottom:20px;
+    background:#fff; border:1px solid rgba(0,0,0,.08); border-radius:12px; overflow:hidden; }
+  .sway-screen .sway-table th { font-family:'Poppins',system-ui,sans-serif; font-weight:600; font-size:11px;
+    text-transform:uppercase; letter-spacing:.06em; color:#6e6e73; text-align:left; padding:10px 14px;
+    background:#f5f5f7; border-bottom:1px solid rgba(0,0,0,.08); }
+  .sway-screen .sway-table td { padding:10px 14px; border-bottom:1px solid rgba(0,0,0,.06); }
+  .sway-screen .sway-table tr:last-child td { border-bottom:none; }
+</style>
+
+<div class="sway-screen">
+  <p><span class="sway-badge">src/screens/NotificationsScreen.js</span></p>
+
+  <h3>Función principal</h3>
+  <p>Centro de notificaciones y alertas del usuario colaborador.</p>
+
+  <h3>Objetivos</h3>
+  <ul class="sway-list">
+    <li>Visualizar todas las notificaciones recibidas</li>
+    <li>Marcar notificaciones individuales como leídas</li>
+    <li>Marcar todas las notificaciones como leídas</li>
+    <li>Eliminar notificaciones individuales</li>
+    <li>Mostrar contador de notificaciones no leídas</li>
+  </ul>
+
+  <h3>Elementos de la interfaz</h3>
+  <div class="sway-grid">
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px;">Notificaciones</div><div class="sway-meta"><div class="sway-name">Header</div><div class="sway-use">Título + no leídas + retroceso</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:12px;">✓ Marcar todas</div><div class="sway-meta"><div class="sway-name">Botón masivo</div><div class="sway-use">Solo visible si hay no leídas</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px;">🔔</div><div class="sway-meta"><div class="sway-name">Tarjeta notificación</div><div class="sway-use">Icono, título, cuerpo, tiempo, eliminar</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px;">Sin notificaciones</div><div class="sway-meta"><div class="sway-name">Estado vacío</div><div class="sway-use">Icono campana tachada</div></div></div>
+  </div>
+
+  <h3>Tipos de notificaciones</h3>
+  <table class="sway-table">
+    <tr><th>Tipo</th><th>Icono</th><th>Significado</th></tr>
+    <tr><td><span class="sway-badge">sighting</span></td><td>Binoculars</td><td>Avistamiento verificado o pendiente</td></tr>
+    <tr><td><span class="sway-badge">event</span></td><td>Calendar</td><td>Evento próximo o recordatorio</td></tr>
+    <tr><td><span class="sway-badge">badge</span></td><td>Trophy</td><td>Nuevo logro o insignia desbloqueada</td></tr>
+    <tr><td><span class="sway-badge">system</span></td><td>Megaphone</td><td>Mensajes del sistema</td></tr>
+  </table>
+
+  <h3>Comportamiento</h3>
+  <ul class="sway-list">
+    <li>Al tocar una notificación, se <strong>marca como leída</strong> automáticamente</li>
+    <li>El <strong>punto azul</strong> y la negrita desaparecen al marcar como leída</li>
+    <li>"Marcar todas como leídas" actualiza todas las notificaciones visibles</li>
+    <li>Las notificaciones <strong>no leídas</strong> aparecen siempre al inicio de la lista</li>
+  </ul>
+</div>

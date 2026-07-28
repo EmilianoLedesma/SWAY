@@ -1,0 +1,58 @@
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Open+Sans:wght@400;600&display=swap');
+  .sway-screen { font-family:'Open Sans',system-ui,sans-serif; color:#1d1d1f; }
+  .sway-screen h3 { font-family:'Poppins',system-ui,sans-serif; font-size:13px; font-weight:700;
+    text-transform:uppercase; letter-spacing:.06em; color:#6e6e73; margin:26px 0 12px; }
+  .sway-screen h3:first-child { margin-top:0; }
+  .sway-screen p { font-size:13px; line-height:1.55; color:#1d1d1f; margin:0 0 14px; }
+  .sway-screen .sway-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:14px; }
+  .sway-screen .sway-card { border:1px solid rgba(0,0,0,.08); border-radius:12px; overflow:hidden; background:#fff; }
+  .sway-screen .sway-chip { height:72px; display:flex; align-items:center; justify-content:center;
+    background:#f5f5f7; box-shadow:inset 0 0 0 1px rgba(0,0,0,.05);
+    font-family:'Poppins',system-ui,sans-serif; font-weight:600; font-size:22px; color:#1d1d1f; }
+  .sway-screen .sway-meta { padding:10px 12px; }
+  .sway-screen .sway-name { font-family:'Poppins',system-ui,sans-serif; font-weight:600; font-size:13px; }
+  .sway-screen .sway-hex  { font-size:12px; color:#6e6e73; margin-top:2px; }
+  .sway-screen .sway-use  { font-size:11px; color:#aeaeb2; margin-top:5px; line-height:1.35; }
+  .sway-screen .sway-list { list-style:none; padding:0; margin:0 0 20px; }
+  .sway-screen .sway-list li { font-size:13px; padding:8px 12px; border:1px solid rgba(0,0,0,.08);
+    border-radius:12px; margin-bottom:6px; background:#fff; }
+  .sway-screen .sway-list li span { color:#6e6e73; }
+  .sway-screen .sway-badge { display:inline-block; background:#f5f5f7; font-size:11px; font-weight:600;
+    padding:2px 10px; border-radius:99px; color:#6e6e73; }
+</style>
+
+<div class="sway-screen">
+  <p><span class="sway-badge">src/screens/LoginScreen.js</span></p>
+
+  <h3>Función principal</h3>
+  <p>Autenticación de usuarios colaboradores.</p>
+
+  <h3>Objetivos</h3>
+  <ul class="sway-list">
+    <li>Permitir al colaborador iniciar sesión con correo y contraseña</li>
+    <li>Permitir crear una cuenta nueva</li>
+    <li>Validar que los campos obligatorios estén completos</li>
+    <li>Confirmar que las contraseñas coincidan en el registro</li>
+  </ul>
+
+  <h3>Elementos de la interfaz</h3>
+  <div class="sway-grid">
+    <div class="sway-card"><div class="sway-chip">SWAY</div><div class="sway-meta"><div class="sway-name">Logo</div><div class="sway-use">Centrado en la parte superior</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px;">Título</div><div class="sway-meta"><div class="sway-name">Título dinámico</div><div class="sway-use">"Iniciar Sesión" / "Crear Cuenta"</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px;">Nombre</div><div class="sway-meta"><div class="sway-name">Campo nombre</div><div class="sway-use">Solo en registro</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px;">@</div><div class="sway-meta"><div class="sway-name">Campo email</div><div class="sway-use">Teclado tipo email</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px;">••••</div><div class="sway-meta"><div class="sway-name">Campo contraseña</div><div class="sway-use">Texto oculto (secureTextEntry)</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px;">••••</div><div class="sway-meta"><div class="sway-name">Confirmar contraseña</div><div class="sway-use">Solo en registro</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:12px;">¿Olvidaste tu contraseña?</div><div class="sway-meta"><div class="sway-name">Enlace recuperación</div><div class="sway-use">Solo en login</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px; background:#1d1d1f; color:#fff;">Iniciar Sesión</div><div class="sway-meta"><div class="sway-name">Botón principal</div><div class="sway-use">Con ActivityIndicator mientras carga</div></div></div>
+  </div>
+
+  <h3>Comportamiento</h3>
+  <ul class="sway-list">
+    <li>El formulario se adapta con <strong>KeyboardAvoidingView</strong> para evitar que el teclado opaque los campos</li>
+    <li>Los campos de contraseña usan <strong>secureTextEntry</strong> para ocultar el texto</li>
+    <li>Al enviar, se muestra un <strong>ActivityIndicator</strong> y se deshabilita el botón</li>
+    <li>Los errores se muestran en un <strong>banner rojo</strong> sobre el formulario</li>
+  </ul>
+</div>

@@ -1,0 +1,120 @@
+<script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+<script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Open+Sans:wght@400;600&display=swap');
+  .sicon-wrap { font-family:'Open Sans',system-ui,sans-serif; color:#1d1d1f; }
+  .sicon-wrap h3 { font-family:'Poppins',system-ui,sans-serif; font-size:13px; font-weight:700;
+    text-transform:uppercase; letter-spacing:.06em; color:#6e6e73; margin:26px 0 12px; }
+  .sicon-wrap h3:first-child { margin-top:0; }
+  .sicon-wrap p.sicon-intro { font-size:12px; color:#aeaeb2; margin:-8px 0 14px; line-height:1.4; }
+  .sicon-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:14px; }
+  .sicon-card { border:1px solid rgba(0,0,0,.08); border-radius:12px; overflow:hidden; background:#fff; }
+  .sicon-chip {
+    height:72px; box-shadow:inset 0 0 0 1px rgba(0,0,0,.05); background:#f5f5f7;
+    display:flex; align-items:center; justify-content:center; gap:12px;
+  }
+  .sicon-chip ion-icon { font-size:24px; color:#6e6e73; }
+  .sicon-chip .sicon-slot { display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .sicon-chip .sicon-slot span { font-size:9px; color:#aeaeb2; text-transform:uppercase; letter-spacing:.04em; }
+  .sicon-chip .sicon-slot:last-child ion-icon { color:#1d1d1f; }
+  .sicon-meta  { padding:10px 12px; }
+  .sicon-name  { font-family:'Poppins',system-ui,sans-serif; font-weight:600; font-size:13px; }
+  .sicon-code  { font-size:12px; color:#6e6e73; margin-top:2px; }
+  .sicon-use   { font-size:11px; color:#aeaeb2; margin-top:5px; line-height:1.35; }
+</style>
+
+<div class="sicon-wrap">
+
+  <h3>Navegación (Tabs)</h3>
+  <p class="sicon-intro">Outline = inactivo · Relleno = activo</p>
+  <div class="sicon-grid">
+    <div class="sicon-card"><div class="sicon-chip">
+      <div class="sicon-slot"><ion-icon name="apps-outline"></ion-icon><span>Inactivo</span></div>
+      <div class="sicon-slot"><ion-icon name="apps"></ion-icon><span>Activo</span></div>
+    </div><div class="sicon-meta"><div class="sicon-name">Catálogo</div><div class="sicon-code">apps-outline / apps</div><div class="sicon-use">Tab 1</div></div></div>
+
+    <div class="sicon-card"><div class="sicon-chip">
+      <div class="sicon-slot"><ion-icon name="fish-outline"></ion-icon><span>Inactivo</span></div>
+      <div class="sicon-slot"><ion-icon name="fish"></ion-icon><span>Activo</span></div>
+    </div><div class="sicon-meta"><div class="sicon-name">Animales</div><div class="sicon-code">fish-outline / fish</div><div class="sicon-use">Tab 2</div></div></div>
+
+    <div class="sicon-card"><div class="sicon-chip">
+      <div class="sicon-slot"><ion-icon name="binoculars-outline"></ion-icon><span>Inactivo</span></div>
+      <div class="sicon-slot"><ion-icon name="binoculars"></ion-icon><span>Activo</span></div>
+    </div><div class="sicon-meta"><div class="sicon-name">Avistamientos</div><div class="sicon-code">binoculars-outline / binoculars</div><div class="sicon-use">Tab 3</div></div></div>
+
+    <div class="sicon-card"><div class="sicon-chip">
+      <div class="sicon-slot"><ion-icon name="calendar-outline"></ion-icon><span>Inactivo</span></div>
+      <div class="sicon-slot"><ion-icon name="calendar"></ion-icon><span>Activo</span></div>
+    </div><div class="sicon-meta"><div class="sicon-name">Eventos</div><div class="sicon-code">calendar-outline / calendar</div><div class="sicon-use">Tab 4</div></div></div>
+
+    <div class="sicon-card"><div class="sicon-chip">
+      <div class="sicon-slot"><ion-icon name="person-outline"></ion-icon><span>Inactivo</span></div>
+      <div class="sicon-slot"><ion-icon name="person"></ion-icon><span>Activo</span></div>
+    </div><div class="sicon-meta"><div class="sicon-name">Perfil</div><div class="sicon-code">person-outline / person</div><div class="sicon-use">Tab 5</div></div></div>
+  </div>
+
+  <h3>Acción</h3>
+  <div class="sicon-grid">
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="search-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Buscar</div><div class="sicon-code">search-outline</div><div class="sicon-use">Abre el campo de búsqueda</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="close-circle"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Cerrar / limpiar</div><div class="sicon-code">close-circle</div><div class="sicon-use">Descarta o vacía un campo</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="chevron-back"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Retroceder</div><div class="sicon-code">chevron-back</div><div class="sicon-use">Vuelve a la pantalla anterior</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="add-circle-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Nuevo / agregar</div><div class="sicon-code">add-circle-outline</div><div class="sicon-use">Crea un registro nuevo</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="eye-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Ver detalle</div><div class="sicon-code">eye-outline</div><div class="sicon-use">Abre la vista completa</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="pencil-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Editar</div><div class="sicon-code">pencil-outline</div><div class="sicon-use">Modifica un registro</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="trash-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Eliminar</div><div class="sicon-code">trash-outline</div><div class="sicon-use">Borra un registro</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="copy-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Duplicar</div><div class="sicon-code">copy-outline</div><div class="sicon-use">Crea una copia</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="cloud-upload-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Publicar</div><div class="sicon-code">cloud-upload-outline</div><div class="sicon-use">Sube el contenido</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="share-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Compartir</div><div class="sicon-code">share-outline</div><div class="sicon-use">Envía a otra app</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="refresh-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Reenviar</div><div class="sicon-code">refresh-outline</div><div class="sicon-use">Reintenta la acción</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="checkmark"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Guardar</div><div class="sicon-code">checkmark</div><div class="sicon-use">Confirma los cambios</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="checkmark-done-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Marcar todas leídas</div><div class="sicon-code">checkmark-done-outline</div><div class="sicon-use">Limpia notificaciones</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="log-out-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Cerrar sesión</div><div class="sicon-code">log-out-outline</div><div class="sicon-use">Sale de la cuenta</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="notifications-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Notificaciones</div><div class="sicon-code">notifications-outline</div><div class="sicon-use">Campana de alertas</div></div></div>
+  </div>
+
+  <h3>Información (detalle de especie)</h3>
+  <div class="sicon-grid">
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="water"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Hábitat acuático</div><div class="sicon-code">water</div><div class="sicon-use">Vive en el agua</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="shield"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Protección / estado</div><div class="sicon-code">shield</div><div class="sicon-use">Nivel de conservación</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="boat"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Avistamiento en barco</div><div class="sicon-code">boat</div><div class="sicon-use">Se observa desde una embarcación</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="skull"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Especie en peligro</div><div class="sicon-code">skull</div><div class="sicon-use">Riesgo de extinción</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="sparkles"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Especie destacada</div><div class="sicon-code">sparkles</div><div class="sicon-use">Contenido resaltado</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="airplane"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Migración</div><div class="sicon-code">airplane</div><div class="sicon-use">Se desplaza estacionalmente</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="snow"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Aguas frías</div><div class="sicon-code">snow</div><div class="sicon-use">Habita climas fríos</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="rose"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Especie única</div><div class="sicon-code">rose</div><div class="sicon-use">Sin parientes cercanos</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="paw"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Mamífero marino</div><div class="sicon-code">paw</div><div class="sicon-use">Clasificación biológica</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="moon"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Hábitat nocturno</div><div class="sicon-code">moon</div><div class="sicon-use">Activo de noche</div></div></div>
+  </div>
+
+  <h3>Notificaciones</h3>
+  <div class="sicon-grid">
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="binoculars"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Avistamiento</div><div class="sicon-code">binoculars</div><div class="sicon-use">Tipo: sighting</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="calendar"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Evento</div><div class="sicon-code">calendar</div><div class="sicon-use">Tipo: event</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="trophy"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Logro / insignia</div><div class="sicon-code">trophy</div><div class="sicon-use">Tipo: badge</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="megaphone"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Sistema</div><div class="sicon-code">megaphone</div><div class="sicon-use">Tipo: system</div></div></div>
+  </div>
+
+  <h3>Perfil y badges</h3>
+  <div class="sicon-grid">
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="leaf-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Especies registradas</div><div class="sicon-code">leaf-outline</div><div class="sicon-use">Estadística de perfil</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="compass-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Explorador inicial</div><div class="sicon-code">compass-outline</div><div class="sicon-use">Badge</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="water-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Guardián del océano</div><div class="sicon-code">water-outline</div><div class="sicon-use">Badge</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="flower-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Coleccionista</div><div class="sicon-code">flower-outline</div><div class="sicon-use">Badge</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="lock-closed-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Badge bloqueado</div><div class="sicon-code">lock-closed-outline</div><div class="sicon-use">Aún no desbloqueado</div></div></div>
+  </div>
+
+  <h3>Formulario</h3>
+  <div class="sicon-grid">
+    <div class="sicon-card"><div class="sicon-chip">
+      <div class="sicon-slot"><ion-icon name="camera-outline"></ion-icon><span>Vacío</span></div>
+      <div class="sicon-slot"><ion-icon name="camera"></ion-icon><span>Con foto</span></div>
+    </div><div class="sicon-meta"><div class="sicon-name">Fotografía</div><div class="sicon-code">camera-outline / camera</div><div class="sicon-use">Campo de imagen</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="location-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Ubicación</div><div class="sicon-code">location-outline</div><div class="sicon-use">Campo de lugar</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="time-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Hora</div><div class="sicon-code">time-outline</div><div class="sicon-use">Campo de hora</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="people-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Participantes</div><div class="sicon-code">people-outline</div><div class="sicon-use">Campo de personas</div></div></div>
+    <div class="sicon-card"><div class="sicon-chip"><ion-icon name="create-outline"></ion-icon></div><div class="sicon-meta"><div class="sicon-name">Nuevo registro</div><div class="sicon-code">create-outline</div><div class="sicon-use">Inicia un formulario</div></div></div>
+  </div>
+
+</div>

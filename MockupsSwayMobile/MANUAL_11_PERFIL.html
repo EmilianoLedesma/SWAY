@@ -1,0 +1,62 @@
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Open+Sans:wght@400;600&display=swap');
+  .sway-screen { font-family:'Open Sans',system-ui,sans-serif; color:#1d1d1f; }
+  .sway-screen h3 { font-family:'Poppins',system-ui,sans-serif; font-size:13px; font-weight:700;
+    text-transform:uppercase; letter-spacing:.06em; color:#6e6e73; margin:26px 0 12px; }
+  .sway-screen h3:first-child { margin-top:0; }
+  .sway-screen p { font-size:13px; line-height:1.55; color:#1d1d1f; margin:0 0 14px; }
+  .sway-screen .sway-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:14px; }
+  .sway-screen .sway-card { border:1px solid rgba(0,0,0,.08); border-radius:12px; overflow:hidden; background:#fff; }
+  .sway-screen .sway-chip { height:72px; display:flex; align-items:center; justify-content:center;
+    background:#f5f5f7; box-shadow:inset 0 0 0 1px rgba(0,0,0,.05);
+    font-family:'Poppins',system-ui,sans-serif; font-weight:600; font-size:22px; color:#1d1d1f; }
+  .sway-screen .sway-meta { padding:10px 12px; }
+  .sway-screen .sway-name { font-family:'Poppins',system-ui,sans-serif; font-weight:600; font-size:13px; }
+  .sway-screen .sway-hex  { font-size:12px; color:#6e6e73; margin-top:2px; }
+  .sway-screen .sway-use  { font-size:11px; color:#aeaeb2; margin-top:5px; line-height:1.35; }
+  .sway-screen .sway-list { list-style:none; padding:0; margin:0 0 20px; }
+  .sway-screen .sway-list li { font-size:13px; padding:8px 12px; border:1px solid rgba(0,0,0,.08);
+    border-radius:12px; margin-bottom:6px; background:#fff; }
+  .sway-screen .sway-list li span { color:#6e6e73; }
+  .sway-screen .sway-badge { display:inline-block; background:#f5f5f7; font-size:11px; font-weight:600;
+    padding:2px 10px; border-radius:99px; color:#6e6e73; }
+</style>
+
+<div class="sway-screen">
+  <p><span class="sway-badge">src/screens/ProfileScreen.js</span></p>
+
+  <h3>Función principal</h3>
+  <p>Gestión del perfil de usuario, preferencias y actividad.</p>
+
+  <h3>Objetivos</h3>
+  <ul class="sway-list">
+    <li>Visualizar y editar información personal (nombre, correo, institución, biografía)</li>
+    <li>Consultar estadísticas de actividad (avistamientos, especies registradas, eventos)</li>
+    <li>Cambiar contraseña</li>
+    <li>Gestionar preferencias de notificaciones</li>
+    <li>Visualizar logros e insignias desbloqueadas</li>
+    <li>Consultar actividad reciente</li>
+    <li>Cerrar sesión</li>
+  </ul>
+
+  <h3>Elementos de la interfaz</h3>
+  <div class="sway-grid">
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px;">Perfil</div><div class="sway-meta"><div class="sway-name">Header</div><div class="sway-use">"Perfil" · "Colaborador científico"</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:28px;">👤</div><div class="sway-meta"><div class="sway-name">Avatar + stats</div><div class="sway-use">Nombre, email, 3 indicadores</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:11px;">Info · Seguridad · Actividad</div><div class="sway-meta"><div class="sway-name">Tabs de sección</div><div class="sway-use">3 pestañas intercambiables</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px;">Editar perfil</div><div class="sway-meta"><div class="sway-name">Modo edición</div><div class="sway-use">Alterna entre ver y editar</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px;">Notificaciones</div><div class="sway-meta"><div class="sway-name">Preferencias</div><div class="sway-use">4 toggles: Avistamientos, Eventos, Logros, Sistema</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px;">🏆</div><div class="sway-meta"><div class="sway-name">Logros</div><div class="sway-use">Grid de 4 badges (2 bloqueados)</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px;">Actividad</div><div class="sway-meta"><div class="sway-name">Actividad reciente</div><div class="sway-use">3 eventos con punto y descripción</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px;">Cerrar sesión</div><div class="sway-meta"><div class="sway-name">Logout</div><div class="sway-use">Rojo con confirmación</div></div></div>
+  </div>
+
+  <h3>Comportamiento</h3>
+  <ul class="sway-list">
+    <li>El perfil alterna entre modo <strong>visualización</strong> y modo <strong>edición</strong></li>
+    <li>Los cambios en preferencias de notificaciones se guardan <strong>automáticamente</strong></li>
+    <li>El cambio de contraseña requiere completar los <strong>3 campos</strong></li>
+    <li>Cerrar sesión muestra una <strong>alerta de confirmación</strong></li>
+    <li>Los badges bloqueados muestran un <strong>icono de candado</strong></li>
+  </ul>
+</div>

@@ -1,0 +1,56 @@
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Open+Sans:wght@400;600&display=swap');
+  .sway-screen { font-family:'Open Sans',system-ui,sans-serif; color:#1d1d1f; }
+  .sway-screen h3 { font-family:'Poppins',system-ui,sans-serif; font-size:13px; font-weight:700;
+    text-transform:uppercase; letter-spacing:.06em; color:#6e6e73; margin:26px 0 12px; }
+  .sway-screen h3:first-child { margin-top:0; }
+  .sway-screen p { font-size:13px; line-height:1.55; color:#1d1d1f; margin:0 0 14px; }
+  .sway-screen .sway-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:14px; }
+  .sway-screen .sway-card { border:1px solid rgba(0,0,0,.08); border-radius:12px; overflow:hidden; background:#fff; }
+  .sway-screen .sway-chip { height:72px; display:flex; align-items:center; justify-content:center;
+    background:#f5f5f7; box-shadow:inset 0 0 0 1px rgba(0,0,0,.05);
+    font-family:'Poppins',system-ui,sans-serif; font-weight:600; font-size:22px; color:#1d1d1f; }
+  .sway-screen .sway-meta { padding:10px 12px; }
+  .sway-screen .sway-name { font-family:'Poppins',system-ui,sans-serif; font-weight:600; font-size:13px; }
+  .sway-screen .sway-hex  { font-size:12px; color:#6e6e73; margin-top:2px; }
+  .sway-screen .sway-use  { font-size:11px; color:#aeaeb2; margin-top:5px; line-height:1.35; }
+  .sway-screen .sway-list { list-style:none; padding:0; margin:0 0 20px; }
+  .sway-screen .sway-list li { font-size:13px; padding:8px 12px; border:1px solid rgba(0,0,0,.08);
+    border-radius:12px; margin-bottom:6px; background:#fff; }
+  .sway-screen .sway-list li span { color:#6e6e73; }
+  .sway-screen .sway-badge { display:inline-block; background:#f5f5f7; font-size:11px; font-weight:600;
+    padding:2px 10px; border-radius:99px; color:#6e6e73; }
+</style>
+
+<div class="sway-screen">
+  <p><span class="sway-badge">src/screens/CatalogScreen.js</span></p>
+
+  <h3>Función principal</h3>
+  <p>Explorar el catálogo completo de especies marinas.</p>
+
+  <h3>Objetivos</h3>
+  <ul class="sway-list">
+    <li>Visualizar todas las especies marinas en tarjetas con imagen</li>
+    <li>Buscar especies por nombre común o científico</li>
+    <li>Filtrar por estado de conservación</li>
+    <li>Consultar el detalle completo de cada especie</li>
+  </ul>
+
+  <h3>Elementos de la interfaz</h3>
+  <div class="sway-grid">
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px;">Catálogo</div><div class="sway-meta"><div class="sway-name">Header</div><div class="sway-use">Título + total de especies</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px;">🔍</div><div class="sway-meta"><div class="sway-name">Barra de búsqueda</div><div class="sway-use">Filtro en tiempo real</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:11px;">Todas · Crítico · Peligro</div><div class="sway-meta"><div class="sway-name">Filtros chips</div><div class="sway-use">Mutualmente excluyentes</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px;">🐟</div><div class="sway-meta"><div class="sway-name">Grilla 2 columnas</div><div class="sway-use">Tarjetas con imagen, badge, nombre</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px;">Modal</div><div class="sway-meta"><div class="sway-name">Bottom sheet</div><div class="sway-use">Detalle: foto, badge, hábitat, población</div></div></div>
+    <div class="sway-card"><div class="sway-chip" style="font-size:14px;">Sin resultados</div><div class="sway-meta"><div class="sway-name">Estado vacío</div><div class="sway-use">Mensaje cuando no hay coincidencias</div></div></div>
+  </div>
+
+  <h3>Comportamiento</h3>
+  <ul class="sway-list">
+    <li>La búsqueda filtra en <strong>tiempo real</strong> mientras se escribe</li>
+    <li>Los filtros son <strong>mutuamente excluyentes</strong> (solo uno activo a la vez)</li>
+    <li>Al seleccionar una tarjeta, se abre un <strong>modal desde la parte inferior</strong></li>
+    <li>El modal se cierra con un <strong>swipe hacia abajo</strong> o tocando fuera</li>
+  </ul>
+</div>

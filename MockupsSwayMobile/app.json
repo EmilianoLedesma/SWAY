@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "SWAY",
+    "slug": "sway",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/sway-icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/sway-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/sway-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/sway-icon.png"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "SWAY usa tu ubicación para georreferenciar el avistamiento que estás reportando."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "SWAY necesita acceso a tus fotos para adjuntar la evidencia del avistamiento.",
+          "cameraPermission": "SWAY necesita acceso a la cámara para capturar una foto del avistamiento."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "SWAY usa Face ID para acceder rápido y de forma segura a tu cuenta de colaborador."
+        }
+      ]
+    ]
+  }
+}
