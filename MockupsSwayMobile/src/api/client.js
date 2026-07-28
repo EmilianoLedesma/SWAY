@@ -38,6 +38,100 @@ export async function logout() {
   await AsyncStorage.removeItem(TOKEN_KEY);
 }
 
+export async function createEspecie(payload) {
+  try {
+    const res = await fetch(`${API_HOST}/api/especies`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, message: data.detail || 'Error al crear especie' };
+    return data;
+  } catch (error) {
+    console.error('Error en createEspecie:', error);
+    return { success: false, message: 'No se pudo conectar con el servidor' };
+  }
+}
+
+export async function updateEspecie(id, payload) {
+  try {
+    const res = await fetch(`${API_HOST}/api/especies/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, message: data.detail || 'Error al actualizar especie' };
+    return data;
+  } catch (error) {
+    console.error('Error en updateEspecie:', error);
+    return { success: false, message: 'No se pudo conectar con el servidor' };
+  }
+}
+
+export async function deleteEspecie(id) {
+  try {
+    const res = await fetch(`${API_HOST}/api/especies/${id}`, {
+      method: 'DELETE',
+      headers: await authHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, message: data.detail || 'Error al eliminar especie' };
+    return data;
+  } catch (error) {
+    console.error('Error en deleteEspecie:', error);
+    return { success: false, message: 'No se pudo conectar con el servidor' };
+  }
+}
+
+export async function updatePerfil(payload) {
+  try {
+    const res = await fetch(`${API_HOST}/api/colaboradores/perfil`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, message: data.detail || 'Error al actualizar perfil' };
+    return data;
+  } catch (error) {
+    console.error('Error en updatePerfil:', error);
+    return { success: false, message: 'No se pudo conectar con el servidor' };
+  }
+}
+
+export async function changePassword(payload) {
+  try {
+    const res = await fetch(`${API_HOST}/api/colaboradores/perfil/password`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, message: data.detail || 'Error al cambiar contraseña' };
+    return data;
+  } catch (error) {
+    console.error('Error en changePassword:', error);
+    return { success: false, message: 'No se pudo conectar con el servidor' };
+  }
+}
+
+export async function deletePerfil() {
+  try {
+    const res = await fetch(`${API_HOST}/api/colaboradores/perfil`, {
+      method: 'DELETE',
+      headers: await authHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, message: data.detail || 'Error al desactivar cuenta' };
+    return data;
+  } catch (error) {
+    console.error('Error en deletePerfil:', error);
+    return { success: false, message: 'No se pudo conectar con el servidor' };
+  }
+}
+
 export async function getProfile() {
   try {
     const res = await fetch(`${API_HOST}/api/colaboradores/profile`, { headers: await authHeaders() });
