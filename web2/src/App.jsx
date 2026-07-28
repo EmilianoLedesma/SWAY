@@ -4,7 +4,7 @@ import Portal from './pages/Portal.jsx'
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/portal">
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/portal" element={<Portal />} />
