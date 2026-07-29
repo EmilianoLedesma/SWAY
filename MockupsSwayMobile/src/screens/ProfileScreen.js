@@ -36,6 +36,9 @@ import {
   getAvistamientosAll,
   getImpactoSostenible,
   downloadReportePDF,
+  getEspecies,
+  getEstadosConservacion,
+  getHabitats,
 } from '../api/client';
 import { DonutChart, BarChart, HBar, StatCard, ImpactCard } from '../components/DashboardCharts';
 
@@ -126,6 +129,10 @@ export default function ProfileScreen() {
   const [reportesError, setReportesError] = useState(null);
   const [reportesSubTab, setReportesSubTab] = useState('personal');
   const [filtros, setFiltros] = useState({});
+  const [estadosCatalog, setEstadosCatalog] = useState([]);
+  const [habitatsCatalog, setHabitatsCatalog] = useState([]);
+  const [especieSearch, setEspecieSearch] = useState('');
+  const [especiesCatalog, setEspeciesCatalog] = useState([]);
 
   const streakPulse = useBreathe();
   const [trackWidth, setTrackWidth] = useState(0);
@@ -189,6 +196,25 @@ export default function ProfileScreen() {
       active = false;
     };
   }, [activeTab, filtros]);
+
+  useEffect(() => {
+    getEstadosConservacion().then((r) => setEstadosCatalog(r?.estados || []));
+    getHabitats().then((r) => setHabitatsCatalog(r?.habitats || []));
+    getEspecies().then((r) => setEspeciesCatalog(r?.especies || []));
+  }, []);
+
+  useEffect(() => {
+    if (reportesSubTab !== 'global') return;
+    const handle = setTimeout(() => {
+      const match = especieSearch.trim()
+        ? especiesCatalog.find((e) =>
+            e.nombre_comun?.toLowerCase().includes(especieSearch.trim().toLowerCase())
+          )
+        : null;
+      setFiltros((f) => ({ ...f, especieId: match?.id }));
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [especieSearch, especiesCatalog, reportesSubTab]);
 
   const [personal, setPersonal] = useState({
     nombre: 'Joaquín',
@@ -604,6 +630,47 @@ export default function ProfileScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+            )}
+            {reportesSubTab === 'global' && (
+              <>
+                <View style={styles.reportesSubTabRow}>
+                  {estadosCatalog.map((e) => (
+                    <TouchableOpacity
+                      key={e.id}
+                      style={[styles.reportesSubTab, filtros.estado === e.nombre && styles.reportesSubTabActive]}
+                      onPress={() =>
+                        setFiltros((f) => ({ ...f, estado: f.estado === e.nombre ? undefined : e.nombre }))
+                      }
+                    >
+                      <Text style={[styles.reportesSubTabText, filtros.estado === e.nombre && styles.reportesSubTabTextActive]}>
+                        {e.nombre}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={styles.reportesSubTabRow}>
+                  {habitatsCatalog.map((h) => (
+                    <TouchableOpacity
+                      key={h.id}
+                      style={[styles.reportesSubTab, filtros.habitat === h.nombre && styles.reportesSubTabActive]}
+                      onPress={() =>
+                        setFiltros((f) => ({ ...f, habitat: f.habitat === h.nombre ? undefined : h.nombre }))
+                      }
+                    >
+                      <Text style={[styles.reportesSubTabText, filtros.habitat === h.nombre && styles.reportesSubTabTextActive]}>
+                        {h.nombre}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TextInput
+                  style={styles.fieldInput}
+                  placeholder="Buscar especie..."
+                  placeholderTextColor={colors.text3}
+                  value={especieSearch}
+                  onChangeText={setEspecieSearch}
+                />
+              </>
             )}
             {reportesLoading && !reportesData ? (
               <View style={[styles.section, { alignItems: 'center', paddingVertical: 32 }]}>
