@@ -11,17 +11,6 @@ export const API_HOST = `http://${devHost || 'localhost'}:8000`;
 
 const TOKEN_KEY = 'sway_colab_token';
 
-function buildQuery(filtros) {
-  if (!filtros || Object.keys(filtros).length === 0) return '';
-  const params = new URLSearchParams();
-  Object.entries(filtros).forEach(([key, val]) => {
-    if (val !== null && val !== undefined && val !== '') {
-      params.append(key, val);
-    }
-  });
-  return params.toString() ? `?${params.toString()}` : '';
-}
-
 async function authHeaders() {
   const token = await SecureStore.getItemAsync(TOKEN_KEY);
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -259,10 +248,9 @@ export async function getEstadisticas() {
   }
 }
 
-export async function getEstadisticasEspecies(filtros) {
+export async function getEstadisticasEspecies() {
   try {
-    const query = buildQuery(filtros);
-    const res = await fetch(`${API_HOST}/api/especies/estadisticas${query}`);
+    const res = await fetch(`${API_HOST}/api/especies/estadisticas`);
     return await res.json();
   } catch (error) {
     console.error('Error en getEstadisticasEspecies:', error);
@@ -270,10 +258,9 @@ export async function getEstadisticasEspecies(filtros) {
   }
 }
 
-export async function getAvistamientosAll(filtros) {
+export async function getAvistamientosAll() {
   try {
-    const query = buildQuery(filtros);
-    const res = await fetch(`${API_HOST}/api/avistamientos${query}`);
+    const res = await fetch(`${API_HOST}/api/avistamientos`);
     return await res.json();
   } catch (error) {
     console.error('Error en getAvistamientosAll:', error);
@@ -291,10 +278,9 @@ export async function getImpactoSostenible() {
   }
 }
 
-export async function downloadReportePDF(filtros) {
+export async function downloadReportePDF() {
   try {
-    const query = buildQuery(filtros);
-    const res = await fetch(`${API_HOST}/api/reportes/especies${query}`);
+    const res = await fetch(`${API_HOST}/api/reportes/especies`);
     if (!res.ok) return { success: false, message: `Error ${res.status}` };
     const buffer = await res.arrayBuffer();
     const file = new File(Paths.cache, 'reporte-especies-sway.pdf');
