@@ -36,3 +36,32 @@ def construir_nombre_completo(nombre, apellido_paterno, apellido_materno, prefij
             return f"{prefijo}{nombre} {' '.join(apellidos)}".strip()
         else:
             return f"{prefijo}{nombre}".strip()
+
+
+def build_especie_filters(query, estado=None, habitat=None):
+    from app.data.models import Especie, EstadoConservacion, EspecieHabitat, Habitat
+
+    if estado:
+        query = (
+            query.join(EstadoConservacion, Especie.id_estado_conservacion == EstadoConservacion.id)
+            .filter(EstadoConservacion.nombre == estado)
+        )
+    if habitat:
+        query = (
+            query.join(EspecieHabitat, Especie.id == EspecieHabitat.id_especie)
+            .join(Habitat, EspecieHabitat.id_habitat == Habitat.id)
+            .filter(Habitat.nombre == habitat)
+        )
+    return query
+
+
+def build_avistamiento_filters(query, fecha_desde=None, fecha_hasta=None, especie_id=None):
+    from app.data.models import Avistamiento
+
+    if fecha_desde:
+        query = query.filter(Avistamiento.fecha >= fecha_desde)
+    if fecha_hasta:
+        query = query.filter(Avistamiento.fecha <= fecha_hasta)
+    if especie_id:
+        query = query.filter(Avistamiento.id_especie == especie_id)
+    return query
