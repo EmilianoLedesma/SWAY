@@ -368,7 +368,9 @@ export default function ProfileScreen() {
 
   const esStats = reportesData?.esStats;
   const genStats = reportesData?.genStats;
-  const avist = reportesData?.avist || [];
+  const avistScoped = reportesSubTab === 'personal'
+    ? (reportesData?.avist || []).filter((a) => a.email_usuario === personal.email)
+    : (reportesData?.avist || []);
   const impacto = reportesData?.impacto;
   const totalEsp = esStats?.total_especies ?? genStats?.especies_catalogadas ?? 0;
   const critCount = esStats?.en_peligro_critico ?? 0;
@@ -377,10 +379,10 @@ export default function ProfileScreen() {
   const otherCount = Math.max(totalEsp - critCount - pelCount - vulCount, 0);
   const habitats = esStats?.habitats_representados ?? 0;
   const calidad = genStats?.calidad_agua ?? 0;
-  const totalAvist = avist.length;
+  const totalAvist = avistScoped.length;
 
   const especieCount = {};
-  avist.forEach((a) => {
+  avistScoped.forEach((a) => {
     const k = a.especie_nombre || 'Sin nombre';
     especieCount[k] = (especieCount[k] || 0) + 1;
   });
@@ -576,6 +578,33 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+            {reportesSubTab === 'personal' && (
+              <View style={styles.reportesSubTabRow}>
+                {[
+                  { label: '7 días', days: 7 },
+                  { label: '30 días', days: 30 },
+                  { label: 'Todo', days: null },
+                ].map((opt) => (
+                  <TouchableOpacity
+                    key={opt.label}
+                    style={[styles.reportesSubTab, filtros.quickPick === opt.label && styles.reportesSubTabActive]}
+                    onPress={() => {
+                      if (opt.days == null) {
+                        setFiltros({});
+                      } else {
+                        const hasta = new Date().toISOString().slice(0, 10);
+                        const desde = new Date(Date.now() - opt.days * 86400000).toISOString().slice(0, 10);
+                        setFiltros({ desde, hasta, quickPick: opt.label });
+                      }
+                    }}
+                  >
+                    <Text style={[styles.reportesSubTabText, filtros.quickPick === opt.label && styles.reportesSubTabTextActive]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
             {reportesLoading && !reportesData ? (
               <View style={[styles.section, { alignItems: 'center', paddingVertical: 32 }]}>
                 <ActivityIndicator color={colors.blue} />
