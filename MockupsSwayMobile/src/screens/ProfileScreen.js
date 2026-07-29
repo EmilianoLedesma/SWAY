@@ -39,6 +39,9 @@ import {
   downloadReportePDF,
   isBiometricLoginEnabled,
   setBiometricLoginEnabled,
+  getEspecies,
+  getEstadosConservacion,
+  getHabitats,
 } from '../api/client';
 import { DonutChart, BarChart, HBar, StatCard, ImpactCard } from '../components/DashboardCharts';
 
@@ -128,6 +131,12 @@ export default function ProfileScreen() {
   const [reportesData, setReportesData] = useState(null);
   const [reportesLoading, setReportesLoading] = useState(false);
   const [reportesError, setReportesError] = useState(null);
+  const [reportesSubTab, setReportesSubTab] = useState('personal');
+  const [filtros, setFiltros] = useState({});
+  const [estadosCatalog, setEstadosCatalog] = useState([]);
+  const [habitatsCatalog, setHabitatsCatalog] = useState([]);
+  const [especieSearch, setEspecieSearch] = useState('');
+  const [especiesCatalog, setEspeciesCatalog] = useState([]);
 
   const streakPulse = useBreathe();
   const [trackWidth, setTrackWidth] = useState(0);
@@ -200,14 +209,14 @@ export default function ProfileScreen() {
   };
 
   useEffect(() => {
-    if (activeTab !== 'reportes' || reportesData) return;
+    if (activeTab !== 'reportes') return;
     let active = true;
     setReportesLoading(true);
     setReportesError(null);
     Promise.all([
-      getEstadisticasEspecies(),
+      getEstadisticasEspecies(filtros),
       getEstadisticas(),
-      getAvistamientosAll(),
+      getAvistamientosAll(filtros),
       getImpactoSostenible(),
     ])
       .then(([espRes, genRes, avRes, impRes]) => {
@@ -224,7 +233,26 @@ export default function ProfileScreen() {
     return () => {
       active = false;
     };
-  }, [activeTab, reportesData]);
+  }, [activeTab, filtros]);
+
+  useEffect(() => {
+    getEstadosConservacion().then((r) => setEstadosCatalog(r?.estados || []));
+    getHabitats().then((r) => setHabitatsCatalog(r?.habitats || []));
+    getEspecies().then((r) => setEspeciesCatalog(r?.especies || []));
+  }, []);
+
+  useEffect(() => {
+    if (reportesSubTab !== 'global') return;
+    const handle = setTimeout(() => {
+      const match = especieSearch.trim()
+        ? especiesCatalog.find((e) =>
+            e.nombre_comun?.toLowerCase().includes(especieSearch.trim().toLowerCase())
+          )
+        : null;
+      setFiltros((f) => ({ ...f, especieId: match?.id }));
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [especieSearch, especiesCatalog, reportesSubTab]);
 
   const [personal, setPersonal] = useState({
     nombre: 'Joaquín',
@@ -360,7 +388,7 @@ export default function ProfileScreen() {
 
   const handleDownloadReporte = async () => {
     setReporteLoading(true);
-    const result = await downloadReportePDF();
+    const result = await downloadReportePDF(filtros);
     setReporteLoading(false);
     if (!result.success) {
       Alert.alert('Error', result.message || 'No se pudo generar el reporte.');
@@ -404,7 +432,9 @@ export default function ProfileScreen() {
 
   const esStats = reportesData?.esStats;
   const genStats = reportesData?.genStats;
-  const avist = reportesData?.avist || [];
+  const avistScoped = reportesSubTab === 'personal'
+    ? (reportesData?.avist || []).filter((a) => a.email_usuario === personal.email)
+    : (reportesData?.avist || []);
   const impacto = reportesData?.impacto;
   const totalEsp = esStats?.total_especies ?? genStats?.especies_catalogadas ?? 0;
   const critCount = esStats?.en_peligro_critico ?? 0;
@@ -413,10 +443,10 @@ export default function ProfileScreen() {
   const otherCount = Math.max(totalEsp - critCount - pelCount - vulCount, 0);
   const habitats = esStats?.habitats_representados ?? 0;
   const calidad = genStats?.calidad_agua ?? 0;
-  const totalAvist = avist.length;
+  const totalAvist = avistScoped.length;
 
   const especieCount = {};
-  avist.forEach((a) => {
+  avistScoped.forEach((a) => {
     const k = a.especie_nombre || 'Sin nombre';
     especieCount[k] = (especieCount[k] || 0) + 1;
   });
@@ -596,6 +626,90 @@ export default function ProfileScreen() {
 
         {activeTab === 'reportes' && (
           <View style={{ gap: 14 }}>
+            <View style={styles.reportesSubTabRow}>
+              {['personal', 'global'].map((key) => (
+                <TouchableOpacity
+                  key={key}
+                  style={[styles.reportesSubTab, reportesSubTab === key && styles.reportesSubTabActive]}
+                  onPress={() => {
+                    setReportesSubTab(key);
+                    setFiltros(key === 'personal' ? { desde: filtros.desde, hasta: filtros.hasta, quickPick: filtros.quickPick } : {});
+                  }}
+                >
+                  <Text style={[styles.reportesSubTabText, reportesSubTab === key && styles.reportesSubTabTextActive]}>
+                    {key === 'personal' ? 'Personal' : 'Global'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {reportesSubTab === 'personal' && (
+              <View style={styles.reportesSubTabRow}>
+                {[
+                  { label: '7 días', days: 7 },
+                  { label: '30 días', days: 30 },
+                  { label: 'Todo', days: null },
+                ].map((opt) => (
+                  <TouchableOpacity
+                    key={opt.label}
+                    style={[styles.reportesSubTab, filtros.quickPick === opt.label && styles.reportesSubTabActive]}
+                    onPress={() => {
+                      if (opt.days == null) {
+                        setFiltros({ quickPick: 'Todo' });
+                      } else {
+                        const hasta = new Date().toISOString().slice(0, 10);
+                        const desde = new Date(Date.now() - opt.days * 86400000).toISOString().slice(0, 10);
+                        setFiltros({ desde, hasta, quickPick: opt.label });
+                      }
+                    }}
+                  >
+                    <Text style={[styles.reportesSubTabText, filtros.quickPick === opt.label && styles.reportesSubTabTextActive]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            {reportesSubTab === 'global' && (
+              <>
+                <View style={styles.filterChipRow}>
+                  {estadosCatalog.map((e) => (
+                    <TouchableOpacity
+                      key={e.id}
+                      style={[styles.filterChip, filtros.estado === e.nombre && styles.reportesSubTabActive]}
+                      onPress={() =>
+                        setFiltros((f) => ({ ...f, estado: f.estado === e.nombre ? undefined : e.nombre }))
+                      }
+                    >
+                      <Text style={[styles.reportesSubTabText, filtros.estado === e.nombre && styles.reportesSubTabTextActive]}>
+                        {e.nombre}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={styles.filterChipRow}>
+                  {habitatsCatalog.map((h) => (
+                    <TouchableOpacity
+                      key={h.id}
+                      style={[styles.filterChip, filtros.habitat === h.nombre && styles.reportesSubTabActive]}
+                      onPress={() =>
+                        setFiltros((f) => ({ ...f, habitat: f.habitat === h.nombre ? undefined : h.nombre }))
+                      }
+                    >
+                      <Text style={[styles.reportesSubTabText, filtros.habitat === h.nombre && styles.reportesSubTabTextActive]}>
+                        {h.nombre}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TextInput
+                  style={styles.fieldInput}
+                  placeholder="Buscar especie..."
+                  placeholderTextColor={colors.text3}
+                  value={especieSearch}
+                  onChangeText={setEspecieSearch}
+                />
+              </>
+            )}
             {reportesLoading && !reportesData ? (
               <View style={[styles.section, { alignItems: 'center', paddingVertical: 32 }]}>
                 <ActivityIndicator color={colors.blue} />
@@ -611,43 +725,55 @@ export default function ProfileScreen() {
               </View>
             ) : (
               <>
-                <View style={styles.statsGridWrap}>
-                  <StatCard label="Especies catalogadas" value={totalEsp} color={colors.blue}
-                    icon={<Ionicons name="leaf-outline" size={18} color={colors.blue} />} />
-                  <StatCard label="Extinción crítica" value={critCount} color={colors.red}
-                    icon={<Ionicons name="warning-outline" size={18} color={colors.red} />} />
-                  <StatCard label="En peligro" value={pelCount} color={colors.amber}
-                    icon={<Ionicons name="alert-circle-outline" size={18} color={colors.amber} />} />
-                  <StatCard label="Vulnerables" value={vulCount} color="#f59e0b"
-                    icon={<Ionicons name="shield-outline" size={18} color="#f59e0b" />} />
-                  <StatCard label="Avistamientos" value={totalAvist} color="#8b5cf6"
-                    icon={<Ionicons name="binoculars-outline" size={18} color="#8b5cf6" />} />
-                  <StatCard label="Hábitats representados" value={habitats} color={colors.green}
-                    icon={<Ionicons name="water-outline" size={18} color={colors.green} />} />
-                  <StatCard label="Calidad del agua" value={`${calidad}%`} color={colors.ocean}
-                    icon={<Ionicons name="pulse-outline" size={18} color={colors.ocean} />} />
-                </View>
+                {reportesSubTab === 'global' && (
+                  <View style={styles.statsGridWrap}>
+                    <StatCard label="Especies catalogadas" value={totalEsp} color={colors.blue}
+                      icon={<Ionicons name="leaf-outline" size={18} color={colors.blue} />} />
+                    <StatCard label="Extinción crítica" value={critCount} color={colors.red}
+                      icon={<Ionicons name="warning-outline" size={18} color={colors.red} />} />
+                    <StatCard label="En peligro" value={pelCount} color={colors.amber}
+                      icon={<Ionicons name="alert-circle-outline" size={18} color={colors.amber} />} />
+                    <StatCard label="Vulnerables" value={vulCount} color="#f59e0b"
+                      icon={<Ionicons name="shield-outline" size={18} color="#f59e0b" />} />
+                    <StatCard label="Avistamientos" value={totalAvist} color="#8b5cf6"
+                      icon={<Ionicons name="binoculars-outline" size={18} color="#8b5cf6" />} />
+                    <StatCard label="Hábitats representados" value={habitats} color={colors.green}
+                      icon={<Ionicons name="water-outline" size={18} color={colors.green} />} />
+                    <StatCard label="Calidad del agua" value={`${calidad}%`} color={colors.ocean}
+                      icon={<Ionicons name="pulse-outline" size={18} color={colors.ocean} />} />
+                  </View>
+                )}
+                {reportesSubTab === 'personal' && (
+                  <View style={styles.statsGridWrap}>
+                    <StatCard label="Avistamientos" value={totalAvist} color="#8b5cf6"
+                      icon={<Ionicons name="binoculars-outline" size={18} color="#8b5cf6" />} />
+                  </View>
+                )}
 
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Estado de Conservación</Text>
-                  <View style={styles.donutWrap}>
-                    <DonutChart segments={donutSegments} size={170} thickness={30} />
-                    <View style={{ gap: 6, flex: 1 }}>
-                      {donutSegments.map((s) => (
-                        <View key={s.label} style={styles.legendRow}>
-                          <View style={[styles.legendDot, { backgroundColor: s.color }]} />
-                          <Text style={styles.legendLabel} numberOfLines={1}>{s.label}</Text>
-                          <Text style={styles.legendVal}>{s.value}</Text>
-                        </View>
-                      ))}
+                {reportesSubTab === 'global' && (
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Estado de Conservación</Text>
+                    <View style={styles.donutWrap}>
+                      <DonutChart segments={donutSegments} size={170} thickness={30} />
+                      <View style={{ gap: 6, flex: 1 }}>
+                        {donutSegments.map((s) => (
+                          <View key={s.label} style={styles.legendRow}>
+                            <View style={[styles.legendDot, { backgroundColor: s.color }]} />
+                            <Text style={styles.legendLabel} numberOfLines={1}>{s.label}</Text>
+                            <Text style={styles.legendVal}>{s.value}</Text>
+                          </View>
+                        ))}
+                      </View>
                     </View>
                   </View>
-                </View>
+                )}
 
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Distribución por Estado</Text>
-                  <BarChart bars={barConservacion} height={130} />
-                </View>
+                {reportesSubTab === 'global' && (
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Distribución por Estado</Text>
+                    <BarChart bars={barConservacion} height={130} />
+                  </View>
+                )}
 
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Especies más avistadas</Text>
@@ -658,7 +784,7 @@ export default function ProfileScreen() {
                   )}
                 </View>
 
-                {impacto && (
+                {reportesSubTab === 'global' && impacto && (
                   <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Impacto Sostenible</Text>
                     <View style={styles.statsGridWrap}>
@@ -1120,6 +1246,45 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: colors.blue,
     fontWeight: typography.weight.semibold,
+  },
+  reportesSubTabRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  reportesSubTab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: radii.r12,
+    borderWidth: 1,
+    borderColor: colors.borderMid,
+    alignItems: 'center',
+  },
+  reportesSubTabActive: {
+    backgroundColor: colors.blueLight,
+    borderColor: colors.blue,
+  },
+  reportesSubTabText: {
+    fontFamily: typography.display,
+    fontSize: 13,
+    fontWeight: typography.weight.semibold,
+    color: colors.text2,
+  },
+  reportesSubTabTextActive: {
+    color: colors.blue,
+  },
+  filterChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  filterChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: radii.r12,
+    borderWidth: 1,
+    borderColor: colors.borderMid,
   },
   section: {
     backgroundColor: colors.surface,

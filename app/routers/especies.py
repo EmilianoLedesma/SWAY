@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.data.database import get_db
+from app.data.database import get_db, build_especie_filters
 from app.data.models import (
     Especie, EstadoConservacion, Habitat, Amenaza, Caracteristica,
     EspecieHabitat, EspecieAmenaza, EspecieCaracteristica, Avistamiento
@@ -161,17 +161,29 @@ async def get_tipos_especies():
 
 
 @router.get("/especies/estadisticas")
-async def get_especies_estadisticas(db: Session = Depends(get_db)):
+async def get_especies_estadisticas(
+    fecha_desde: Optional[str] = Query(None),
+    fecha_hasta: Optional[str] = Query(None),
+    estado: Optional[str] = Query(None),
+    habitat: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
     try:
         from datetime import date
-        total_especies = db.query(func.count(Especie.id)).scalar()
 
-        stats_conservacion = (
+        especie_query = db.query(Especie)
+        especie_query = build_especie_filters(especie_query, estado=estado, habitat=habitat)
+        total_especies = especie_query.count()
+
+        stats_query = (
             db.query(EstadoConservacion.nombre, func.count(Especie.id))
             .join(Especie, Especie.id_estado_conservacion == EstadoConservacion.id)
-            .group_by(EstadoConservacion.nombre)
-            .all()
         )
+        if habitat:
+            stats_query = stats_query.join(
+                EspecieHabitat, Especie.id == EspecieHabitat.id_especie
+            ).join(Habitat, EspecieHabitat.id_habitat == Habitat.id).filter(Habitat.nombre == habitat)
+        stats_conservacion = stats_query.group_by(EstadoConservacion.nombre).all()
         conservacion_map = {nombre: cantidad for nombre, cantidad in stats_conservacion}
 
         return {"success": True, "estadisticas": {

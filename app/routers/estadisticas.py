@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.data.database import get_db
+from app.data.database import get_db, build_avistamiento_filters
 from app.data.models import (
     Especie, EstadoConservacion, Avistamiento, Pedido,
     DetallePedido, Usuario
@@ -82,15 +82,34 @@ async def get_impacto_sostenible(db: Session = Depends(get_db)):
 
 
 @router.get("/avistamientos")
-async def get_avistamientos(db: Session = Depends(get_db)):
+async def get_avistamientos(
+    fecha_desde: Optional[str] = None,
+    fecha_hasta: Optional[str] = None,
+    estado: Optional[str] = None,
+    habitat: Optional[str] = None,
+    especie_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
     try:
-        registros = (
+        query = (
             db.query(Avistamiento, Especie, Usuario)
             .join(Especie, Avistamiento.id_especie == Especie.id)
             .join(Usuario, Avistamiento.id_usuario == Usuario.id)
-            .order_by(Avistamiento.fecha.desc())
-            .all()
         )
+        query = build_avistamiento_filters(
+            query, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, especie_id=especie_id
+        )
+        if estado:
+            query = query.join(
+                EstadoConservacion, Especie.id_estado_conservacion == EstadoConservacion.id
+            ).filter(EstadoConservacion.nombre == estado)
+        if habitat:
+            from app.data.models import EspecieHabitat, Habitat
+            query = query.join(
+                EspecieHabitat, Especie.id == EspecieHabitat.id_especie
+            ).join(Habitat, EspecieHabitat.id_habitat == Habitat.id).filter(Habitat.nombre == habitat)
+
+        registros = query.order_by(Avistamiento.fecha.desc()).all()
 
         avistamientos = []
         for avistamiento, especie, usuario in registros:
@@ -184,7 +203,14 @@ async def reportar_avistamiento(data: AvistamientoCreate, db: Session = Depends(
 
 
 @router.get("/reportes/especies")
-async def descargar_reporte_especies(db: Session = Depends(get_db)):
+async def descargar_reporte_especies(
+    fecha_desde: Optional[str] = None,
+    fecha_hasta: Optional[str] = None,
+    estado: Optional[str] = None,
+    habitat: Optional[str] = None,
+    especie_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
     """Generar y descargar reporte PDF de especies."""
     try:
         from reportlab.lib.pagesizes import letter
@@ -193,6 +219,7 @@ async def descargar_reporte_especies(db: Session = Depends(get_db)):
         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
         from reportlab.lib.units import inch
         import io
+        from app.data.database import build_especie_filters
 
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=letter)
@@ -201,6 +228,17 @@ async def descargar_reporte_especies(db: Session = Depends(get_db)):
 
         story.append(Paragraph("Reporte de Especies Marinas — SWAY", styles["Title"]))
         story.append(Paragraph(f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles["Normal"]))
+
+        filtro_partes = []
+        if estado:
+            filtro_partes.append(estado)
+        if habitat:
+            filtro_partes.append(habitat)
+        if fecha_desde or fecha_hasta:
+            filtro_partes.append(f"{fecha_desde or '…'}–{fecha_hasta or '…'}")
+        if filtro_partes:
+            story.append(Paragraph(f"Filtros: {' · '.join(filtro_partes)}", styles["Normal"]))
+
         story.append(Spacer(1, 0.3 * inch))
 
         total_especies = db.query(func.count(Especie.id)).scalar()
@@ -219,13 +257,11 @@ async def descargar_reporte_especies(db: Session = Depends(get_db)):
             .scalar()
         )
 
-        especies_lista = (
-            db.query(Especie, EstadoConservacion)
-            .outerjoin(EstadoConservacion, Especie.id_estado_conservacion == EstadoConservacion.id)
-            .order_by(Especie.nombre_comun)
-            .limit(50)
-            .all()
-        )
+        especies_query = db.query(Especie)
+        especies_query = build_especie_filters(especies_query, estado=estado, habitat=habitat)
+        if especie_id:
+            especies_query = especies_query.filter(Especie.id == especie_id)
+        especies_lista = especies_query.order_by(Especie.nombre_comun).limit(50).all()
 
         story.append(Paragraph("Resumen General", styles["Heading2"]))
         stat_data = [
@@ -249,11 +285,11 @@ async def descargar_reporte_especies(db: Session = Depends(get_db)):
         if especies_lista:
             story.append(Paragraph("Catálogo de Especies (Top 50)", styles["Heading2"]))
             table_data = [["Nombre Común", "Nombre Científico", "Estado Conservación"]]
-            for especie, estado in especies_lista:
+            for especie in especies_lista:
                 table_data.append([
                     str(especie.nombre_comun or ""),
                     str(especie.nombre_cientifico or ""),
-                    str(estado.nombre if estado else "N/D")
+                    str(especie.estado_conservacion.nombre if especie.estado_conservacion else "N/D")
                 ])
             t = Table(table_data, colWidths=[2 * inch, 2.2 * inch, 2 * inch])
             t.setStyle(TableStyle([

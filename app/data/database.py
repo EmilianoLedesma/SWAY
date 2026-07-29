@@ -36,3 +36,39 @@ def construir_nombre_completo(nombre, apellido_paterno, apellido_materno, prefij
             return f"{prefijo}{nombre} {' '.join(apellidos)}".strip()
         else:
             return f"{prefijo}{nombre}".strip()
+
+
+def build_especie_filters(query, estado=None, habitat=None):
+    from app.data.models import Especie, EstadoConservacion, EspecieHabitat, Habitat
+
+    if estado:
+        query = (
+            query.join(EstadoConservacion, Especie.id_estado_conservacion == EstadoConservacion.id)
+            .filter(EstadoConservacion.nombre == estado)
+        )
+    if habitat:
+        query = (
+            query.join(EspecieHabitat, Especie.id == EspecieHabitat.id_especie)
+            .join(Habitat, EspecieHabitat.id_habitat == Habitat.id)
+            .filter(Habitat.nombre == habitat)
+        )
+    return query
+
+
+def build_avistamiento_filters(query, fecha_desde=None, fecha_hasta=None, especie_id=None):
+    from app.data.models import Avistamiento
+    from datetime import datetime, time, timedelta
+
+    if fecha_desde:
+        fecha_desde_dt = datetime.fromisoformat(fecha_desde)
+        query = query.filter(Avistamiento.fecha >= fecha_desde_dt)
+    if fecha_hasta:
+        fecha_hasta_dt = datetime.fromisoformat(fecha_hasta)
+        if fecha_hasta_dt.time() == time.min:
+            fecha_hasta_dt += timedelta(days=1)
+            query = query.filter(Avistamiento.fecha < fecha_hasta_dt)
+        else:
+            query = query.filter(Avistamiento.fecha <= fecha_hasta_dt)
+    if especie_id:
+        query = query.filter(Avistamiento.id_especie == especie_id)
+    return query
