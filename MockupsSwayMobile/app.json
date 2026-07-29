@@ -20,7 +20,8 @@
         "foregroundImage": "./assets/sway-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "favicon": "./assets/sway-icon.png"
@@ -44,7 +45,8 @@
         {
           "faceIDPermission": "SWAY usa Face ID para acceder rápido y de forma segura a tu cuenta de colaborador."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ]
   }
 }

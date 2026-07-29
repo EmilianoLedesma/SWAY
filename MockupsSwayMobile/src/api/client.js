@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 // hostUri = IP:puerto que Metro usa para servir el bundle a este dispositivo,
 // se actualiza solo al cambiar de red (no hay backend con dominio fijo aun).
@@ -214,5 +216,67 @@ export async function getHabitats() {
   } catch (error) {
     console.error('Error en getHabitats:', error);
     return { success: false, habitats: [] };
+  }
+}
+
+export async function getEstadisticas() {
+  try {
+    const res = await fetch(`${API_HOST}/api/estadisticas`);
+    return await res.json();
+  } catch (error) {
+    console.error('Error en getEstadisticas:', error);
+    return { success: false };
+  }
+}
+
+export async function getEstadisticasEspecies() {
+  try {
+    const res = await fetch(`${API_HOST}/api/especies/estadisticas`);
+    return await res.json();
+  } catch (error) {
+    console.error('Error en getEstadisticasEspecies:', error);
+    return { success: false, estadisticas: null };
+  }
+}
+
+export async function getAvistamientosAll() {
+  try {
+    const res = await fetch(`${API_HOST}/api/avistamientos`);
+    return await res.json();
+  } catch (error) {
+    console.error('Error en getAvistamientosAll:', error);
+    return { success: false, avistamientos: [] };
+  }
+}
+
+export async function getImpactoSostenible() {
+  try {
+    const res = await fetch(`${API_HOST}/api/impacto-sostenible`);
+    return await res.json();
+  } catch (error) {
+    console.error('Error en getImpactoSostenible:', error);
+    return { success: false, impacto: null };
+  }
+}
+
+export async function downloadReportePDF() {
+  try {
+    const res = await fetch(`${API_HOST}/api/reportes/especies`);
+    if (!res.ok) return { success: false, message: `Error ${res.status}` };
+    const buffer = await res.arrayBuffer();
+    const file = new File(Paths.cache, 'reporte-especies-sway.pdf');
+    if (file.exists) file.delete();
+    file.create();
+    file.write(new Uint8Array(buffer));
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(file.uri, {
+        mimeType: 'application/pdf',
+        dialogTitle: 'Reporte de especies SWAY',
+      });
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('Error en downloadReportePDF:', error);
+    return { success: false, message: 'No se pudo generar el reporte' };
   }
 }

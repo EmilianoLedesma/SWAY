@@ -580,6 +580,7 @@ export default function CatalogScreen() {
                   placeholderTextColor={colors.text3}
                   value={form.commonName}
                   onChangeText={(v) => setForm({ ...form, commonName: v })}
+                  maxLength={100}
                 />
               </View>
               <View style={styles.field}>
@@ -590,6 +591,7 @@ export default function CatalogScreen() {
                   placeholderTextColor={colors.text3}
                   value={form.scientificName}
                   onChangeText={(v) => setForm({ ...form, scientificName: v })}
+                  maxLength={100}
                 />
               </View>
               <View style={styles.field}>
@@ -632,6 +634,7 @@ export default function CatalogScreen() {
                   onChangeText={(v) => setForm({ ...form, description: v })}
                   multiline
                   numberOfLines={4}
+                  maxLength={2000}
                 />
               </View>
               <View style={styles.formRow}>
@@ -642,10 +645,13 @@ export default function CatalogScreen() {
                     placeholder="80"
                     placeholderTextColor={colors.text3}
                     value={String(form.esperanzaVida)}
-                    onChangeText={(v) =>
-                      setForm({ ...form, esperanzaVida: v.replace(/[^0-9]/g, '') })
-                    }
+                    onChangeText={(v) => {
+                      const digits = v.replace(/[^0-9]/g, '');
+                      const clamped = digits && Number(digits) > 500 ? '500' : digits;
+                      setForm({ ...form, esperanzaVida: clamped });
+                    }}
                     keyboardType="number-pad"
+                    maxLength={3}
                   />
                 </View>
                 <View style={[styles.field, styles.formRowItem]}>
@@ -734,6 +740,7 @@ export default function CatalogScreen() {
                   onChangeText={(v) => setForm({ ...form, imagenUrl: v })}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  maxLength={255}
                 />
                 {form.imagenUrl ? (
                   <Image

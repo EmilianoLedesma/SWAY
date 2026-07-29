@@ -23,6 +23,7 @@ import { typography } from '../theme/typography';
 import { radii, shadows } from '../theme/spacing';
 import ScreenHeader from '../components/ScreenHeader';
 import ShareCard from '../components/ShareCard';
+import DateField from '../components/DateField';
 import { sightingsList } from '../data/sightings';
 import { speciesList } from '../data/species';
 import { getAvistamientosMine } from '../api/client';
@@ -581,13 +582,17 @@ export default function SightingsScreen() {
               </View>
 
               <View style={styles.formField}>
-                <Text style={styles.formLabel}>Fecha del avistamiento *</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="AAAA-MM-DD HH:MM"
-                  placeholderTextColor={colors.text3}
+                <DateField
+                  label="Fecha del avistamiento"
+                  required
+                  mode="datetime"
                   value={sightingForm.fecha}
-                  onChangeText={(v) => setField('fecha', v)}
+                  onChange={(v) => setField('fecha', v)}
+                  placeholder="Seleccionar fecha y hora"
+                  style={styles.formInput}
+                  labelStyle={styles.formLabel}
+                  textStyle={styles.dateFieldText}
+                  maximumDate={new Date()}
                 />
               </View>
 
@@ -1002,6 +1007,11 @@ const styles = StyleSheet.create({
     height: 90,
     paddingTop: 12,
     textAlignVertical: 'top',
+  },
+  dateFieldText: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    color: colors.text,
   },
   chipRow: {
     flexDirection: 'row',

@@ -61,7 +61,22 @@
       "Read(//tmp/**)",
       "Bash(git -C \"C:/Users/Emiliano/Videos/SWAY POO/.claude/worktrees/agent-a10318f7984c3c86b\" ls-files)",
       "Bash(git -C \"C:/Users/Emiliano/Videos/SWAY POO/.claude/worktrees/agent-a10318f7984c3c86b\" status --porcelain=v1)",
-      "Skill(impeccable)"
+      "Skill(impeccable)",
+      "Bash(gh api *)",
+      "PowerShell(Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.InterfaceAlias -match \"Wi-Fi\"} | Select-Object -ExpandProperty IPAddress)",
+      "Skill(update-config)",
+      "Bash(npm ls *)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:8000/api/especies?limit=1\" | ConvertTo-Json -Depth 6)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:8000/api/estados-conservacion\" | ConvertTo-Json -Depth 6)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:8000/api/amenazas\" | ConvertTo-Json -Depth 4; Invoke-RestMethod -Uri \"http://127.0.0.1:8000/api/habitats\" | ConvertTo-Json -Depth 4)",
+      "Bash(git check-ignore *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(bash __TRACKED_VAR__/scripts/sdd-workspace docs/superpowers/plans/2026-07-28-mobile-crud-wiring.md)",
+      "Bash(bash __TRACKED_VAR__/scripts/task-brief docs/superpowers/plans/2026-07-28-mobile-crud-wiring.md 1)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:8000/api/especies?limit=1\" -ErrorAction SilentlyContinue | ConvertTo-Json)",
+      "Bash(npx babel *)",
+      "Bash(echo \"EXIT:$?\")"
     ],
     "deny": []
   }

@@ -95,6 +95,10 @@ export default function LoginScreen({ onLogin }) {
       return;
     }
     if (!isLogin) {
+      if (password.length < 6) {
+        setError('La contraseña debe tener al menos 6 caracteres');
+        return;
+      }
       if (password !== confirmPassword) {
         setError('Las contraseñas no coinciden');
         return;
@@ -148,6 +152,7 @@ export default function LoginScreen({ onLogin }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
+        style={styles.scrollFlex}
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
       >
@@ -189,6 +194,7 @@ export default function LoginScreen({ onLogin }) {
                       value={name}
                       onChangeText={setName}
                       autoCapitalize="words"
+                      maxLength={100}
                     />
                   </View>
                   <View style={styles.field}>
@@ -200,6 +206,7 @@ export default function LoginScreen({ onLogin }) {
                       value={apellidoPaterno}
                       onChangeText={setApellidoPaterno}
                       autoCapitalize="words"
+                      maxLength={100}
                     />
                   </View>
                   <View style={styles.field}>
@@ -211,6 +218,7 @@ export default function LoginScreen({ onLogin }) {
                       value={apellidoMaterno}
                       onChangeText={setApellidoMaterno}
                       autoCapitalize="words"
+                      maxLength={100}
                     />
                   </View>
                 </>
@@ -227,6 +235,7 @@ export default function LoginScreen({ onLogin }) {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  maxLength={150}
                 />
               </View>
 
@@ -239,6 +248,7 @@ export default function LoginScreen({ onLogin }) {
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry
+                  maxLength={128}
                 />
               </View>
 
@@ -253,6 +263,7 @@ export default function LoginScreen({ onLogin }) {
                       value={confirmPassword}
                       onChangeText={setConfirmPassword}
                       secureTextEntry
+                      maxLength={128}
                     />
                   </View>
 
@@ -316,6 +327,7 @@ export default function LoginScreen({ onLogin }) {
                       placeholderTextColor={colors.text3}
                       value={institucion}
                       onChangeText={setInstitucion}
+                      maxLength={200}
                     />
                   </View>
 
@@ -328,6 +340,7 @@ export default function LoginScreen({ onLogin }) {
                       value={aniosExperiencia}
                       onChangeText={setAniosExperiencia}
                       keyboardType="number-pad"
+                      maxLength={3}
                     />
                   </View>
 
@@ -341,6 +354,7 @@ export default function LoginScreen({ onLogin }) {
                       placeholderTextColor={colors.text3}
                       value={numeroCedula}
                       onChangeText={setNumeroCedula}
+                      maxLength={20}
                     />
                   </View>
 
@@ -352,6 +366,7 @@ export default function LoginScreen({ onLogin }) {
                       placeholderTextColor={colors.text3}
                       value={orcid}
                       onChangeText={setOrcid}
+                      maxLength={50}
                     />
                   </View>
 
@@ -459,6 +474,9 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.bg,
+  },
+  scrollFlex: {
+    flex: 1,
   },
   scroll: {
     flexGrow: 1,

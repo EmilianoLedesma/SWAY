@@ -10,6 +10,8 @@ import {
   Switch,
   ActivityIndicator,
   Animated,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { useGamification } from '../context/GamificationContext';
@@ -18,11 +20,24 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { radii, shadows } from '../theme/spacing';
 import ScreenHeader from '../components/ScreenHeader';
+import DateField from '../components/DateField';
 import useBreathe from '../hooks/useBreathe';
 import { sightingsList } from '../data/sightings';
 import { eventsList } from '../data/events';
 import { speciesList } from '../data/species';
-import { getProfile, logout, updatePerfil, changePassword, deletePerfil } from '../api/client';
+import {
+  getProfile,
+  logout,
+  updatePerfil,
+  changePassword,
+  deletePerfil,
+  getEstadisticas,
+  getEstadisticasEspecies,
+  getAvistamientosAll,
+  getImpactoSostenible,
+  downloadReportePDF,
+} from '../api/client';
+import { DonutChart, BarChart, HBar, StatCard, ImpactCard } from '../components/DashboardCharts';
 
 const TABS = [
   { key: 'personal', label: 'Personal' },
@@ -106,6 +121,9 @@ export default function ProfileScreen() {
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [reportesData, setReportesData] = useState(null);
+  const [reportesLoading, setReportesLoading] = useState(false);
+  const [reportesError, setReportesError] = useState(null);
 
   const streakPulse = useBreathe();
   const [trackWidth, setTrackWidth] = useState(0);
@@ -142,6 +160,33 @@ export default function ProfileScreen() {
       prevUnlocked.current[b.label] = b.unlocked;
     });
   }, [badges]);
+
+  useEffect(() => {
+    if (activeTab !== 'reportes' || reportesData) return;
+    let active = true;
+    setReportesLoading(true);
+    setReportesError(null);
+    Promise.all([
+      getEstadisticasEspecies(),
+      getEstadisticas(),
+      getAvistamientosAll(),
+      getImpactoSostenible(),
+    ])
+      .then(([espRes, genRes, avRes, impRes]) => {
+        if (!active) return;
+        setReportesData({
+          esStats: espRes?.estadisticas || null,
+          genStats: genRes?.success ? genRes : null,
+          avist: avRes?.avistamientos || [],
+          impacto: impRes?.impacto || null,
+        });
+      })
+      .catch((e) => active && setReportesError(e.message))
+      .finally(() => active && setReportesLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [activeTab, reportesData]);
 
   const [personal, setPersonal] = useState({
     nombre: 'Joaquín',
@@ -275,12 +320,15 @@ export default function ProfileScreen() {
     Alert.alert('Contraseña actualizada', 'Vuelve a iniciar sesión.');
   };
 
-  const handleDownloadReporte = () => {
+  const handleDownloadReporte = async () => {
     setReporteLoading(true);
-    setTimeout(() => {
-      setReporteLoading(false);
-      Alert.alert('Reporte generado', 'El reporte PDF se descargó correctamente.');
-    }, 900);
+    const result = await downloadReportePDF();
+    setReporteLoading(false);
+    if (!result.success) {
+      Alert.alert('Error', result.message || 'No se pudo generar el reporte.');
+      return;
+    }
+    Alert.alert('Reporte generado', 'El reporte PDF se descargó correctamente.');
   };
 
   const handleDeactivate = async () => {
@@ -316,12 +364,55 @@ export default function ProfileScreen() {
   const fullName = `${personal.nombre} ${personal.apellidoPaterno}`;
   const estadoCfg = ESTADO_SOLICITUD_CFG[estadoSolicitud];
 
+  const esStats = reportesData?.esStats;
+  const genStats = reportesData?.genStats;
+  const avist = reportesData?.avist || [];
+  const impacto = reportesData?.impacto;
+  const totalEsp = esStats?.total_especies ?? genStats?.especies_catalogadas ?? 0;
+  const critCount = esStats?.en_peligro_critico ?? 0;
+  const pelCount = esStats?.en_peligro ?? 0;
+  const vulCount = esStats?.vulnerables ?? 0;
+  const otherCount = Math.max(totalEsp - critCount - pelCount - vulCount, 0);
+  const habitats = esStats?.habitats_representados ?? 0;
+  const calidad = genStats?.calidad_agua ?? 0;
+  const totalAvist = avist.length;
+
+  const especieCount = {};
+  avist.forEach((a) => {
+    const k = a.especie_nombre || 'Sin nombre';
+    especieCount[k] = (especieCount[k] || 0) + 1;
+  });
+  const topEspecies = Object.entries(especieCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([label, value], i) => ({
+      label,
+      value,
+      color: ['#0071e3', '#34c759', '#ff9500', '#ff3b30', '#5ac8fa', '#af52de'][i],
+    }));
+
+  const donutSegments = [
+    { label: 'Extinción crítica', value: critCount, color: colors.red },
+    { label: 'En Peligro', value: pelCount, color: colors.amber },
+    { label: 'Vulnerables', value: vulCount, color: '#f59e0b' },
+    { label: 'Otras', value: otherCount, color: colors.green },
+  ];
+
+  const barConservacion = [
+    { label: 'Total', value: totalEsp, color: colors.blue },
+    { label: 'Críticas', value: critCount, color: colors.red },
+    { label: 'En Peligro', value: pelCount, color: colors.amber },
+    { label: 'Vulnerables', value: vulCount, color: '#f59e0b' },
+    { label: 'Otras', value: otherCount, color: colors.green },
+  ];
+
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <ScreenHeader title="Perfil" subtitle="Colaborador científico" hideLogo />
 
@@ -338,7 +429,9 @@ export default function ProfileScreen() {
                   <Ionicons name={s.icon} size={18} color={s.color} />
                 </View>
                 <Text style={styles.statValue}>{s.value}</Text>
-                <Text style={styles.statLabel}>{s.label}</Text>
+                <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>
+                  {s.label}
+                </Text>
               </View>
             ))}
           </View>
@@ -378,11 +471,10 @@ export default function ProfileScreen() {
             {editingPersonal ? (
               <>
                 {[
-                  { key: 'nombre', label: 'Nombre' },
-                  { key: 'apellidoPaterno', label: 'Apellido paterno' },
-                  { key: 'apellidoMaterno', label: 'Apellido materno' },
-                  { key: 'telefono', label: 'Teléfono' },
-                  { key: 'fechaNacimiento', label: 'Fecha de nacimiento' },
+                  { key: 'nombre', label: 'Nombre', maxLength: 100 },
+                  { key: 'apellidoPaterno', label: 'Apellido paterno', maxLength: 100 },
+                  { key: 'apellidoMaterno', label: 'Apellido materno', maxLength: 100 },
+                  { key: 'telefono', label: 'Teléfono', maxLength: 15 },
                 ].map((field) => (
                   <View key={field.key} style={styles.field}>
                     <Text style={styles.fieldLabel}>{field.label}</Text>
@@ -393,9 +485,22 @@ export default function ProfileScreen() {
                         setPersonal({ ...personal, [field.key]: v })
                       }
                       placeholderTextColor={colors.text3}
+                      maxLength={field.maxLength}
                     />
                   </View>
                 ))}
+                <View style={styles.field}>
+                  <DateField
+                    label="Fecha de nacimiento"
+                    mode="date"
+                    value={personal.fechaNacimiento}
+                    onChange={(v) => setPersonal({ ...personal, fechaNacimiento: v })}
+                    placeholder="Seleccionar"
+                    style={styles.fieldInput}
+                    labelStyle={styles.fieldLabel}
+                    textStyle={styles.dateFieldText}
+                  />
+                </View>
                 <View style={styles.btnRow}>
                   <TouchableOpacity
                     style={styles.cancelBtn}
@@ -452,26 +557,107 @@ export default function ProfileScreen() {
         )}
 
         {activeTab === 'reportes' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Reportes</Text>
-            <Text style={styles.reportsDesc}>
-              Genera un reporte en PDF con tu actividad como colaborador
-              científico: especies registradas, avistamientos y eventos.
-            </Text>
-            <TouchableOpacity
-              style={styles.reportBtn}
-              onPress={handleDownloadReporte}
-              disabled={reporteLoading}
-            >
-              {reporteLoading ? (
-                <ActivityIndicator color={colors.blue} size="small" />
-              ) : (
-                <Ionicons name="document-text-outline" size={18} color={colors.blue} />
-              )}
-              <Text style={styles.reportBtnText}>
-                {reporteLoading ? 'Generando reporte...' : 'Descargar reporte PDF'}
-              </Text>
-            </TouchableOpacity>
+          <View style={{ gap: 14 }}>
+            {reportesLoading && !reportesData ? (
+              <View style={[styles.section, { alignItems: 'center', paddingVertical: 32 }]}>
+                <ActivityIndicator color={colors.blue} />
+                <Text style={[styles.reportsDesc, { marginTop: 10, marginBottom: 0 }]}>
+                  Cargando estadísticas…
+                </Text>
+              </View>
+            ) : reportesError ? (
+              <View style={styles.section}>
+                <Text style={styles.reportsDesc}>
+                  Error al cargar estadísticas: {reportesError}
+                </Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.statsGridWrap}>
+                  <StatCard label="Especies catalogadas" value={totalEsp} color={colors.blue}
+                    icon={<Ionicons name="leaf-outline" size={18} color={colors.blue} />} />
+                  <StatCard label="Extinción crítica" value={critCount} color={colors.red}
+                    icon={<Ionicons name="warning-outline" size={18} color={colors.red} />} />
+                  <StatCard label="En peligro" value={pelCount} color={colors.amber}
+                    icon={<Ionicons name="alert-circle-outline" size={18} color={colors.amber} />} />
+                  <StatCard label="Vulnerables" value={vulCount} color="#f59e0b"
+                    icon={<Ionicons name="shield-outline" size={18} color="#f59e0b" />} />
+                  <StatCard label="Avistamientos" value={totalAvist} color="#8b5cf6"
+                    icon={<Ionicons name="binoculars-outline" size={18} color="#8b5cf6" />} />
+                  <StatCard label="Hábitats representados" value={habitats} color={colors.green}
+                    icon={<Ionicons name="water-outline" size={18} color={colors.green} />} />
+                  <StatCard label="Calidad del agua" value={`${calidad}%`} color={colors.ocean}
+                    icon={<Ionicons name="pulse-outline" size={18} color={colors.ocean} />} />
+                </View>
+
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Estado de Conservación</Text>
+                  <View style={styles.donutWrap}>
+                    <DonutChart segments={donutSegments} size={170} thickness={30} />
+                    <View style={{ gap: 6, flex: 1 }}>
+                      {donutSegments.map((s) => (
+                        <View key={s.label} style={styles.legendRow}>
+                          <View style={[styles.legendDot, { backgroundColor: s.color }]} />
+                          <Text style={styles.legendLabel} numberOfLines={1}>{s.label}</Text>
+                          <Text style={styles.legendVal}>{s.value}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Distribución por Estado</Text>
+                  <BarChart bars={barConservacion} height={130} />
+                </View>
+
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Especies más avistadas</Text>
+                  {topEspecies.length > 0 ? (
+                    <HBar bars={topEspecies} />
+                  ) : (
+                    <Text style={styles.reportsDesc}>Sin avistamientos registrados</Text>
+                  )}
+                </View>
+
+                {impacto && (
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Impacto Sostenible</Text>
+                    <View style={styles.statsGridWrap}>
+                      <ImpactCard label="Agua limpiada" value={impacto.agua_limpiada} unit="litros" color={colors.blue}
+                        icon={<Ionicons name="water-outline" size={20} color={colors.blue} />} />
+                      <ImpactCard label="Corales plantados" value={impacto.corales_plantados} unit="unidades" color="#f59e0b"
+                        icon={<Ionicons name="flower-outline" size={20} color="#f59e0b" />} />
+                      <ImpactCard label="Familias beneficiadas" value={impacto.familias_beneficiadas} unit="familias" color={colors.green}
+                        icon={<Ionicons name="people-outline" size={20} color={colors.green} />} />
+                      <ImpactCard label="Plástico reciclado" value={impacto.plastico_reciclado} unit="kg" color={colors.orange}
+                        icon={<Ionicons name="refresh-outline" size={20} color={colors.orange} />} />
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Reporte PDF</Text>
+                  <Text style={styles.reportsDesc}>
+                    Genera un reporte en PDF con el catálogo de especies y estadísticas de conservación.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.reportBtn}
+                    onPress={handleDownloadReporte}
+                    disabled={reporteLoading}
+                  >
+                    {reporteLoading ? (
+                      <ActivityIndicator color={colors.blue} size="small" />
+                    ) : (
+                      <Ionicons name="document-text-outline" size={18} color={colors.blue} />
+                    )}
+                    <Text style={styles.reportBtnText}>
+                      {reporteLoading ? 'Generando reporte...' : 'Descargar reporte PDF'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </View>
         )}
 
@@ -543,10 +729,10 @@ export default function ProfileScreen() {
                 </View>
 
                 {[
-                  { key: 'institucion', label: 'Institución' },
-                  { key: 'aniosExperiencia', label: 'Años de experiencia' },
-                  { key: 'numeroCedula', label: 'Cédula profesional' },
-                  { key: 'orcid', label: 'ORCID' },
+                  { key: 'institucion', label: 'Institución', maxLength: 200 },
+                  { key: 'aniosExperiencia', label: 'Años de experiencia', maxLength: 3 },
+                  { key: 'numeroCedula', label: 'Cédula profesional', maxLength: 20 },
+                  { key: 'orcid', label: 'ORCID', maxLength: 50 },
                 ].map((field) => (
                   <View key={field.key} style={styles.field}>
                     <Text style={styles.fieldLabel}>{field.label}</Text>
@@ -557,6 +743,7 @@ export default function ProfileScreen() {
                         setProfesional({ ...profesional, [field.key]: v })
                       }
                       placeholderTextColor={colors.text3}
+                      maxLength={field.maxLength}
                     />
                   </View>
                 ))}
@@ -572,6 +759,7 @@ export default function ProfileScreen() {
                     multiline
                     numberOfLines={4}
                     placeholderTextColor={colors.text3}
+                    maxLength={1000}
                   />
                 </View>
 
@@ -634,6 +822,7 @@ export default function ProfileScreen() {
                 secureTextEntry
                 value={pwForm.actual}
                 onChangeText={(v) => setPwForm({ ...pwForm, actual: v })}
+                maxLength={128}
               />
             </View>
             <View style={styles.field}>
@@ -645,6 +834,7 @@ export default function ProfileScreen() {
                 secureTextEntry
                 value={pwForm.nueva}
                 onChangeText={(v) => setPwForm({ ...pwForm, nueva: v })}
+                maxLength={128}
               />
             </View>
             <View style={styles.field}>
@@ -656,6 +846,7 @@ export default function ProfileScreen() {
                 secureTextEntry
                 value={pwForm.confirmar}
                 onChangeText={(v) => setPwForm({ ...pwForm, confirmar: v })}
+                maxLength={128}
               />
             </View>
             <TouchableOpacity style={styles.saveBtn} onPress={handleChangePassword} disabled={saving}>
@@ -778,7 +969,7 @@ export default function ProfileScreen() {
           </View>
         )}
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -849,6 +1040,7 @@ const styles = StyleSheet.create({
     color: colors.text3,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
+    textAlign: 'center',
   },
   tabsRow: {
     flexDirection: 'row',
@@ -972,6 +1164,11 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     textAlignVertical: 'top',
   },
+  dateFieldText: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    color: colors.text,
+  },
   btnRow: {
     flexDirection: 'row',
     gap: 10,
@@ -1076,6 +1273,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: typography.weight.semibold,
     color: colors.blue,
+  },
+  statsGridWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  donutWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  legendLabel: {
+    flex: 1,
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: colors.text2,
+  },
+  legendVal: {
+    fontFamily: typography.display,
+    fontSize: 13,
+    fontWeight: typography.weight.semibold,
+    color: colors.text,
   },
   logoutBtn: {
     flexDirection: 'row',

@@ -19,6 +19,7 @@ import { typography } from '../theme/typography';
 import { radii, shadows } from '../theme/spacing';
 import ScreenHeader from '../components/ScreenHeader';
 import ShareCard from '../components/ShareCard';
+import DateField from '../components/DateField';
 import { eventsList } from '../data/events';
 import { getEventos } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
@@ -133,6 +134,14 @@ export default function EventsScreen() {
       !eventForm.contacto
     ) {
       Alert.alert('Datos incompletos', 'Completa todos los campos obligatorios.');
+      return;
+    }
+    if (eventForm.titulo.trim().length < 3) {
+      Alert.alert('Título muy corto', 'El título debe tener al menos 3 caracteres.');
+      return;
+    }
+    if (eventForm.descripcion.trim().length < 10) {
+      Alert.alert('Descripción muy corta', 'La descripción debe tener al menos 10 caracteres.');
       return;
     }
     const capacidad = Number(eventForm.capacidadMaxima);
@@ -461,6 +470,7 @@ export default function EventsScreen() {
                   placeholderTextColor={colors.text3}
                   value={eventForm.titulo}
                   onChangeText={(v) => setField('titulo', v)}
+                  maxLength={200}
                 />
               </View>
 
@@ -492,13 +502,16 @@ export default function EventsScreen() {
 
               <View style={styles.formRow}>
                 <View style={[styles.formField, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Fecha *</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    placeholder="AAAA-MM-DD"
-                    placeholderTextColor={colors.text3}
+                  <DateField
+                    label="Fecha"
+                    required
+                    mode="date"
                     value={eventForm.fecha}
-                    onChangeText={(v) => setField('fecha', v)}
+                    onChange={(v) => setField('fecha', v)}
+                    placeholder="Seleccionar"
+                    style={styles.formInput}
+                    labelStyle={styles.formLabel}
+                    textStyle={styles.dateFieldText}
                   />
                 </View>
                 <View style={[styles.formField, { flex: 1 }]}>
@@ -508,8 +521,13 @@ export default function EventsScreen() {
                     placeholder="100"
                     placeholderTextColor={colors.text3}
                     value={eventForm.capacidadMaxima}
-                    onChangeText={(v) => setField('capacidadMaxima', v)}
+                    onChangeText={(v) => {
+                      const digits = v.replace(/[^0-9]/g, '');
+                      const clamped = digits && Number(digits) > 10000 ? '10000' : digits;
+                      setField('capacidadMaxima', clamped);
+                    }}
                     keyboardType="number-pad"
+                    maxLength={5}
                   />
                 </View>
               </View>
@@ -548,6 +566,7 @@ export default function EventsScreen() {
                   placeholderTextColor={colors.text3}
                   value={eventForm.ubicacion}
                   onChangeText={(v) => setField('ubicacion', v)}
+                  maxLength={500}
                 />
               </View>
 
@@ -561,28 +580,35 @@ export default function EventsScreen() {
                   onChangeText={(v) => setField('descripcion', v)}
                   multiline
                   numberOfLines={4}
+                  maxLength={2000}
                 />
               </View>
 
               <View style={styles.formRow}>
                 <View style={[styles.formField, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Hora de inicio *</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    placeholder="09:00"
-                    placeholderTextColor={colors.text3}
+                  <DateField
+                    label="Hora de inicio"
+                    required
+                    mode="time"
                     value={eventForm.horaInicio}
-                    onChangeText={(v) => setField('horaInicio', v)}
+                    onChange={(v) => setField('horaInicio', v)}
+                    placeholder="Seleccionar"
+                    style={styles.formInput}
+                    labelStyle={styles.formLabel}
+                    textStyle={styles.dateFieldText}
                   />
                 </View>
                 <View style={[styles.formField, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Hora de fin *</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    placeholder="12:00"
-                    placeholderTextColor={colors.text3}
+                  <DateField
+                    label="Hora de fin"
+                    required
+                    mode="time"
                     value={eventForm.horaFin}
-                    onChangeText={(v) => setField('horaFin', v)}
+                    onChange={(v) => setField('horaFin', v)}
+                    placeholder="Seleccionar"
+                    style={styles.formInput}
+                    labelStyle={styles.formLabel}
+                    textStyle={styles.dateFieldText}
                   />
                 </View>
               </View>
@@ -609,6 +635,7 @@ export default function EventsScreen() {
                     onChangeText={(v) => setField('contacto', v)}
                     keyboardType="email-address"
                     autoCapitalize="none"
+                    maxLength={150}
                   />
                 </View>
               </View>
@@ -1013,6 +1040,11 @@ const styles = StyleSheet.create({
     height: 90,
     paddingTop: 12,
     textAlignVertical: 'top',
+  },
+  dateFieldText: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    color: colors.text,
   },
   chipRow: {
     flexDirection: 'row',
