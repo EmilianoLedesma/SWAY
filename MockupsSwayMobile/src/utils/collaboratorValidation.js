@@ -1,0 +1,98 @@
+// MockupsSwayMobile/src/utils/collaboratorValidation.js
+// Pure validation for the collaborator register form's accreditation fields.
+// Mirrors the rules actually enforced by templates/especies.html's collaborator
+// modal JS (validateRegisterForm), not its HTML minlength/required attributes,
+// several of which are dead markup there.
+
+const NOMBRE_RE = /^[A-Za-zÀ-ÿ\s]{2,50}$/;
+const CEDULA_RE = /^\d{7,8}$/;
+const ORCID_RE = /^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/;
+
+function validateNombre(value, label) {
+  if (!value || !value.trim()) return `${label} es obligatorio`;
+  if (!NOMBRE_RE.test(value.trim())) return `${label} debe tener 2-50 letras`;
+  return null;
+}
+
+function validateApellidoMaterno(value) {
+  if (!value || !value.trim()) return null;
+  if (!NOMBRE_RE.test(value.trim())) return 'Apellido materno debe tener 2-50 letras';
+  return null;
+}
+
+function validateAniosExperiencia(value) {
+  if (!value || !value.trim()) return 'Los años de experiencia son obligatorios';
+  const n = parseInt(value, 10);
+  if (Number.isNaN(n) || n < 0 || n > 100) {
+    return 'Los años de experiencia deben ser un número entre 0 y 100';
+  }
+  return null;
+}
+
+function validateCedula(value) {
+  if (!value || !value.trim()) return 'El número de cédula profesional es obligatorio';
+  if (!CEDULA_RE.test(value.trim())) return 'Formato de cédula profesional inválido (7-8 dígitos)';
+  return null;
+}
+
+function validateOrcid(value) {
+  if (!value || !value.trim()) return null;
+  if (!ORCID_RE.test(value.trim())) return 'El ORCID debe tener el formato 0000-0000-0000-0000';
+  return null;
+}
+
+function validateMotivacion(value) {
+  const trimmed = (value || '').trim();
+  if (!trimmed) return 'La motivación para colaborar es obligatoria';
+  if (trimmed.length < 50) return 'Cuéntanos tu motivación en al menos 50 caracteres';
+  if (trimmed.length > 500) return 'La motivación no puede exceder 500 caracteres';
+  return null;
+}
+
+function validateRegisterForm(fields) {
+  const {
+    nombre, apellidoPaterno, apellidoMaterno, especialidad, gradoAcademico,
+    institucion, aniosExperiencia, numeroCedula, orcid, motivacion, termsAccepted,
+  } = fields;
+
+  const nombreError = validateNombre(nombre, 'El nombre');
+  if (nombreError) return nombreError;
+
+  const apellidoPaternoError = validateNombre(apellidoPaterno, 'El apellido paterno');
+  if (apellidoPaternoError) return apellidoPaternoError;
+
+  const apellidoMaternoError = validateApellidoMaterno(apellidoMaterno);
+  if (apellidoMaternoError) return apellidoMaternoError;
+
+  if (!especialidad || !gradoAcademico || !institucion) {
+    return 'Completa todos los campos obligatorios';
+  }
+
+  const aniosError = validateAniosExperiencia(aniosExperiencia);
+  if (aniosError) return aniosError;
+
+  const cedulaError = validateCedula(numeroCedula);
+  if (cedulaError) return cedulaError;
+
+  const orcidError = validateOrcid(orcid);
+  if (orcidError) return orcidError;
+
+  const motivacionError = validateMotivacion(motivacion);
+  if (motivacionError) return motivacionError;
+
+  if (!termsAccepted) {
+    return 'Debes aceptar los términos para colaboradores científicos';
+  }
+
+  return null;
+}
+
+module.exports = {
+  validateNombre,
+  validateApellidoMaterno,
+  validateAniosExperiencia,
+  validateCedula,
+  validateOrcid,
+  validateMotivacion,
+  validateRegisterForm,
+};

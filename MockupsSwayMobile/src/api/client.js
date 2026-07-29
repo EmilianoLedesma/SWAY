@@ -43,6 +43,64 @@ export async function login(email, password) {
   }
 }
 
+export async function registerColaborador(payload) {
+  try {
+    const res = await fetch(`${API_HOST}/api/colaboradores/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) return buildErrorResult(res, data, 'Error al registrar colaborador');
+    return data;
+  } catch (error) {
+    console.error('Error en registerColaborador:', error);
+    return { success: false, message: 'No se pudo conectar con el servidor' };
+  }
+}
+
+export async function checkEmail(email) {
+  try {
+    const res = await fetch(`${API_HOST}/api/colaboradores/check-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    return await res.json();
+  } catch (error) {
+    console.error('Error en checkEmail:', error);
+    return { exists: false, can_register: true };
+  }
+}
+
+export async function checkOrcid(orcid) {
+  try {
+    const res = await fetch(`${API_HOST}/api/colaboradores/check-orcid`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orcid }),
+    });
+    return await res.json();
+  } catch (error) {
+    console.error('Error en checkOrcid:', error);
+    return { exists: false, can_register: true };
+  }
+}
+
+export async function checkCedula(cedula) {
+  try {
+    const res = await fetch(`${API_HOST}/api/colaboradores/check-cedula`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cedula }),
+    });
+    return await res.json();
+  } catch (error) {
+    console.error('Error en checkCedula:', error);
+    return { exists: false, can_register: true };
+  }
+}
+
 export async function logout() {
   await SecureStore.deleteItemAsync(TOKEN_KEY);
   await AsyncStorage.removeItem(TOKEN_KEY);
