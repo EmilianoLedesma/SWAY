@@ -57,11 +57,14 @@ def build_especie_filters(query, estado=None, habitat=None):
 
 def build_avistamiento_filters(query, fecha_desde=None, fecha_hasta=None, especie_id=None):
     from app.data.models import Avistamiento
+    from datetime import datetime
 
     if fecha_desde:
-        query = query.filter(Avistamiento.fecha >= fecha_desde)
+        fecha_desde_dt = datetime.fromisoformat(fecha_desde)
+        query = query.filter(Avistamiento.fecha >= fecha_desde_dt)
     if fecha_hasta:
-        query = query.filter(Avistamiento.fecha <= fecha_hasta)
+        fecha_hasta_dt = datetime.fromisoformat(fecha_hasta)
+        query = query.filter(Avistamiento.fecha <= fecha_hasta_dt)
     if especie_id:
         query = query.filter(Avistamiento.id_especie == especie_id)
     return query

@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.data.database import get_db
+from app.data.database import get_db, build_avistamiento_filters
 from app.data.models import (
     Especie, EstadoConservacion, Avistamiento, Pedido,
     DetallePedido, Usuario
@@ -82,15 +82,34 @@ async def get_impacto_sostenible(db: Session = Depends(get_db)):
 
 
 @router.get("/avistamientos")
-async def get_avistamientos(db: Session = Depends(get_db)):
+async def get_avistamientos(
+    fecha_desde: Optional[str] = None,
+    fecha_hasta: Optional[str] = None,
+    estado: Optional[str] = None,
+    habitat: Optional[str] = None,
+    especie_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
     try:
-        registros = (
+        query = (
             db.query(Avistamiento, Especie, Usuario)
             .join(Especie, Avistamiento.id_especie == Especie.id)
             .join(Usuario, Avistamiento.id_usuario == Usuario.id)
-            .order_by(Avistamiento.fecha.desc())
-            .all()
         )
+        query = build_avistamiento_filters(
+            query, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, especie_id=especie_id
+        )
+        if estado:
+            query = query.join(
+                EstadoConservacion, Especie.id_estado_conservacion == EstadoConservacion.id
+            ).filter(EstadoConservacion.nombre == estado)
+        if habitat:
+            from app.data.models import EspecieHabitat, Habitat
+            query = query.join(
+                EspecieHabitat, Especie.id == EspecieHabitat.id_especie
+            ).join(Habitat, EspecieHabitat.id_habitat == Habitat.id).filter(Habitat.nombre == habitat)
+
+        registros = query.order_by(Avistamiento.fecha.desc()).all()
 
         avistamientos = []
         for avistamiento, especie, usuario in registros:
