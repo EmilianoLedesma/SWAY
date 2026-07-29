@@ -350,7 +350,7 @@ export default function ProfileScreen() {
 
   const handleDownloadReporte = async () => {
     setReporteLoading(true);
-    const result = await downloadReportePDF();
+    const result = await downloadReportePDF(filtros);
     setReporteLoading(false);
     if (!result.success) {
       Alert.alert('Error', result.message || 'No se pudo generar el reporte.');
