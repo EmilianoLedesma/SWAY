@@ -124,6 +124,8 @@ export default function ProfileScreen() {
   const [reportesData, setReportesData] = useState(null);
   const [reportesLoading, setReportesLoading] = useState(false);
   const [reportesError, setReportesError] = useState(null);
+  const [reportesSubTab, setReportesSubTab] = useState('personal');
+  const [filtros, setFiltros] = useState({});
 
   const streakPulse = useBreathe();
   const [trackWidth, setTrackWidth] = useState(0);
@@ -162,14 +164,14 @@ export default function ProfileScreen() {
   }, [badges]);
 
   useEffect(() => {
-    if (activeTab !== 'reportes' || reportesData) return;
+    if (activeTab !== 'reportes') return;
     let active = true;
     setReportesLoading(true);
     setReportesError(null);
     Promise.all([
-      getEstadisticasEspecies(),
+      getEstadisticasEspecies(filtros),
       getEstadisticas(),
-      getAvistamientosAll(),
+      getAvistamientosAll(filtros),
       getImpactoSostenible(),
     ])
       .then(([espRes, genRes, avRes, impRes]) => {
@@ -186,7 +188,7 @@ export default function ProfileScreen() {
     return () => {
       active = false;
     };
-  }, [activeTab, reportesData]);
+  }, [activeTab, filtros]);
 
   const [personal, setPersonal] = useState({
     nombre: 'Joaquín',
@@ -558,6 +560,22 @@ export default function ProfileScreen() {
 
         {activeTab === 'reportes' && (
           <View style={{ gap: 14 }}>
+            <View style={styles.reportesSubTabRow}>
+              {['personal', 'global'].map((key) => (
+                <TouchableOpacity
+                  key={key}
+                  style={[styles.reportesSubTab, reportesSubTab === key && styles.reportesSubTabActive]}
+                  onPress={() => {
+                    setReportesSubTab(key);
+                    setFiltros(key === 'personal' ? { desde: filtros.desde, hasta: filtros.hasta } : {});
+                  }}
+                >
+                  <Text style={[styles.reportesSubTabText, reportesSubTab === key && styles.reportesSubTabTextActive]}>
+                    {key === 'personal' ? 'Personal' : 'Global'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             {reportesLoading && !reportesData ? (
               <View style={[styles.section, { alignItems: 'center', paddingVertical: 32 }]}>
                 <ActivityIndicator color={colors.blue} />
@@ -1066,6 +1084,32 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: colors.blue,
     fontWeight: typography.weight.semibold,
+  },
+  reportesSubTabRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  reportesSubTab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: radii.r12,
+    borderWidth: 1,
+    borderColor: colors.borderMid,
+    alignItems: 'center',
+  },
+  reportesSubTabActive: {
+    backgroundColor: colors.blueLight,
+    borderColor: colors.blue,
+  },
+  reportesSubTabText: {
+    fontFamily: typography.display,
+    fontSize: 13,
+    fontWeight: typography.weight.semibold,
+    color: colors.text2,
+  },
+  reportesSubTabTextActive: {
+    color: colors.blue,
   },
   section: {
     backgroundColor: colors.surface,
