@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { login as apiLogin } from '../api/client';
+import { login as apiLogin, getProfile, hasStoredToken, isBiometricLoginEnabled, logout } from '../api/client';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { radii, shadows } from '../theme/spacing';
@@ -54,15 +54,29 @@ export default function LoginScreen({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [showBiometricUnlock, setShowBiometricUnlock] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [tokenPresent, setTokenPresent] = useState(false);
 
   useEffect(() => {
     let active = true;
     (async () => {
-      const [hasHardware, isEnrolled] = await Promise.all([
-        LocalAuthentication.hasHardwareAsync(),
-        LocalAuthentication.isEnrolledAsync(),
-      ]);
-      if (active) setBiometricAvailable(hasHardware && isEnrolled);
+      try {
+        const [hasHardware, isEnrolled, biometricEnabled, hasToken] = await Promise.all([
+          LocalAuthentication.hasHardwareAsync(),
+          LocalAuthentication.isEnrolledAsync(),
+          isBiometricLoginEnabled(),
+          hasStoredToken(),
+        ]);
+        if (!active) return;
+        setBiometricAvailable(hasHardware && isEnrolled);
+        setTokenPresent(hasToken);
+        setShowBiometricUnlock(hasHardware && isEnrolled && biometricEnabled && hasToken);
+      } catch (error) {
+        console.error('Error en verificación de sesión:', error);
+      } finally {
+        if (active) setCheckingSession(false);
+      }
     })();
     return () => {
       active = false;
@@ -76,12 +90,27 @@ export default function LoginScreen({ onLogin }) {
       promptMessage: 'Confirma tu identidad para acceder a SWAY',
       cancelLabel: 'Cancelar',
     });
-    setLoading(false);
-    if (result.success) {
-      if (onLogin) onLogin();
-    } else if (result.error && result.error !== 'user_cancel') {
-      setError('No se pudo verificar tu identidad');
+    if (!result.success) {
+      setLoading(false);
+      if (result.error && result.error !== 'user_cancel') {
+        setError('No se pudo verificar tu identidad');
+      }
+      return;
     }
+    const profile = await getProfile();
+    setLoading(false);
+    if (profile.success) {
+      if (onLogin) onLogin();
+      return;
+    }
+    if (profile.networkError) {
+      setError('No se pudo conectar con el servidor');
+      return;
+    }
+    await logout();
+    setShowBiometricUnlock(false);
+    setTokenPresent(false);
+    setError('Tu sesión expiró, inicia sesión de nuevo.');
   };
 
   const handleSubmit = async () => {
@@ -167,6 +196,47 @@ export default function LoginScreen({ onLogin }) {
           </View>
 
           <View style={styles.formCard}>
+            {checkingSession ? (
+              <ActivityIndicator color={colors.blue} size="small" />
+            ) : showBiometricUnlock ? (
+              <>
+                <Text style={styles.title}>Bienvenido de nuevo</Text>
+                <Text style={styles.subtitle}>Usa tu huella o Face ID para continuar</Text>
+
+                {error ? (
+                  <View style={styles.errorBanner}>
+                    <Text style={styles.errorText}>{error}</Text>
+                  </View>
+                ) : null}
+
+                <TouchableOpacity
+                  style={styles.biometricBtn}
+                  onPress={handleBiometric}
+                  disabled={loading}
+                  activeOpacity={0.85}
+                >
+                  {loading ? (
+                    <ActivityIndicator color={colors.blue} size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="finger-print-outline" size={18} color={colors.blue} />
+                      <Text style={styles.biometricText}>Iniciar sesión con biometría</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.switchBtn}
+                  onPress={() => {
+                    setShowBiometricUnlock(false);
+                    setError('');
+                  }}
+                >
+                  <Text style={styles.switchText}>Usar contraseña</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
             <Text style={styles.title}>
               {isLogin ? 'Iniciar sesión' : 'Crear cuenta'}
             </Text>
@@ -438,7 +508,7 @@ export default function LoginScreen({ onLogin }) {
               <View style={styles.dividerLine} />
             </View>
 
-            {isLogin && biometricAvailable && (
+            {isLogin && biometricAvailable && tokenPresent && (
               <TouchableOpacity
                 style={styles.biometricBtn}
                 onPress={handleBiometric}
@@ -463,6 +533,8 @@ export default function LoginScreen({ onLogin }) {
                   : '¿Ya tienes cuenta? Inicia sesión'}
               </Text>
             </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </ScrollView>

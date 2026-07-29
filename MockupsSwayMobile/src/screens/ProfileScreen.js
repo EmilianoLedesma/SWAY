@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import * as LocalAuthentication from 'expo-local-authentication';
 import {
   StyleSheet,
   Text,
@@ -36,6 +37,8 @@ import {
   getAvistamientosAll,
   getImpactoSostenible,
   downloadReportePDF,
+  isBiometricLoginEnabled,
+  setBiometricLoginEnabled,
 } from '../api/client';
 import { DonutChart, BarChart, HBar, StatCard, ImpactCard } from '../components/DashboardCharts';
 
@@ -121,6 +124,7 @@ export default function ProfileScreen() {
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [reportesData, setReportesData] = useState(null);
   const [reportesLoading, setReportesLoading] = useState(false);
   const [reportesError, setReportesError] = useState(null);
@@ -160,6 +164,40 @@ export default function ProfileScreen() {
       prevUnlocked.current[b.label] = b.unlocked;
     });
   }, [badges]);
+
+  useEffect(() => {
+    let active = true;
+    isBiometricLoginEnabled()
+      .then((v) => {
+        if (active) setBiometricEnabled(v);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleToggleBiometric = async (value) => {
+    try {
+      if (value) {
+        const [hasHardware, isEnrolled] = await Promise.all([
+          LocalAuthentication.hasHardwareAsync(),
+          LocalAuthentication.isEnrolledAsync(),
+        ]);
+        if (!hasHardware || !isEnrolled) {
+          Alert.alert(
+            'Biometría no disponible',
+            'Este dispositivo no tiene huella o Face ID configurado.',
+          );
+          return;
+        }
+      }
+      await setBiometricLoginEnabled(value);
+      setBiometricEnabled(value);
+    } catch (e) {
+      Alert.alert('Error', 'No se pudo actualizar la preferencia de biometría.');
+    }
+  };
 
   useEffect(() => {
     if (activeTab !== 'reportes' || reportesData) return;
@@ -849,6 +887,22 @@ export default function ProfileScreen() {
                 maxLength={128}
               />
             </View>
+
+            <View style={styles.notifPrefRow}>
+              <View style={styles.notifPrefInfo}>
+                <Text style={styles.notifPrefLabel}>Acceso biométrico</Text>
+                <Text style={styles.notifPrefDesc}>
+                  Usa tu huella o Face ID para reabrir tu sesión sin escribir tu contraseña.
+                </Text>
+              </View>
+              <Switch
+                value={biometricEnabled}
+                onValueChange={handleToggleBiometric}
+                trackColor={{ false: colors.borderMid, true: colors.blueLight }}
+                thumbColor={biometricEnabled ? colors.blue : colors.text3}
+              />
+            </View>
+
             <TouchableOpacity style={styles.saveBtn} onPress={handleChangePassword} disabled={saving}>
               <Text style={styles.saveBtnText}>{saving ? 'Guardando…' : 'Actualizar contraseña'}</Text>
             </TouchableOpacity>

@@ -46,7 +46,8 @@
           "faceIDPermission": "SWAY usa Face ID para acceder rápido y de forma segura a tu cuenta de colaborador."
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-secure-store"
     ]
   }
 }
