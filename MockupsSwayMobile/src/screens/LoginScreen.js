@@ -56,20 +56,27 @@ export default function LoginScreen({ onLogin }) {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [showBiometricUnlock, setShowBiometricUnlock] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [tokenPresent, setTokenPresent] = useState(false);
 
   useEffect(() => {
     let active = true;
     (async () => {
-      const [hasHardware, isEnrolled, biometricEnabled, tokenPresent] = await Promise.all([
-        LocalAuthentication.hasHardwareAsync(),
-        LocalAuthentication.isEnrolledAsync(),
-        isBiometricLoginEnabled(),
-        hasStoredToken(),
-      ]);
-      if (!active) return;
-      setBiometricAvailable(hasHardware && isEnrolled);
-      setShowBiometricUnlock(hasHardware && isEnrolled && biometricEnabled && tokenPresent);
-      setCheckingSession(false);
+      try {
+        const [hasHardware, isEnrolled, biometricEnabled, hasToken] = await Promise.all([
+          LocalAuthentication.hasHardwareAsync(),
+          LocalAuthentication.isEnrolledAsync(),
+          isBiometricLoginEnabled(),
+          hasStoredToken(),
+        ]);
+        if (!active) return;
+        setBiometricAvailable(hasHardware && isEnrolled);
+        setTokenPresent(hasToken);
+        setShowBiometricUnlock(hasHardware && isEnrolled && biometricEnabled && hasToken);
+      } catch (error) {
+        console.error('Error en verificación de sesión:', error);
+      } finally {
+        if (active) setCheckingSession(false);
+      }
     })();
     return () => {
       active = false;
@@ -96,8 +103,13 @@ export default function LoginScreen({ onLogin }) {
       if (onLogin) onLogin();
       return;
     }
+    if (profile.networkError) {
+      setError('No se pudo conectar con el servidor');
+      return;
+    }
     await logout();
     setShowBiometricUnlock(false);
+    setTokenPresent(false);
     setError('Tu sesión expiró, inicia sesión de nuevo.');
   };
 
@@ -496,7 +508,7 @@ export default function LoginScreen({ onLogin }) {
               <View style={styles.dividerLine} />
             </View>
 
-            {isLogin && biometricAvailable && (
+            {isLogin && biometricAvailable && tokenPresent && (
               <TouchableOpacity
                 style={styles.biometricBtn}
                 onPress={handleBiometric}

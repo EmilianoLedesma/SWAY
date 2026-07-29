@@ -45,6 +45,7 @@ export async function login(email, password) {
 
 export async function logout() {
   await SecureStore.deleteItemAsync(TOKEN_KEY);
+  await AsyncStorage.removeItem(TOKEN_KEY);
 }
 
 export async function hasStoredToken() {
@@ -167,7 +168,7 @@ export async function getProfile() {
     return data;
   } catch (error) {
     console.error('Error en getProfile:', error);
-    return { success: false, colaborador: null };
+    return { success: false, networkError: true, colaborador: null };
   }
 }
 
