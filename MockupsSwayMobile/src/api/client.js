@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -11,20 +11,18 @@ export const API_HOST = `http://${devHost || 'localhost'}:8000`;
 const TOKEN_KEY = 'sway_colab_token';
 
 async function authHeaders() {
-  const token = await AsyncStorage.getItem(TOKEN_KEY);
+  const token = await SecureStore.getItemAsync(TOKEN_KEY);
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 async function buildErrorResult(res, data, fallback) {
   if (res.status === 401) {
-    await AsyncStorage.removeItem(TOKEN_KEY);
+    await SecureStore.deleteItemAsync(TOKEN_KEY);
     return { success: false, sessionExpired: true, message: 'Sesión expirada, inicia sesión de nuevo.' };
   }
   return { success: false, message: typeof data.detail === 'string' ? data.detail : fallback };
 }
 
-// Unica llamada POST habilitada por ahora: sin token no hay forma de leer
-// avistamientos/eventos/perfil del colaborador (requieren sesion).
 export async function login(email, password) {
   try {
     const res = await fetch(`${API_HOST}/api/colaboradores/login`, {
@@ -34,7 +32,7 @@ export async function login(email, password) {
     });
     const data = await res.json();
     if (res.ok && data.access_token) {
-      await AsyncStorage.setItem(TOKEN_KEY, data.access_token);
+      await SecureStore.setItemAsync(TOKEN_KEY, data.access_token);
       return { success: true };
     }
     return { success: false, message: data.detail || data.message || 'Credenciales inválidas' };
@@ -45,7 +43,12 @@ export async function login(email, password) {
 }
 
 export async function logout() {
-  await AsyncStorage.removeItem(TOKEN_KEY);
+  await SecureStore.deleteItemAsync(TOKEN_KEY);
+}
+
+export async function hasStoredToken() {
+  const token = await SecureStore.getItemAsync(TOKEN_KEY);
+  return !!token;
 }
 
 export async function createEspecie(payload) {
