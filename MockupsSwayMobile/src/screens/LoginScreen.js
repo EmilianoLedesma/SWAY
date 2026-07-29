@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { login as apiLogin } from '../api/client';
+import { login as apiLogin, registerColaborador, checkEmail, checkOrcid, checkCedula } from '../api/client';
+import { validateRegisterForm } from '../utils/collaboratorValidation';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { radii, shadows } from '../theme/spacing';
@@ -103,32 +104,27 @@ export default function LoginScreen({ onLogin }) {
         setError('Las contraseñas no coinciden');
         return;
       }
-      if (
-        !name ||
-        !apellidoPaterno ||
-        !especialidad ||
-        !gradoAcademico ||
-        !institucion ||
-        !aniosExperiencia ||
-        !numeroCedula
-      ) {
-        setError('Completa todos los campos obligatorios');
-        return;
-      }
-      if (motivacion.trim().length < 50) {
-        setError('Cuéntanos tu motivación en al menos 50 caracteres');
-        return;
-      }
-      if (orcid.trim() && !/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(orcid.trim())) {
-        setError('El ORCID debe tener el formato 0000-0000-0000-0000');
-        return;
-      }
-      if (!termsAccepted) {
-        setError('Debes aceptar los términos para colaboradores científicos');
+      const registerError = validateRegisterForm({
+        nombre: name,
+        apellidoPaterno,
+        apellidoMaterno,
+        especialidad,
+        gradoAcademico,
+        institucion,
+        aniosExperiencia,
+        numeroCedula,
+        orcid,
+        motivacion,
+        termsAccepted,
+      });
+      if (registerError) {
+        setError(registerError);
         return;
       }
     }
+
     setLoading(true);
+
     if (isLogin) {
       const result = await apiLogin(email, password);
       setLoading(false);
@@ -139,11 +135,49 @@ export default function LoginScreen({ onLogin }) {
       }
       return;
     }
-    // Registro de colaborador: aún no hay endpoint POST habilitado en el mockup, se simula.
-    setTimeout(() => {
-      if (onLogin) onLogin();
+
+    const [emailCheck, cedulaCheck, orcidCheck] = await Promise.all([
+      checkEmail(email),
+      checkCedula(numeroCedula),
+      orcid.trim() ? checkOrcid(orcid) : Promise.resolve({ exists: false, can_register: true }),
+    ]);
+    const duplicate = [emailCheck, cedulaCheck, orcidCheck].find(
+      (check) => check.exists && !check.can_register
+    );
+    if (duplicate) {
+      setError(duplicate.message || 'Ya existe una solicitud con estos datos');
       setLoading(false);
-    }, 800);
+      return;
+    }
+
+    const registerResult = await registerColaborador({
+      nombre: name,
+      apellidoPaterno,
+      apellidoMaterno,
+      email,
+      password,
+      especialidad,
+      grado_academico: gradoAcademico,
+      institucion,
+      años_experiencia: aniosExperiencia,
+      numero_cedula: numeroCedula,
+      orcid,
+      motivacion,
+    });
+
+    if (!registerResult.success) {
+      setError(registerResult.message || 'No se pudo completar el registro');
+      setLoading(false);
+      return;
+    }
+
+    const loginResult = await apiLogin(email, password);
+    setLoading(false);
+    if (loginResult.success) {
+      if (onLogin) onLogin();
+    } else {
+      setError(loginResult.message);
+    }
   };
 
   return (
