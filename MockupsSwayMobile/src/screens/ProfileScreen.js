@@ -595,7 +595,7 @@ export default function ProfileScreen() {
                   style={[styles.reportesSubTab, reportesSubTab === key && styles.reportesSubTabActive]}
                   onPress={() => {
                     setReportesSubTab(key);
-                    setFiltros(key === 'personal' ? { desde: filtros.desde, hasta: filtros.hasta } : {});
+                    setFiltros(key === 'personal' ? { desde: filtros.desde, hasta: filtros.hasta, quickPick: filtros.quickPick } : {});
                   }}
                 >
                   <Text style={[styles.reportesSubTabText, reportesSubTab === key && styles.reportesSubTabTextActive]}>
@@ -616,7 +616,7 @@ export default function ProfileScreen() {
                     style={[styles.reportesSubTab, filtros.quickPick === opt.label && styles.reportesSubTabActive]}
                     onPress={() => {
                       if (opt.days == null) {
-                        setFiltros({});
+                        setFiltros({ quickPick: 'Todo' });
                       } else {
                         const hasta = new Date().toISOString().slice(0, 10);
                         const desde = new Date(Date.now() - opt.days * 86400000).toISOString().slice(0, 10);
@@ -633,11 +633,11 @@ export default function ProfileScreen() {
             )}
             {reportesSubTab === 'global' && (
               <>
-                <View style={styles.reportesSubTabRow}>
+                <View style={styles.filterChipRow}>
                   {estadosCatalog.map((e) => (
                     <TouchableOpacity
                       key={e.id}
-                      style={[styles.reportesSubTab, filtros.estado === e.nombre && styles.reportesSubTabActive]}
+                      style={[styles.filterChip, filtros.estado === e.nombre && styles.reportesSubTabActive]}
                       onPress={() =>
                         setFiltros((f) => ({ ...f, estado: f.estado === e.nombre ? undefined : e.nombre }))
                       }
@@ -648,11 +648,11 @@ export default function ProfileScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
-                <View style={styles.reportesSubTabRow}>
+                <View style={styles.filterChipRow}>
                   {habitatsCatalog.map((h) => (
                     <TouchableOpacity
                       key={h.id}
-                      style={[styles.reportesSubTab, filtros.habitat === h.nombre && styles.reportesSubTabActive]}
+                      style={[styles.filterChip, filtros.habitat === h.nombre && styles.reportesSubTabActive]}
                       onPress={() =>
                         setFiltros((f) => ({ ...f, habitat: f.habitat === h.nombre ? undefined : h.nombre }))
                       }
@@ -687,43 +687,55 @@ export default function ProfileScreen() {
               </View>
             ) : (
               <>
-                <View style={styles.statsGridWrap}>
-                  <StatCard label="Especies catalogadas" value={totalEsp} color={colors.blue}
-                    icon={<Ionicons name="leaf-outline" size={18} color={colors.blue} />} />
-                  <StatCard label="Extinción crítica" value={critCount} color={colors.red}
-                    icon={<Ionicons name="warning-outline" size={18} color={colors.red} />} />
-                  <StatCard label="En peligro" value={pelCount} color={colors.amber}
-                    icon={<Ionicons name="alert-circle-outline" size={18} color={colors.amber} />} />
-                  <StatCard label="Vulnerables" value={vulCount} color="#f59e0b"
-                    icon={<Ionicons name="shield-outline" size={18} color="#f59e0b" />} />
-                  <StatCard label="Avistamientos" value={totalAvist} color="#8b5cf6"
-                    icon={<Ionicons name="binoculars-outline" size={18} color="#8b5cf6" />} />
-                  <StatCard label="Hábitats representados" value={habitats} color={colors.green}
-                    icon={<Ionicons name="water-outline" size={18} color={colors.green} />} />
-                  <StatCard label="Calidad del agua" value={`${calidad}%`} color={colors.ocean}
-                    icon={<Ionicons name="pulse-outline" size={18} color={colors.ocean} />} />
-                </View>
+                {reportesSubTab === 'global' && (
+                  <View style={styles.statsGridWrap}>
+                    <StatCard label="Especies catalogadas" value={totalEsp} color={colors.blue}
+                      icon={<Ionicons name="leaf-outline" size={18} color={colors.blue} />} />
+                    <StatCard label="Extinción crítica" value={critCount} color={colors.red}
+                      icon={<Ionicons name="warning-outline" size={18} color={colors.red} />} />
+                    <StatCard label="En peligro" value={pelCount} color={colors.amber}
+                      icon={<Ionicons name="alert-circle-outline" size={18} color={colors.amber} />} />
+                    <StatCard label="Vulnerables" value={vulCount} color="#f59e0b"
+                      icon={<Ionicons name="shield-outline" size={18} color="#f59e0b" />} />
+                    <StatCard label="Avistamientos" value={totalAvist} color="#8b5cf6"
+                      icon={<Ionicons name="binoculars-outline" size={18} color="#8b5cf6" />} />
+                    <StatCard label="Hábitats representados" value={habitats} color={colors.green}
+                      icon={<Ionicons name="water-outline" size={18} color={colors.green} />} />
+                    <StatCard label="Calidad del agua" value={`${calidad}%`} color={colors.ocean}
+                      icon={<Ionicons name="pulse-outline" size={18} color={colors.ocean} />} />
+                  </View>
+                )}
+                {reportesSubTab === 'personal' && (
+                  <View style={styles.statsGridWrap}>
+                    <StatCard label="Avistamientos" value={totalAvist} color="#8b5cf6"
+                      icon={<Ionicons name="binoculars-outline" size={18} color="#8b5cf6" />} />
+                  </View>
+                )}
 
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Estado de Conservación</Text>
-                  <View style={styles.donutWrap}>
-                    <DonutChart segments={donutSegments} size={170} thickness={30} />
-                    <View style={{ gap: 6, flex: 1 }}>
-                      {donutSegments.map((s) => (
-                        <View key={s.label} style={styles.legendRow}>
-                          <View style={[styles.legendDot, { backgroundColor: s.color }]} />
-                          <Text style={styles.legendLabel} numberOfLines={1}>{s.label}</Text>
-                          <Text style={styles.legendVal}>{s.value}</Text>
-                        </View>
-                      ))}
+                {reportesSubTab === 'global' && (
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Estado de Conservación</Text>
+                    <View style={styles.donutWrap}>
+                      <DonutChart segments={donutSegments} size={170} thickness={30} />
+                      <View style={{ gap: 6, flex: 1 }}>
+                        {donutSegments.map((s) => (
+                          <View key={s.label} style={styles.legendRow}>
+                            <View style={[styles.legendDot, { backgroundColor: s.color }]} />
+                            <Text style={styles.legendLabel} numberOfLines={1}>{s.label}</Text>
+                            <Text style={styles.legendVal}>{s.value}</Text>
+                          </View>
+                        ))}
+                      </View>
                     </View>
                   </View>
-                </View>
+                )}
 
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Distribución por Estado</Text>
-                  <BarChart bars={barConservacion} height={130} />
-                </View>
+                {reportesSubTab === 'global' && (
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Distribución por Estado</Text>
+                    <BarChart bars={barConservacion} height={130} />
+                  </View>
+                )}
 
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Especies más avistadas</Text>
@@ -734,7 +746,7 @@ export default function ProfileScreen() {
                   )}
                 </View>
 
-                {impacto && (
+                {reportesSubTab === 'global' && impacto && (
                   <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Impacto Sostenible</Text>
                     <View style={styles.statsGridWrap}>
@@ -1206,6 +1218,19 @@ const styles = StyleSheet.create({
   },
   reportesSubTabTextActive: {
     color: colors.blue,
+  },
+  filterChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  filterChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: radii.r12,
+    borderWidth: 1,
+    borderColor: colors.borderMid,
   },
   section: {
     backgroundColor: colors.surface,

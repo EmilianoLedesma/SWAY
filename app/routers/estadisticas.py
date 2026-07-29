@@ -219,7 +219,7 @@ async def descargar_reporte_especies(
         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
         from reportlab.lib.units import inch
         import io
-        from app.data.database import build_especie_filters, build_avistamiento_filters
+        from app.data.database import build_especie_filters
 
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=letter)
