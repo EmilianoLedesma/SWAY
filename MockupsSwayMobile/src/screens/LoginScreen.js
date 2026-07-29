@@ -136,10 +136,13 @@ export default function LoginScreen({ onLogin }) {
       return;
     }
 
+    const trimmedOrcid = orcid.trim();
+    const trimmedCedula = numeroCedula.trim();
+
     const [emailCheck, cedulaCheck, orcidCheck] = await Promise.all([
       checkEmail(email),
-      checkCedula(numeroCedula),
-      orcid.trim() ? checkOrcid(orcid) : Promise.resolve({ exists: false, can_register: true }),
+      checkCedula(trimmedCedula),
+      trimmedOrcid ? checkOrcid(trimmedOrcid) : Promise.resolve({ exists: false, can_register: true }),
     ]);
     const duplicate = [emailCheck, cedulaCheck, orcidCheck].find(
       (check) => check.exists && !check.can_register
@@ -160,8 +163,8 @@ export default function LoginScreen({ onLogin }) {
       grado_academico: gradoAcademico,
       institucion,
       años_experiencia: aniosExperiencia,
-      numero_cedula: numeroCedula,
-      orcid,
+      numero_cedula: trimmedCedula,
+      orcid: trimmedOrcid,
       motivacion,
     });
 
@@ -176,7 +179,8 @@ export default function LoginScreen({ onLogin }) {
     if (loginResult.success) {
       if (onLogin) onLogin();
     } else {
-      setError(loginResult.message);
+      setError('Registro exitoso. Inicia sesión con la contraseña de tu cuenta existente.');
+      setIsLogin(true);
     }
   };
 
