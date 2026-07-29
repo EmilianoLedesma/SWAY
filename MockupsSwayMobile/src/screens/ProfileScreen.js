@@ -167,30 +167,36 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     let active = true;
-    isBiometricLoginEnabled().then((v) => {
-      if (active) setBiometricEnabled(v);
-    });
+    isBiometricLoginEnabled()
+      .then((v) => {
+        if (active) setBiometricEnabled(v);
+      })
+      .catch(() => {});
     return () => {
       active = false;
     };
   }, []);
 
   const handleToggleBiometric = async (value) => {
-    if (value) {
-      const [hasHardware, isEnrolled] = await Promise.all([
-        LocalAuthentication.hasHardwareAsync(),
-        LocalAuthentication.isEnrolledAsync(),
-      ]);
-      if (!hasHardware || !isEnrolled) {
-        Alert.alert(
-          'Biometría no disponible',
-          'Este dispositivo no tiene huella o Face ID configurado.',
-        );
-        return;
+    try {
+      if (value) {
+        const [hasHardware, isEnrolled] = await Promise.all([
+          LocalAuthentication.hasHardwareAsync(),
+          LocalAuthentication.isEnrolledAsync(),
+        ]);
+        if (!hasHardware || !isEnrolled) {
+          Alert.alert(
+            'Biometría no disponible',
+            'Este dispositivo no tiene huella o Face ID configurado.',
+          );
+          return;
+        }
       }
+      await setBiometricLoginEnabled(value);
+      setBiometricEnabled(value);
+    } catch (e) {
+      Alert.alert('Error', 'No se pudo actualizar la preferencia de biometría.');
     }
-    await setBiometricLoginEnabled(value);
-    setBiometricEnabled(value);
   };
 
   useEffect(() => {
