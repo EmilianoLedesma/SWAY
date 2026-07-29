@@ -10,15 +10,15 @@ export const API_HOST = `http://${devHost || 'localhost'}:8000`;
 
 const TOKEN_KEY = 'sway_colab_token';
 
-function buildQuery(filtros) {
-  if (!filtros || Object.keys(filtros).length === 0) return '';
+function buildQuery(filtros = {}) {
   const params = new URLSearchParams();
-  Object.entries(filtros).forEach(([key, val]) => {
-    if (val !== null && val !== undefined && val !== '') {
-      params.append(key, val);
-    }
-  });
-  return params.toString() ? `?${params.toString()}` : '';
+  if (filtros.desde) params.set('fecha_desde', filtros.desde);
+  if (filtros.hasta) params.set('fecha_hasta', filtros.hasta);
+  if (filtros.estado) params.set('estado', filtros.estado);
+  if (filtros.habitat) params.set('habitat', filtros.habitat);
+  if (filtros.especieId) params.set('especie_id', String(filtros.especieId));
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
 }
 
 async function authHeaders() {
