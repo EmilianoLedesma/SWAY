@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -49,6 +50,20 @@ export async function logout() {
 export async function hasStoredToken() {
   const token = await SecureStore.getItemAsync(TOKEN_KEY);
   return !!token;
+}
+
+const BIOMETRIC_FLAG_KEY = 'sway_biometric_enabled';
+
+export async function isBiometricLoginEnabled() {
+  return (await AsyncStorage.getItem(BIOMETRIC_FLAG_KEY)) === 'true';
+}
+
+export async function setBiometricLoginEnabled(enabled) {
+  if (enabled) {
+    await AsyncStorage.setItem(BIOMETRIC_FLAG_KEY, 'true');
+  } else {
+    await AsyncStorage.removeItem(BIOMETRIC_FLAG_KEY);
+  }
 }
 
 export async function createEspecie(payload) {
