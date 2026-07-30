@@ -21,7 +21,7 @@ import ScreenHeader from '../components/ScreenHeader';
 import ShareCard from '../components/ShareCard';
 import DateField from '../components/DateField';
 import { eventsList } from '../data/events';
-import { getEventos } from '../api/client';
+import { getEventos, getTiposEvento, getModalidades, crearEvento } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
 
 function mapEventoFromApi(e) {
@@ -45,25 +45,12 @@ const STATUS_CFG = {
   PAST: { label: 'Pasado', color: colors.text3, bg: colors.bg },
 };
 
-const TIPOS_EVENTO = [
-  'Conferencia',
-  'Taller',
-  'Limpieza de Playa',
-  'Seminario',
-  'Expedición',
-  'Campaña de Concientización',
-  'Capacitación',
-  'Festival',
-];
-
-const MODALIDADES = ['Presencial', 'Virtual', 'Híbrida', 'Webinar', 'Taller Práctico'];
-
 const initialEventForm = {
   titulo: '',
-  tipo: '',
+  tipoId: null,
   fecha: '',
   capacidadMaxima: '',
-  modalidad: '',
+  modalidadId: null,
   ubicacion: '',
   descripcion: '',
   horaInicio: '',
@@ -91,6 +78,9 @@ export default function EventsScreen() {
   const [shareTarget, setShareTarget] = useState(null);
   const shareCardRef = useRef(null);
 
+  const [tiposEvento, setTiposEvento] = useState([]);
+  const [modalidades, setModalidades] = useState([]);
+
   useEffect(() => {
     let active = true;
     getEventos().then((data) => {
@@ -98,6 +88,19 @@ export default function EventsScreen() {
       if (data?.eventos?.length) {
         setEvents(data.eventos.map(mapEventoFromApi));
       }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    getTiposEvento().then((data) => {
+      if (active && data?.tipos) setTiposEvento(data.tipos);
+    });
+    getModalidades().then((data) => {
+      if (active && data?.modalidades) setModalidades(data.modalidades);
     });
     return () => {
       active = false;
@@ -121,13 +124,13 @@ export default function EventsScreen() {
     }, 150);
   };
 
-  const handleCreateEvent = () => {
+  const handleCreateEvent = async () => {
     if (
       !eventForm.titulo ||
-      !eventForm.tipo ||
+      !eventForm.tipoId ||
       !eventForm.fecha ||
       !eventForm.capacidadMaxima ||
-      !eventForm.modalidad ||
+      !eventForm.modalidadId ||
       !eventForm.descripcion ||
       !eventForm.horaInicio ||
       !eventForm.horaFin ||
@@ -165,21 +168,30 @@ export default function EventsScreen() {
       Alert.alert('Términos y condiciones', 'Debes aceptar los términos para proponer un evento.');
       return;
     }
-    setEvents((prev) => [
-      {
-        id: String(Date.now()),
-        name: eventForm.titulo,
-        location: eventForm.ubicacion || eventForm.modalidad,
-        time: `${eventForm.horaInicio} - ${eventForm.horaFin}`,
-        date: eventForm.fecha,
-        participants: 0,
-        maxParticipants: Number(eventForm.capacidadMaxima) || 0,
-        status: 'UPCOMING',
-        organizer: eventForm.contacto,
-        description: eventForm.descripcion,
-      },
-      ...prev,
-    ]);
+    const descripcionFinal = eventForm.ubicacion.trim()
+      ? `${eventForm.descripcion}\n\nUbicación: ${eventForm.ubicacion.trim()}`
+      : eventForm.descripcion;
+
+    const result = await crearEvento({
+      titulo: eventForm.titulo,
+      descripcion: descripcionFinal,
+      fecha_evento: eventForm.fecha,
+      hora_inicio: eventForm.horaInicio,
+      hora_fin: eventForm.horaFin,
+      id_tipo_evento: eventForm.tipoId,
+      id_modalidad: eventForm.modalidadId,
+      capacidad_maxima: Number(eventForm.capacidadMaxima),
+      costo,
+      contacto: eventForm.contacto,
+    });
+    if (!result.success) {
+      Alert.alert('Error', result.message || 'No se pudo enviar la propuesta de evento.');
+      return;
+    }
+    const refreshed = await getEventos();
+    if (refreshed?.eventos) {
+      setEvents(refreshed.eventos.map(mapEventoFromApi));
+    }
     bumpStreak();
     setEventForm(initialEventForm);
     setNewModal(false);
@@ -481,19 +493,19 @@ export default function EventsScreen() {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.chipRow}
                 >
-                  {TIPOS_EVENTO.map((tipo) => (
+                  {tiposEvento.map((tipo) => (
                     <TouchableOpacity
-                      key={tipo}
-                      style={[styles.chip, eventForm.tipo === tipo && styles.chipActive]}
-                      onPress={() => setField('tipo', tipo)}
+                      key={tipo.id}
+                      style={[styles.chip, eventForm.tipoId === tipo.id && styles.chipActive]}
+                      onPress={() => setField('tipoId', tipo.id)}
                     >
                       <Text
                         style={[
                           styles.chipText,
-                          eventForm.tipo === tipo && styles.chipTextActive,
+                          eventForm.tipoId === tipo.id && styles.chipTextActive,
                         ]}
                       >
-                        {tipo}
+                        {tipo.nombre}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -539,19 +551,19 @@ export default function EventsScreen() {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.chipRow}
                 >
-                  {MODALIDADES.map((mod) => (
+                  {modalidades.map((mod) => (
                     <TouchableOpacity
-                      key={mod}
-                      style={[styles.chip, eventForm.modalidad === mod && styles.chipActive]}
-                      onPress={() => setField('modalidad', mod)}
+                      key={mod.id}
+                      style={[styles.chip, eventForm.modalidadId === mod.id && styles.chipActive]}
+                      onPress={() => setField('modalidadId', mod.id)}
                     >
                       <Text
                         style={[
                           styles.chipText,
-                          eventForm.modalidad === mod && styles.chipTextActive,
+                          eventForm.modalidadId === mod.id && styles.chipTextActive,
                         ]}
                       >
-                        {mod}
+                        {mod.nombre}
                       </Text>
                     </TouchableOpacity>
                   ))}
