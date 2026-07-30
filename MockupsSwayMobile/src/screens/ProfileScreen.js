@@ -23,6 +23,14 @@ import { radii, shadows } from '../theme/spacing';
 import ScreenHeader from '../components/ScreenHeader';
 import DateField from '../components/DateField';
 import useBreathe from '../hooks/useBreathe';
+import {
+  validateNombre,
+  validateApellidoMaterno,
+  validateAniosExperiencia,
+  validateCedula,
+  validateOrcid,
+  validateMotivacion,
+} from '../utils/collaboratorValidation';
 import { sightingsList } from '../data/sightings';
 import { eventsList } from '../data/events';
 import {
@@ -338,6 +346,21 @@ export default function ProfileScreen() {
   ];
 
   const handleSavePersonal = async () => {
+    const nombreError = validateNombre(personal.nombre, 'El nombre');
+    if (nombreError) {
+      Alert.alert('Datos inválidos', nombreError);
+      return;
+    }
+    const apellidoPaternoError = validateNombre(personal.apellidoPaterno, 'El apellido paterno');
+    if (apellidoPaternoError) {
+      Alert.alert('Datos inválidos', apellidoPaternoError);
+      return;
+    }
+    const apellidoMaternoError = validateApellidoMaterno(personal.apellidoMaterno);
+    if (apellidoMaternoError) {
+      Alert.alert('Datos inválidos', apellidoMaternoError);
+      return;
+    }
     setSaving(true);
     const result = await updatePerfil({
       nombre: personal.nombre || '',
@@ -356,6 +379,30 @@ export default function ProfileScreen() {
   };
 
   const handleSaveProfesional = async () => {
+    if (!profesional.especialidad || !profesional.gradoAcademico || !profesional.institucion) {
+      Alert.alert('Datos incompletos', 'Completa todos los campos obligatorios.');
+      return;
+    }
+    const aniosError = validateAniosExperiencia(profesional.aniosExperiencia);
+    if (aniosError) {
+      Alert.alert('Datos inválidos', aniosError);
+      return;
+    }
+    const cedulaError = validateCedula(profesional.numeroCedula);
+    if (cedulaError) {
+      Alert.alert('Datos inválidos', cedulaError);
+      return;
+    }
+    const orcidError = validateOrcid(profesional.orcid);
+    if (orcidError) {
+      Alert.alert('Datos inválidos', orcidError);
+      return;
+    }
+    const motivacionError = validateMotivacion(profesional.motivacion);
+    if (motivacionError) {
+      Alert.alert('Datos inválidos', motivacionError);
+      return;
+    }
     setSaving(true);
     const result = await updatePerfil({
       especialidad: profesional.especialidad || '',
