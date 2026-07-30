@@ -26,7 +26,7 @@ import ShareCard from '../components/ShareCard';
 import DateField from '../components/DateField';
 import { sightingsList } from '../data/sightings';
 import { speciesList } from '../data/species';
-import { getAvistamientosMine } from '../api/client';
+import { getAvistamientosMine, getProfile, crearAvistamiento } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
 
 function mapAvistamientoFromApi(a) {
@@ -46,7 +46,6 @@ function mapAvistamientoFromApi(a) {
 const initialSightingForm = {
   especieId: null,
   especieNombre: '',
-  especieNoCatalogada: false,
   fecha: '',
   latitud: '',
   longitud: '',
@@ -66,6 +65,8 @@ export default function SightingsScreen() {
   const [shareTarget, setShareTarget] = useState(null);
   const shareCardRef = useRef(null);
 
+  const [colaboradorProfile, setColaboradorProfile] = useState(null);
+
   useEffect(() => {
     let active = true;
     getAvistamientosMine().then((data) => {
@@ -73,6 +74,17 @@ export default function SightingsScreen() {
       if (data?.avistamientos?.length) {
         setSightings(data.avistamientos.map(mapAvistamientoFromApi));
       }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    getProfile().then((data) => {
+      if (!active || !data?.colaborador) return;
+      setColaboradorProfile(data.colaborador);
     });
     return () => {
       active = false;
@@ -129,12 +141,10 @@ export default function SightingsScreen() {
     }
   };
 
-  const handleReportSighting = () => {
-    const especieNombre = sightingForm.especieNoCatalogada
-      ? sightingForm.especieNombre.trim()
-      : sightingForm.especieNombre;
+  const handleReportSighting = async () => {
     if (
-      !especieNombre ||
+      !sightingForm.especieId ||
+      !sightingForm.especieNombre ||
       !sightingForm.fecha ||
       !sightingForm.latitud ||
       !sightingForm.longitud
@@ -152,20 +162,35 @@ export default function SightingsScreen() {
       Alert.alert('Longitud inválida', 'La longitud debe ser un número entre -180 y 180.');
       return;
     }
-    setSightings((prev) => [
-      {
-        id: String(Date.now()),
-        species: especieNombre,
-        reporter: '',
-        date: sightingForm.fecha,
-        location: `${sightingForm.latitud}, ${sightingForm.longitud}`,
-        individuals: 1,
-        status: 'PENDING',
-        notes: sightingForm.notas,
-        hasPhoto: !!sightingForm.fotoUri,
-      },
-      ...prev,
-    ]);
+    if (!colaboradorProfile?.email) {
+      Alert.alert('Error', 'No se pudo obtener tu perfil. Intenta de nuevo.');
+      return;
+    }
+    const nombreCompleto = [
+      colaboradorProfile.nombre,
+      colaboradorProfile.apellido_paterno,
+      colaboradorProfile.apellido_materno,
+    ].filter(Boolean).join(' ');
+    const result = await crearAvistamiento({
+      id_especie: sightingForm.especieId,
+      fecha_avistamiento: sightingForm.fecha,
+      latitud: lat,
+      longitud: lon,
+      notas: sightingForm.notas,
+      nombre_usuario: nombreCompleto,
+      email_usuario: colaboradorProfile.email,
+      nombre: colaboradorProfile.nombre,
+      apellido_paterno: colaboradorProfile.apellido_paterno,
+      apellido_materno: colaboradorProfile.apellido_materno,
+    });
+    if (!result.success) {
+      Alert.alert('Error', result.message || 'No se pudo reportar el avistamiento.');
+      return;
+    }
+    const refreshed = await getAvistamientosMine();
+    if (refreshed?.avistamientos) {
+      setSightings(refreshed.avistamientos.map(mapAvistamientoFromApi));
+    }
     incrementSightings(false, !!sightingForm.fotoUri);
     bumpStreak();
     setSightingForm(initialSightingForm);
@@ -520,65 +545,27 @@ export default function SightingsScreen() {
                       key={sp.id}
                       style={[
                         styles.chip,
-                        !sightingForm.especieNoCatalogada &&
-                          sightingForm.especieId === sp.id &&
-                          styles.chipActive,
+                        sightingForm.especieId === sp.id && styles.chipActive,
                       ]}
                       onPress={() =>
                         setSightingForm((prev) => ({
                           ...prev,
                           especieId: sp.id,
                           especieNombre: sp.commonName,
-                          especieNoCatalogada: false,
                         }))
                       }
                     >
                       <Text
                         style={[
                           styles.chipText,
-                          !sightingForm.especieNoCatalogada &&
-                            sightingForm.especieId === sp.id &&
-                            styles.chipTextActive,
+                          sightingForm.especieId === sp.id && styles.chipTextActive,
                         ]}
                       >
                         {sp.commonName}
                       </Text>
                     </TouchableOpacity>
                   ))}
-                  <TouchableOpacity
-                    style={[
-                      styles.chip,
-                      sightingForm.especieNoCatalogada && styles.chipActive,
-                    ]}
-                    onPress={() =>
-                      setSightingForm((prev) => ({
-                        ...prev,
-                        especieId: null,
-                        especieNombre: '',
-                        especieNoCatalogada: true,
-                      }))
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        sightingForm.especieNoCatalogada && styles.chipTextActive,
-                      ]}
-                    >
-                      Especie no catalogada
-                    </Text>
-                  </TouchableOpacity>
                 </ScrollView>
-
-                {sightingForm.especieNoCatalogada && (
-                  <TextInput
-                    style={[styles.formInput, { marginTop: 10 }]}
-                    placeholder="Nombre de la especie observada"
-                    placeholderTextColor={colors.text3}
-                    value={sightingForm.especieNombre}
-                    onChangeText={(v) => setField('especieNombre', v)}
-                  />
-                )}
               </View>
 
               <View style={styles.formField}>
