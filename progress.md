@@ -93,6 +93,11 @@ Mismo ciclo (`brainstorming` → spec → plan de 9 tasks → `subagent-driven-d
 - **Eliminado botón "Enviar" (resend) muerto** en tarjeta de avistamiento, junto con `handleResend()` huérfano.
 - **Eliminado conteo de "individuos"** de tarjeta y modal de detalle de avistamiento — la cantidad ya vive en las notas, campo quedó de solo escritura.
 - **Eliminado botón "Editar" muerto** en tarjetas de eventos próximos (`EventsScreen.js`) — nunca tuvo `onPress`.
+- **Nuevo filtro "Míos" en Avistamientos y Eventos.** Ambas pantallas por defecto muestran feed comunitario completo; chip nuevo alterna a solo lo propio del colaborador logueado (`getAvistamientosMine()`/`getEventosMine()`), respetando el toggle también en el refresh post-submit.
+- **`GET /api/eventos` ganó filtro real `?mine=true`** (backend, `app/routers/eventos.py`), reutilizando `get_optional_organizador_user` de la sesión anterior — filtra por `Organizador.id_usuario`. Reemplaza el matching por nombre/apellido que se había intentado primero y que causaba un crash.
+- **KPIs de Perfil (Avistamientos/Especies/Eventos) wireados a datos reales** — antes eran `.length` de arrays mock estáticos. Avistamientos y Eventos cuentan solo lo propio del colaborador, Especies es el catálogo completo.
+- **Bug real encontrado y corregido — crash en Perfil por TDZ.** Un `useEffect` nuevo leía `personal.nombre` antes de que `personal` estuviera declarado más abajo en el mismo componente ("Cannot read property 'nombre' of undefined" en cada render). Corregido de raíz (no solo reordenando) implementando el filtro backend real de arriba.
+- **Popups de error en registro** (`LoginScreen.js`) — el banner de error arriba del formulario ahora solo se usa en modo login; en modo registro, todos los errores (validación, duplicados, fallo de registro) usan `Alert.alert`, igual que el popup "Tu evento será revisado" de Eventos.
 
 ## Sesión 2026-07-30 (madrugada) — SDD sobre pendientes rápidos
 
