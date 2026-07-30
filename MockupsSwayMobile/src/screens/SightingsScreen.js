@@ -26,7 +26,7 @@ import ShareCard from '../components/ShareCard';
 import DateField from '../components/DateField';
 import { sightingsList } from '../data/sightings';
 import { speciesList } from '../data/species';
-import { getAvistamientosMine, getProfile, crearAvistamiento, getEspecies } from '../api/client';
+import { getAvistamientosAll, getProfile, crearAvistamiento, getEspecies } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
 
 function mapEspecieFromApi(e) {
@@ -43,7 +43,6 @@ function mapAvistamientoFromApi(a) {
     reporter: a.reportado_por || a.email_usuario,
     date: a.fecha ? a.fecha.slice(0, 10) : '',
     location: a.latitud != null && a.longitud != null ? `${a.latitud}, ${a.longitud}` : 'Sin coordenadas',
-    individuals: 1,
     status: 'PENDING',
     notes: a.notas || '',
     hasPhoto: false,
@@ -91,7 +90,7 @@ export default function SightingsScreen() {
 
   useEffect(() => {
     let active = true;
-    getAvistamientosMine().then((data) => {
+    getAvistamientosAll().then((data) => {
       if (!active) return;
       if (data?.avistamientos?.length) {
         setSightings(data.avistamientos.map(mapAvistamientoFromApi));
@@ -212,7 +211,7 @@ export default function SightingsScreen() {
       Alert.alert('Error', result.message || 'No se pudo reportar el avistamiento.');
       return;
     }
-    const refreshed = await getAvistamientosMine();
+    const refreshed = await getAvistamientosAll();
     if (refreshed?.avistamientos) {
       setSightings(refreshed.avistamientos.map(mapAvistamientoFromApi));
     }
@@ -249,14 +248,6 @@ export default function SightingsScreen() {
             setSightings((prev) => prev.filter((s) => s.id !== item.id)),
         },
       ],
-    );
-  };
-
-  const handleResend = (id) => {
-    setSightings((prev) =>
-      prev.map((s) =>
-        s.id === id ? { ...s, status: 'PENDING', notes: s.notes + ' (reenviado)' } : s,
-      ),
     );
   };
 
@@ -297,13 +288,6 @@ export default function SightingsScreen() {
                 {item.location}
               </Text>
             </View>
-            <View style={styles.metaRow}>
-              <Ionicons name="people-outline" size={13} color={colors.text3} />
-              <Text style={styles.metaText}>
-                {item.individuals}{' '}
-                {item.individuals === 1 ? 'individuo' : 'individuos'}
-              </Text>
-            </View>
             {item.hasPhoto && (
               <View style={styles.metaRow}>
                 <Ionicons name="image-outline" size={13} color={colors.blue} />
@@ -334,23 +318,6 @@ export default function SightingsScreen() {
                 Compartir
               </Text>
             </TouchableOpacity>
-            {isPending && (
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={() => handleResend(item.id)}
-              >
-                <Ionicons
-                  name="refresh-outline"
-                  size={15}
-                  color={colors.amber}
-                />
-                <Text
-                  style={[styles.actionLabel, { color: colors.amber }]}
-                >
-                  Enviar
-                </Text>
-              </TouchableOpacity>
-            )}
             <TouchableOpacity
               style={styles.actionBtn}
               onPress={() => handleDelete(item)}
@@ -481,17 +448,6 @@ export default function SightingsScreen() {
                     <Text style={styles.detailLabel}>Ubicación</Text>
                     <Text style={styles.detailValue}>
                       {detailSighting.location}
-                    </Text>
-                  </View>
-                  <View style={styles.detailItem}>
-                    <Ionicons
-                      name="people-outline"
-                      size={14}
-                      color={colors.text3}
-                    />
-                    <Text style={styles.detailLabel}>Individuos</Text>
-                    <Text style={styles.detailValue}>
-                      {detailSighting.individuals}
                     </Text>
                   </View>
                   {detailSighting.reporter ? (
