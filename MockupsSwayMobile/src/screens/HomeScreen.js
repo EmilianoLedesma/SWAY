@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
@@ -9,6 +9,7 @@ import { useGamification } from '../context/GamificationContext';
 import useBreathe from '../hooks/useBreathe';
 import { sightingsList } from '../data/sightings';
 import { eventsList } from '../data/events';
+import { getProfile } from '../api/client';
 
 const pastEvents = eventsList.filter((e) => e.status === 'PAST');
 
@@ -44,6 +45,17 @@ export default function HomeScreen({ navigation }) {
   const streakPulse = useBreathe();
   const pressScales = useRef({}).current;
   const entryAnims = useRef({}).current;
+  const [firstName, setFirstName] = useState('colaborador');
+
+  useEffect(() => {
+    let active = true;
+    getProfile().then((data) => {
+      if (active && data?.colaborador?.nombre) setFirstName(data.colaborador.nombre);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const quickActions = [
     { key: 'sighting', label: 'Reportar avistamiento', icon: 'binoculars-outline', color: colors.blue, route: 'Sightings' },
@@ -95,7 +107,7 @@ export default function HomeScreen({ navigation }) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <ScreenHeader title="Hola, colaborador" subtitle="Tu actividad en SWAY" />
+        <ScreenHeader title={`Hola, ${firstName}`} subtitle="Tu actividad en SWAY" />
 
         <View style={styles.levelCard}>
           <View style={styles.levelHeader}>
@@ -135,11 +147,12 @@ export default function HomeScreen({ navigation }) {
                     <Ionicons name={a.icon} size={20} color={a.color} />
                   </View>
                   <Text style={styles.actionLabel}>{a.label}</Text>
-                  {a.hint ? (
-                    <Text style={styles.actionHint} numberOfLines={1}>
-                      {a.hint}
-                    </Text>
-                  ) : null}
+                  <Text
+                    style={[styles.actionHint, !a.hint && styles.actionHintHidden]}
+                    numberOfLines={1}
+                  >
+                    {a.hint || ' '}
+                  </Text>
                 </TouchableOpacity>
               </Animated.View>
             );
@@ -241,6 +254,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   actionCard: {
+    flex: 1,
     backgroundColor: colors.surface,
     borderRadius: radii.r12,
     padding: 14,
@@ -264,6 +278,9 @@ const styles = StyleSheet.create({
     fontFamily: typography.body,
     fontSize: 11,
     color: colors.text2,
+  },
+  actionHintHidden: {
+    opacity: 0,
   },
   activityCard: {
     backgroundColor: colors.surface,

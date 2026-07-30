@@ -639,7 +639,7 @@ export default function CatalogScreen() {
               </View>
               <View style={styles.formRow}>
                 <View style={[styles.field, styles.formRowItem]}>
-                  <Text style={styles.label}>Esperanza de vida (años)</Text>
+                  <Text style={[styles.label, styles.formRowLabel]}>Esperanza de vida (años)</Text>
                   <TextInput
                     style={styles.input}
                     placeholder="80"
@@ -655,7 +655,7 @@ export default function CatalogScreen() {
                   />
                 </View>
                 <View style={[styles.field, styles.formRowItem]}>
-                  <Text style={styles.label}>Población estimada</Text>
+                  <Text style={[styles.label, styles.formRowLabel]}>Población estimada</Text>
                   <TextInput
                     style={styles.input}
                     placeholder="10000"
@@ -1193,6 +1193,9 @@ const styles = StyleSheet.create({
   },
   formRowItem: {
     flex: 1,
+  },
+  formRowLabel: {
+    minHeight: 30,
   },
   checkGroup: {
     gap: 4,
