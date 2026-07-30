@@ -41,6 +41,22 @@ function validateOrcid(value) {
   return null;
 }
 
+function formatOrcidInput(raw) {
+  let cleaned = raw.toUpperCase().replace(/[^0-9X]/g, '');
+  // X is only valid as the 16th character (last digit of the last group) —
+  // strip any stray X typed/pasted elsewhere.
+  cleaned = cleaned
+    .split('')
+    .filter((ch, i) => ch !== 'X' || i === 15)
+    .join('')
+    .slice(0, 16);
+  const groups = [];
+  for (let i = 0; i < cleaned.length; i += 4) {
+    groups.push(cleaned.slice(i, i + 4));
+  }
+  return groups.join('-');
+}
+
 function validateMotivacion(value) {
   const trimmed = (value || '').trim();
   if (!trimmed) return 'La motivación para colaborar es obligatoria';
@@ -93,6 +109,7 @@ module.exports = {
   validateAniosExperiencia,
   validateCedula,
   validateOrcid,
+  formatOrcidInput,
   validateMotivacion,
   validateRegisterForm,
 };

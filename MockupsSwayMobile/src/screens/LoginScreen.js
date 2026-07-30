@@ -14,7 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { login as apiLogin, getProfile, hasStoredToken, isBiometricLoginEnabled, logout, registerColaborador, checkEmail, checkOrcid, checkCedula } from '../api/client';
-import { validateRegisterForm } from '../utils/collaboratorValidation';
+import { validateRegisterForm, formatOrcidInput } from '../utils/collaboratorValidation';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { radii, shadows } from '../theme/spacing';
@@ -473,8 +473,8 @@ export default function LoginScreen({ onLogin }) {
                       placeholder="0000-0000-0000-0000"
                       placeholderTextColor={colors.text3}
                       value={orcid}
-                      onChangeText={setOrcid}
-                      maxLength={50}
+                      onChangeText={(text) => setOrcid(formatOrcidInput(text))}
+                      maxLength={19}
                     />
                   </View>
 

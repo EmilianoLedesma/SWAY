@@ -52,4 +52,15 @@ assert.strictEqual(
   'Formato de cédula profesional inválido (7-8 dígitos)'
 );
 
+const { formatOrcidInput } = require('./collaboratorValidation');
+
+assert.strictEqual(formatOrcidInput(''), '');
+assert.strictEqual(formatOrcidInput('0'), '0');
+assert.strictEqual(formatOrcidInput('0000'), '0000');
+assert.strictEqual(formatOrcidInput('00000'), '0000-0');
+assert.strictEqual(formatOrcidInput('0000000218250097'), '0000-0002-1825-0097');
+assert.strictEqual(formatOrcidInput('000000021825009x'), '0000-0002-1825-009X');
+assert.strictEqual(formatOrcidInput('0000-0002-1825-0097'), '0000-0002-1825-0097');
+assert.strictEqual(formatOrcidInput('abcd0000-0002-1825-0097-9999'), '0000-0002-1825-0097');
+
 console.log('collaboratorValidation: all assertions passed');
