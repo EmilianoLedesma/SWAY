@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import LoginScreen from '../screens/LoginScreen';
+import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import HomeScreen from '../screens/HomeScreen';
 import CatalogScreen from '../screens/CatalogScreen';
 import SightingsScreen from '../screens/SightingsScreen';
@@ -124,9 +125,12 @@ export default function AppNavigator() {
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
           </>
         ) : (
-          <Stack.Screen name="Login">
-            {(props) => <LoginScreen {...props} onLogin={() => setIsLoggedIn(true)} />}
-          </Stack.Screen>
+          <>
+            <Stack.Screen name="Login">
+              {(props) => <LoginScreen {...props} onLogin={() => setIsLoggedIn(true)} />}
+            </Stack.Screen>
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

@@ -37,7 +37,7 @@ const GRADOS_ACADEMICOS = [
   { key: 'postdoctorado', label: 'Postdoctorado' },
 ];
 
-export default function LoginScreen({ onLogin }) {
+export default function LoginScreen({ onLogin, navigation }) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -528,7 +528,10 @@ export default function LoginScreen({ onLogin }) {
               )}
 
               {isLogin && (
-                <TouchableOpacity style={styles.forgotBtn}>
+                <TouchableOpacity
+                  style={styles.forgotBtn}
+                  onPress={() => navigation.navigate('ForgotPassword')}
+                >
                   <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
                 </TouchableOpacity>
               )}
