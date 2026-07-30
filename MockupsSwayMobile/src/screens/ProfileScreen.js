@@ -25,7 +25,6 @@ import DateField from '../components/DateField';
 import useBreathe from '../hooks/useBreathe';
 import { sightingsList } from '../data/sightings';
 import { eventsList } from '../data/events';
-import { speciesList } from '../data/species';
 import {
   getProfile,
   logout,
@@ -34,7 +33,9 @@ import {
   deletePerfil,
   getEstadisticas,
   getEstadisticasEspecies,
+  getAvistamientosMine,
   getAvistamientosAll,
+  getEventos,
   getImpactoSostenible,
   downloadReportePDF,
   isBiometricLoginEnabled,
@@ -78,12 +79,6 @@ const ESTADO_SOLICITUD_CFG = {
 };
 
 const pastEvents = eventsList.filter((e) => e.status === 'PAST');
-
-const stats = [
-  { label: 'Avistamientos', value: String(sightingsList.length), icon: 'binoculars-outline', color: colors.blue },
-  { label: 'Especies', value: String(speciesList.length), icon: 'leaf-outline', color: colors.ocean },
-  { label: 'Eventos', value: String(pastEvents.length), icon: 'calendar-outline', color: colors.amber },
-];
 
 const daysAgo = (date) =>
   Math.max(0, Math.round((Date.now() - new Date(date).getTime()) / 86400000));
@@ -137,6 +132,8 @@ export default function ProfileScreen() {
   const [habitatsCatalog, setHabitatsCatalog] = useState([]);
   const [especieSearch, setEspecieSearch] = useState('');
   const [especiesCatalog, setEspeciesCatalog] = useState([]);
+  const [avistamientosMineCount, setAvistamientosMineCount] = useState(0);
+  const [eventosMineCount, setEventosMineCount] = useState(0);
 
   const streakPulse = useBreathe();
   const [trackWidth, setTrackWidth] = useState(0);
@@ -240,6 +237,29 @@ export default function ProfileScreen() {
     getHabitats().then((r) => setHabitatsCatalog(r?.habitats || []));
     getEspecies().then((r) => setEspeciesCatalog(r?.especies || []));
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    getAvistamientosMine().then((data) => {
+      if (active && data?.avistamientos) setAvistamientosMineCount(data.avistamientos.length);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!personal.nombre || !personal.apellidoPaterno) return;
+    let active = true;
+    const prefix = `${personal.nombre} ${personal.apellidoPaterno}`;
+    getEventos().then((data) => {
+      if (!active || !data?.eventos) return;
+      setEventosMineCount(data.eventos.filter((e) => e.organizador?.startsWith(prefix)).length);
+    });
+    return () => {
+      active = false;
+    };
+  }, [personal.nombre, personal.apellidoPaterno]);
 
   useEffect(() => {
     if (reportesSubTab !== 'global') return;
@@ -474,6 +494,12 @@ export default function ProfileScreen() {
     { label: 'En Peligro', value: pelCount, color: colors.amber },
     { label: 'Vulnerables', value: vulCount, color: '#f59e0b' },
     { label: 'Otras', value: otherCount, color: colors.green },
+  ];
+
+  const stats = [
+    { label: 'Avistamientos', value: String(avistamientosMineCount), icon: 'binoculars-outline', color: colors.blue },
+    { label: 'Especies', value: String(especiesCatalog.length), icon: 'leaf-outline', color: colors.ocean },
+    { label: 'Eventos', value: String(eventosMineCount), icon: 'calendar-outline', color: colors.amber },
   ];
 
   return (
