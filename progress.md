@@ -83,6 +83,16 @@ Mismo ciclo (`brainstorming` → spec → plan de 9 tasks → `subagent-driven-d
     - `http://165.232.146.240/api/estadisticas` → 200, datos reales de la BD de producción (16 especies catalogadas, distinto del conteo de la BD local de dev).
     - `http://proyecto-sway.site/` → bloqueado (403, "Web Site Blocked", SonicWall CFS marcándolo como posible phishing) **desde este sandbox** — el usuario confirmó que el dominio sí es accesible desde su teléfono, así que el bloqueo es solo de este entorno, no del dominio en sí.
     - **Plan acordado, no implementado:** hardcodear temporalmente `API_HOST` en `client.js` a `http://proyecto-sway.site` (o la IP `http://165.232.146.240` como respaldo si el dominio da problemas), con comentario claro de que es temporal para probar contra producción, y revertir a la lógica dinámica de Metro después. Queda pendiente ejecutarlo guiado paso a paso con el usuario.
+11. **Patrón de botones muertos (sin `onPress`) — 2 encontrados y eliminados hoy, falta barrido completo.** "Enviar" (resend) en tarjeta de avistamiento (`SightingsScreen.js`) y "Editar" en tarjeta de evento próximo (`EventsScreen.js`), ninguno tenía `onPress`. Un tercero ya documentado en pendiente #8 (botón de contraseña olvidada). Sospecha: resto del scaffold original de mockups tiene más botones así. Falta grep dirigido en `CatalogScreen.js`, `ProfileScreen.js`, `NotificationsScreen.js` antes de asumir que el resto de botones de acción son reales.
+
+## Sesión 2026-07-30 (tarde) — Home real-time + feed comunitario + limpieza
+
+- **Pendiente #2 resuelto — worktrees `agent-a*` eliminados.** Eran 4 (no 3): 3 en `56dfd7f` (ancestro directo de `master`) y 1 en `c5b710d` (cherry-pick, mismo contenido ya en `master`). Verificados uno por uno antes de borrar, sin pérdida de trabajo.
+- **"Actividad reciente" en Home ahora refresca en cada foco de pantalla** (`useFocusEffect`) y combina avistamientos propios + eventos de toda la comunidad (no solo los del usuario) en un solo feed ordenado por fecha, top 5.
+- **`SightingsScreen` ahora muestra avistamientos de toda la comunidad** (`getAvistamientosAll()`), no solo los del colaborador logueado — cambio de alcance pedido por el usuario, `getAvistamientosMine()` queda solo para Home.
+- **Eliminado botón "Enviar" (resend) muerto** en tarjeta de avistamiento, junto con `handleResend()` huérfano.
+- **Eliminado conteo de "individuos"** de tarjeta y modal de detalle de avistamiento — la cantidad ya vive en las notas, campo quedó de solo escritura.
+- **Eliminado botón "Editar" muerto** en tarjetas de eventos próximos (`EventsScreen.js`) — nunca tuvo `onPress`.
 
 ## Sesión 2026-07-30 (madrugada) — SDD sobre pendientes rápidos
 
