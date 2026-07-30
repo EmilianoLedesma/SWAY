@@ -26,8 +26,15 @@ import ShareCard from '../components/ShareCard';
 import DateField from '../components/DateField';
 import { sightingsList } from '../data/sightings';
 import { speciesList } from '../data/species';
-import { getAvistamientosMine, getProfile, crearAvistamiento } from '../api/client';
+import { getAvistamientosMine, getProfile, crearAvistamiento, getEspecies } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
+
+function mapEspecieFromApi(e) {
+  return {
+    id: e.id,
+    commonName: e.nombre_comun,
+  };
+}
 
 function mapAvistamientoFromApi(a) {
   return {
@@ -64,8 +71,23 @@ export default function SightingsScreen() {
   const [gpsLoading, setGpsLoading] = useState(false);
   const [shareTarget, setShareTarget] = useState(null);
   const shareCardRef = useRef(null);
+  const [saving, setSaving] = useState(false);
 
   const [colaboradorProfile, setColaboradorProfile] = useState(null);
+  const [species, setSpecies] = useState(speciesList);
+
+  useEffect(() => {
+    let active = true;
+    getEspecies().then((data) => {
+      if (!active) return;
+      if (data?.success && Array.isArray(data.especies) && data.especies.length) {
+        setSpecies(data.especies.map(mapEspecieFromApi));
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -142,6 +164,7 @@ export default function SightingsScreen() {
   };
 
   const handleReportSighting = async () => {
+    if (saving) return;
     if (
       !sightingForm.especieId ||
       !sightingForm.especieNombre ||
@@ -171,6 +194,7 @@ export default function SightingsScreen() {
       colaboradorProfile.apellido_paterno,
       colaboradorProfile.apellido_materno,
     ].filter(Boolean).join(' ');
+    setSaving(true);
     const result = await crearAvistamiento({
       id_especie: sightingForm.especieId,
       fecha_avistamiento: sightingForm.fecha,
@@ -183,6 +207,7 @@ export default function SightingsScreen() {
       apellido_paterno: colaboradorProfile.apellido_paterno,
       apellido_materno: colaboradorProfile.apellido_materno,
     });
+    setSaving(false);
     if (!result.success) {
       Alert.alert('Error', result.message || 'No se pudo reportar el avistamiento.');
       return;
@@ -540,7 +565,7 @@ export default function SightingsScreen() {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.chipRow}
                 >
-                  {speciesList.map((sp) => (
+                  {species.map((sp) => (
                     <TouchableOpacity
                       key={sp.id}
                       style={[
@@ -636,9 +661,15 @@ export default function SightingsScreen() {
                 />
               </View>
 
-              <TouchableOpacity style={styles.submitBtn} onPress={handleReportSighting}>
+              <TouchableOpacity
+                style={styles.submitBtn}
+                onPress={handleReportSighting}
+                disabled={saving}
+              >
                 <Ionicons name="send" size={16} color="#fff" />
-                <Text style={styles.submitBtnText}>Reportar avistamiento</Text>
+                <Text style={styles.submitBtnText}>
+                  {saving ? 'Enviando…' : 'Reportar avistamiento'}
+                </Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
