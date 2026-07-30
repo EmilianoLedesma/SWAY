@@ -10,6 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -114,23 +115,31 @@ export default function LoginScreen({ onLogin }) {
     setError('Tu sesión expiró, inicia sesión de nuevo.');
   };
 
+  const notifyError = (message) => {
+    if (isLogin) {
+      setError(message);
+    } else {
+      Alert.alert('Error de registro', message);
+    }
+  };
+
   const handleSubmit = async () => {
     setError('');
     if (!email || !password) {
-      setError('Completa todos los campos');
+      notifyError('Completa todos los campos');
       return;
     }
     if (!/^\S+@\S+\.\S+$/.test(email)) {
-      setError('Ingresa un correo electrónico válido');
+      notifyError('Ingresa un correo electrónico válido');
       return;
     }
     if (!isLogin) {
       if (password.length < 6) {
-        setError('La contraseña debe tener al menos 6 caracteres');
+        notifyError('La contraseña debe tener al menos 6 caracteres');
         return;
       }
       if (password !== confirmPassword) {
-        setError('Las contraseñas no coinciden');
+        notifyError('Las contraseñas no coinciden');
         return;
       }
       const registerError = validateRegisterForm({
@@ -147,7 +156,7 @@ export default function LoginScreen({ onLogin }) {
         termsAccepted,
       });
       if (registerError) {
-        setError(registerError);
+        notifyError(registerError);
         return;
       }
     }
@@ -177,7 +186,7 @@ export default function LoginScreen({ onLogin }) {
       (check) => check.exists && !check.can_register
     );
     if (duplicate) {
-      setError(duplicate.message || 'Ya existe una solicitud con estos datos');
+      notifyError(duplicate.message || 'Ya existe una solicitud con estos datos');
       setLoading(false);
       return;
     }
@@ -198,7 +207,7 @@ export default function LoginScreen({ onLogin }) {
     });
 
     if (!registerResult.success) {
-      setError(registerResult.message || 'No se pudo completar el registro');
+      notifyError(registerResult.message || 'No se pudo completar el registro');
       setLoading(false);
       return;
     }
@@ -208,7 +217,7 @@ export default function LoginScreen({ onLogin }) {
     if (loginResult.success) {
       if (onLogin) onLogin();
     } else {
-      setError('Registro exitoso. Inicia sesión con la contraseña de tu cuenta existente.');
+      Alert.alert('Registro exitoso', 'Inicia sesión con la contraseña de tu cuenta existente.');
       setIsLogin(true);
     }
   };
