@@ -76,7 +76,9 @@
       "Bash(bash __TRACKED_VAR__/scripts/task-brief docs/superpowers/plans/2026-07-28-mobile-crud-wiring.md 1)",
       "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:8000/api/especies?limit=1\" -ErrorAction SilentlyContinue | ConvertTo-Json)",
       "Bash(npx babel *)",
-      "Bash(echo \"EXIT:$?\")"
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ],
     "deny": []
   }
