@@ -4,10 +4,15 @@ import Constants from 'expo-constants';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
+// TEMPORAL: apuntando a producción (droplet DigitalOcean) para probar contra
+// datos reales vía Expo Go. Revertir a la lógica dinámica de Metro (comentada
+// abajo) cuando se termine de probar.
+export const API_HOST = 'http://165.232.146.240';
+
 // hostUri = IP:puerto que Metro usa para servir el bundle a este dispositivo,
 // se actualiza solo al cambiar de red (no hay backend con dominio fijo aun).
-const devHost = Constants.expoConfig?.hostUri?.split(':')[0];
-export const API_HOST = `http://${devHost || 'localhost'}:8000`;
+// const devHost = Constants.expoConfig?.hostUri?.split(':')[0];
+// export const API_HOST = `http://${devHost || 'localhost'}:8000`;
 
 const TOKEN_KEY = 'sway_colab_token';
 
