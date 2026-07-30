@@ -383,7 +383,9 @@ export default function ProfileScreen() {
       return;
     }
     setPwForm({ actual: '', nueva: '', confirmar: '' });
+    await logout();
     Alert.alert('Contraseña actualizada', 'Vuelve a iniciar sesión.');
+    setIsLoggedIn(false);
   };
 
   const handleDownloadReporte = async () => {
