@@ -48,12 +48,14 @@ export default function HomeScreen({ navigation }) {
         if (!active) return;
         const avistamientos = avistamientosData?.success
           ? (avistamientosData.avistamientos || []).map((a) => ({
+              key: `avistamiento-${a.id}`,
               text: `Avistamiento de ${a.especie_nombre}${a.notas ? ` — ${a.notas}` : ''}`,
               date: a.fecha,
             }))
           : [];
         const eventos = eventosData?.success
           ? (eventosData.eventos || []).map((e) => ({
+              key: `evento-${e.id}`,
               text: `Evento: ${e.titulo}`,
               date: e.fecha_evento,
             }))
@@ -176,7 +178,7 @@ export default function HomeScreen({ navigation }) {
         <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Actividad reciente</Text>
         <View style={styles.activityCard}>
           {recentActivity.map((act) => (
-            <View key={act.text} style={styles.activityRow}>
+            <View key={act.key} style={styles.activityRow}>
               <View style={styles.activityDot} />
               <View style={styles.activityContent}>
                 <Text style={styles.activityText}>{act.text}</Text>
