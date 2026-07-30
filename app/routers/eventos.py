@@ -6,7 +6,7 @@ from app.data.models import (
     Evento, TipoEvento, Modalidad, Organizador, Usuario,
     Estatus, Direccion, Calle, Colonia, Municipio, Estado
 )
-from app.security.auth import get_optional_tienda_user
+from app.security.auth import get_optional_organizador_user
 from app.models.eventos import EventoCreate
 
 router = APIRouter(prefix="/api", tags=["eventos"])
@@ -102,7 +102,7 @@ async def get_eventos(
 @router.post("/eventos/crear")
 async def crear_evento(
     data: EventoCreate,
-    current_user: Optional[dict] = Depends(get_optional_tienda_user),
+    current_user: Optional[dict] = Depends(get_optional_organizador_user),
     db: Session = Depends(get_db)
 ):
     try:

@@ -252,6 +252,22 @@ export async function getAvistamientosMine() {
   }
 }
 
+export async function crearAvistamiento(payload) {
+  try {
+    const res = await fetch(`${API_HOST}/api/reportar-avistamiento`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) return buildErrorResult(res, data, 'Error al reportar el avistamiento');
+    return data;
+  } catch (error) {
+    console.error('Error en crearAvistamiento:', error);
+    return { success: false, message: 'No se pudo conectar con el servidor' };
+  }
+}
+
 export async function getEventos() {
   try {
     const res = await fetch(`${API_HOST}/api/eventos`);
@@ -260,6 +276,42 @@ export async function getEventos() {
   } catch (error) {
     console.error('Error en getEventos:', error);
     return { success: false, eventos: [] };
+  }
+}
+
+export async function crearEvento(payload) {
+  try {
+    const res = await fetch(`${API_HOST}/api/eventos/crear`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) return buildErrorResult(res, data, 'Error al crear el evento');
+    return data;
+  } catch (error) {
+    console.error('Error en crearEvento:', error);
+    return { success: false, message: 'No se pudo conectar con el servidor' };
+  }
+}
+
+export async function getTiposEvento() {
+  try {
+    const res = await fetch(`${API_HOST}/api/tipos-evento`);
+    return await res.json();
+  } catch (error) {
+    console.error('Error en getTiposEvento:', error);
+    return { success: false, tipos: [] };
+  }
+}
+
+export async function getModalidades() {
+  try {
+    const res = await fetch(`${API_HOST}/api/modalidades`);
+    return await res.json();
+  } catch (error) {
+    console.error('Error en getModalidades:', error);
+    return { success: false, modalidades: [] };
   }
 }
 

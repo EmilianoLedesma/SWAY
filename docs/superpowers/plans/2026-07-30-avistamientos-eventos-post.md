@@ -10,7 +10,8 @@
 
 ## Global Constraints
 
-- No backend changes — both endpoints are verified working as-is (see `docs/superpowers/specs/2026-07-30-avistamientos-eventos-post-design.md`).
+- **Amended after Task 1's curl verification (2026-07-30):** `POST /api/eventos/crear` has a real backend bug — its auth dependency `get_optional_tienda_user` (`app/security/auth.py:61`) only recognizes `token_type == "tienda"` (web2 shop-customer tokens). A mobile colaborador's JWT (`token_type == "colaborador"`) is silently treated as no-token, so the endpoint always falls into its guest-user-creation branch, which then crashes with a `UniqueViolation` because the colaborador's email already has a `Usuario` row. Confirmed via curl with a real login token, not a client-side issue. **Task 5 below fixes it** — this is now in scope for this plan (the original "no backend changes" assumption was wrong for this one endpoint).
+- `POST /api/reportar-avistamiento` remains verified working as-is, no backend change needed for it (see `docs/superpowers/specs/2026-07-30-avistamientos-eventos-post-design.md`).
 - Do not touch `API_HOST` / `client.js`'s dev-host resolution logic — explicitly out of scope (`progress.md` pendiente #10), only touch it if the user explicitly asks later.
 - Follow `client.js`'s existing per-function pattern: `try/catch`, `fetch`, `res.json()`, `buildErrorResult(res, data, fallback)` on `!res.ok`, `console.error` in `catch`. Do not introduce a different error-handling style.
 - No new test framework — this repo's only JS test convention is a plain `node assert` script (`src/utils/collaboratorValidation.test.js`), used for shared/reusable validation logic. The new logic here (fetch wrappers, one-line form transforms) is neither reusable nor branchy enough to warrant a new module+test; verify via manual `curl` against the running backend instead, matching how the collaborator-registration session (`progress.md` section B) verified its backend contract.
@@ -139,7 +140,118 @@ git commit -m "feat: add avistamiento/evento create + catalog client functions"
 
 ---
 
-### Task 2: `SightingsScreen.js` — wire real submit, drop uncatalogued-species toggle
+### Task 2: Backend fix — `crear_evento` must recognize colaborador tokens
+
+**Files:**
+- Modify: `app/security/auth.py:61-71`
+- Modify: `app/routers/eventos.py:9`, `app/routers/eventos.py:105`
+
+**Interfaces:**
+- Produces: `get_optional_organizador_user(credentials)` — a FastAPI dependency, drop-in replacement for `get_optional_tienda_user` at the one call site that uses it (`crear_evento`). Same return shape: the decoded JWT payload dict, or `None`.
+
+**Root cause (confirmed via curl with a real login token during Task 1):** `crear_evento` (`app/routers/eventos.py:102`) depends on `get_optional_tienda_user` (`app/security/auth.py:61`), which only returns a payload when `token_type == "tienda"` (web2 shop-customer tokens). A colaborador's JWT (`token_type == "colaborador"`, same `sub`/user-id shape, see `app/routers/colaboradores.py:43-49`) is silently treated as absent, so `crear_evento` always falls into its guest-user-creation branch — which then crashes with `psycopg.errors.UniqueViolation` on `usuarios_email_key` because the colaborador's email already has a `Usuario` row. This is not fixable client-side; the mobile app always sends a colaborador Bearer token (Task 4), so this endpoint must recognize it.
+
+**Scope note:** the guest branch's pre-existing lack of an email-dedup check (it doesn't look up an existing `Usuario` by email before inserting, unlike `reportar_avistamiento`) is a separate latent bug reachable by true guests (no token) resubmitting with a repeated email — out of scope for this fix, which only needs to unblock the always-authenticated mobile path. Do not fix the guest-path dedup as part of this task.
+
+- [ ] **Step 1: Broaden the auth dependency to accept colaborador tokens**
+
+In `app/security/auth.py`, find:
+
+```python
+def get_optional_tienda_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
+    token = _extract_token(credentials)
+    if not token:
+        return None
+    try:
+        payload = decode_token(token)
+        if payload.get("token_type") == "tienda":
+            return payload
+        return None
+    except HTTPException:
+        return None
+```
+
+Replace with:
+
+```python
+def get_optional_organizador_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
+    token = _extract_token(credentials)
+    if not token:
+        return None
+    try:
+        payload = decode_token(token)
+        if payload.get("token_type") in ("tienda", "colaborador"):
+            return payload
+        return None
+    except HTTPException:
+        return None
+```
+
+- [ ] **Step 2: Update the one call site**
+
+In `app/routers/eventos.py`, find:
+
+```python
+from app.security.auth import get_optional_tienda_user
+```
+
+Replace with:
+
+```python
+from app.security.auth import get_optional_organizador_user
+```
+
+Find:
+
+```python
+    current_user: Optional[dict] = Depends(get_optional_tienda_user),
+```
+
+Replace with:
+
+```python
+    current_user: Optional[dict] = Depends(get_optional_organizador_user),
+```
+
+- [ ] **Step 3: Verify the fix against the live backend**
+
+The backend runs in docker (`sway_api` container) and reloads on file change — if it doesn't pick up the change automatically, restart it (`docker restart sway_api`), then re-run:
+
+```bash
+curl -s -X POST http://localhost:8000/api/colaboradores/login -H "Content-Type: application/json" -d '{"email": "<a real colaborador email>", "password": "<its password>"}'
+```
+
+Extract `access_token` from the response, then:
+
+```bash
+curl -s -w "\nHTTP_STATUS:%{http_code}\n" -X POST http://localhost:8000/api/eventos/crear \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -d '{"titulo": "Evento verificacion fix auth", "descripcion": "Descripcion de prueba con al menos diez caracteres", "fecha_evento": "2026-08-20", "hora_inicio": "09:00", "hora_fin": "11:00", "id_tipo_evento": 1, "id_modalidad": 1, "capacidad_maxima": 30, "costo": 0, "contacto": "<the same email>"}'
+```
+
+Expected: `HTTP_STATUS:200` and `{"success": true, "evento_id": <int>, ...}` — no `UniqueViolation`, no `500`. Also confirm in `docker logs sway_api --tail 5` that no new `Usuario` row was created for this request (the organizer should resolve to the existing colaborador's `Organizador` row via `current_user["sub"]`, not the guest-creation branch).
+
+Also re-run the plain guest curl from Task 1 Step 5 (no `Authorization` header) with a **fresh, never-used email** to confirm the guest path itself still works when it doesn't collide with an existing email:
+
+```bash
+curl -s -w "\nHTTP_STATUS:%{http_code}\n" -X POST http://localhost:8000/api/eventos/crear \
+  -H "Content-Type: application/json" \
+  -d '{"titulo": "Evento guest fresh email", "descripcion": "Descripcion de prueba con al menos diez caracteres", "fecha_evento": "2026-08-21", "hora_inicio": "09:00", "hora_fin": "11:00", "id_tipo_evento": 1, "id_modalidad": 1, "capacidad_maxima": 30, "costo": 0, "contacto": "guest.fresh.<timestamp>@example.com"}'
+```
+
+Expected: `HTTP_STATUS:200`, `{"success": true, ...}` — confirms this fix didn't touch the guest branch's happy path.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add app/security/auth.py app/routers/eventos.py
+git commit -m "fix: recognize colaborador JWTs in crear_evento's optional-auth dependency"
+```
+
+---
+
+### Task 3: `SightingsScreen.js` — wire real submit, drop uncatalogued-species toggle
 
 **Files:**
 - Modify: `MockupsSwayMobile/src/screens/SightingsScreen.js`
@@ -483,7 +595,7 @@ git commit -m "feat: wire real avistamiento POST, drop uncatalogued-species opti
 
 ---
 
-### Task 3: `EventsScreen.js` — wire real submit, catalog-backed chips
+### Task 4: `EventsScreen.js` — wire real submit, catalog-backed chips
 
 **Files:**
 - Modify: `MockupsSwayMobile/src/screens/EventsScreen.js`
@@ -812,7 +924,7 @@ git commit -m "feat: wire real evento POST, catalog-backed tipo/modalidad chips"
 
 ---
 
-### Task 4: Update `progress.md`
+### Task 5: Update `progress.md`
 
 **Files:**
 - Modify: `progress.md`

@@ -21,8 +21,9 @@ import ScreenHeader from '../components/ScreenHeader';
 import ShareCard from '../components/ShareCard';
 import DateField from '../components/DateField';
 import { eventsList } from '../data/events';
-import { getEventos } from '../api/client';
+import { getEventos, getTiposEvento, getModalidades, crearEvento } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
+import { useAuth } from '../context/AuthContext';
 
 function mapEventoFromApi(e) {
   const fechaEvento = e.fecha_evento ? e.fecha_evento.slice(0, 10) : '';
@@ -45,25 +46,12 @@ const STATUS_CFG = {
   PAST: { label: 'Pasado', color: colors.text3, bg: colors.bg },
 };
 
-const TIPOS_EVENTO = [
-  'Conferencia',
-  'Taller',
-  'Limpieza de Playa',
-  'Seminario',
-  'Expedición',
-  'Campaña de Concientización',
-  'Capacitación',
-  'Festival',
-];
-
-const MODALIDADES = ['Presencial', 'Virtual', 'Híbrida', 'Webinar', 'Taller Práctico'];
-
 const initialEventForm = {
   titulo: '',
-  tipo: '',
+  tipoId: null,
   fecha: '',
   capacidadMaxima: '',
-  modalidad: '',
+  modalidadId: null,
   ubicacion: '',
   descripcion: '',
   horaInicio: '',
@@ -82,6 +70,7 @@ function formatDate(dateStr) {
 export default function EventsScreen() {
   const insets = useSafeAreaInsets();
   const { bumpStreak } = useGamification();
+  const { setIsLoggedIn } = useAuth();
   const [events, setEvents] = useState(eventsList);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState(null);
@@ -90,6 +79,10 @@ export default function EventsScreen() {
   const [eventForm, setEventForm] = useState(initialEventForm);
   const [shareTarget, setShareTarget] = useState(null);
   const shareCardRef = useRef(null);
+  const [saving, setSaving] = useState(false);
+
+  const [tiposEvento, setTiposEvento] = useState([]);
+  const [modalidades, setModalidades] = useState([]);
 
   useEffect(() => {
     let active = true;
@@ -98,6 +91,19 @@ export default function EventsScreen() {
       if (data?.eventos?.length) {
         setEvents(data.eventos.map(mapEventoFromApi));
       }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    getTiposEvento().then((data) => {
+      if (active && data?.tipos) setTiposEvento(data.tipos);
+    });
+    getModalidades().then((data) => {
+      if (active && data?.modalidades) setModalidades(data.modalidades);
     });
     return () => {
       active = false;
@@ -121,17 +127,17 @@ export default function EventsScreen() {
     }, 150);
   };
 
-  const handleCreateEvent = () => {
+  const handleCreateEvent = async () => {
+    if (saving) return;
     if (
       !eventForm.titulo ||
-      !eventForm.tipo ||
+      !eventForm.tipoId ||
       !eventForm.fecha ||
       !eventForm.capacidadMaxima ||
-      !eventForm.modalidad ||
+      !eventForm.modalidadId ||
       !eventForm.descripcion ||
       !eventForm.horaInicio ||
-      !eventForm.horaFin ||
-      !eventForm.contacto
+      !eventForm.horaFin
     ) {
       Alert.alert('Datos incompletos', 'Completa todos los campos obligatorios.');
       return;
@@ -157,7 +163,7 @@ export default function EventsScreen() {
       Alert.alert('Costo inválido', 'El costo debe ser un número mayor o igual a 0.');
       return;
     }
-    if (!/^\S+@\S+\.\S+$/.test(eventForm.contacto)) {
+    if (eventForm.contacto && !/^\S+@\S+\.\S+$/.test(eventForm.contacto)) {
       Alert.alert('Contacto inválido', 'Ingresa un correo electrónico de contacto válido.');
       return;
     }
@@ -165,21 +171,43 @@ export default function EventsScreen() {
       Alert.alert('Términos y condiciones', 'Debes aceptar los términos para proponer un evento.');
       return;
     }
-    setEvents((prev) => [
-      {
-        id: String(Date.now()),
-        name: eventForm.titulo,
-        location: eventForm.ubicacion || eventForm.modalidad,
-        time: `${eventForm.horaInicio} - ${eventForm.horaFin}`,
-        date: eventForm.fecha,
-        participants: 0,
-        maxParticipants: Number(eventForm.capacidadMaxima) || 0,
-        status: 'UPCOMING',
-        organizer: eventForm.contacto,
-        description: eventForm.descripcion,
-      },
-      ...prev,
-    ]);
+    const descripcionFinal = eventForm.ubicacion.trim()
+      ? `${eventForm.descripcion}\n\nUbicación: ${eventForm.ubicacion.trim()}`
+      : eventForm.descripcion;
+    if (descripcionFinal.length > 2000) {
+      Alert.alert(
+        'Descripción muy larga',
+        'La descripción y la ubicación combinadas superan el límite de 2000 caracteres. Acorta alguno de los dos campos.',
+      );
+      return;
+    }
+
+    setSaving(true);
+    const result = await crearEvento({
+      titulo: eventForm.titulo,
+      descripcion: descripcionFinal,
+      fecha_evento: eventForm.fecha,
+      hora_inicio: eventForm.horaInicio,
+      hora_fin: eventForm.horaFin,
+      id_tipo_evento: eventForm.tipoId,
+      id_modalidad: eventForm.modalidadId,
+      capacidad_maxima: Number(eventForm.capacidadMaxima),
+      costo,
+      contacto: eventForm.contacto,
+    });
+    setSaving(false);
+    if (!result.success) {
+      if (result.sessionExpired) {
+        setIsLoggedIn(false);
+        return;
+      }
+      Alert.alert('Error', result.message || 'No se pudo enviar la propuesta de evento.');
+      return;
+    }
+    const refreshed = await getEventos();
+    if (refreshed?.eventos) {
+      setEvents(refreshed.eventos.map(mapEventoFromApi));
+    }
     bumpStreak();
     setEventForm(initialEventForm);
     setNewModal(false);
@@ -481,19 +509,19 @@ export default function EventsScreen() {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.chipRow}
                 >
-                  {TIPOS_EVENTO.map((tipo) => (
+                  {tiposEvento.map((tipo) => (
                     <TouchableOpacity
-                      key={tipo}
-                      style={[styles.chip, eventForm.tipo === tipo && styles.chipActive]}
-                      onPress={() => setField('tipo', tipo)}
+                      key={tipo.id}
+                      style={[styles.chip, eventForm.tipoId === tipo.id && styles.chipActive]}
+                      onPress={() => setField('tipoId', tipo.id)}
                     >
                       <Text
                         style={[
                           styles.chipText,
-                          eventForm.tipo === tipo && styles.chipTextActive,
+                          eventForm.tipoId === tipo.id && styles.chipTextActive,
                         ]}
                       >
-                        {tipo}
+                        {tipo.nombre}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -539,19 +567,19 @@ export default function EventsScreen() {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.chipRow}
                 >
-                  {MODALIDADES.map((mod) => (
+                  {modalidades.map((mod) => (
                     <TouchableOpacity
-                      key={mod}
-                      style={[styles.chip, eventForm.modalidad === mod && styles.chipActive]}
-                      onPress={() => setField('modalidad', mod)}
+                      key={mod.id}
+                      style={[styles.chip, eventForm.modalidadId === mod.id && styles.chipActive]}
+                      onPress={() => setField('modalidadId', mod.id)}
                     >
                       <Text
                         style={[
                           styles.chipText,
-                          eventForm.modalidad === mod && styles.chipTextActive,
+                          eventForm.modalidadId === mod.id && styles.chipTextActive,
                         ]}
                       >
-                        {mod}
+                        {mod.nombre}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -626,7 +654,7 @@ export default function EventsScreen() {
                   />
                 </View>
                 <View style={[styles.formField, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Contacto *</Text>
+                  <Text style={styles.formLabel}>Contacto</Text>
                   <TextInput
                     style={styles.formInput}
                     placeholder="email@ejemplo.com"
@@ -658,9 +686,15 @@ export default function EventsScreen() {
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.submitBtn} onPress={handleCreateEvent}>
+              <TouchableOpacity
+                style={styles.submitBtn}
+                onPress={handleCreateEvent}
+                disabled={saving}
+              >
                 <Ionicons name="calendar" size={16} color="#fff" />
-                <Text style={styles.submitBtnText}>Enviar propuesta de evento</Text>
+                <Text style={styles.submitBtnText}>
+                  {saving ? 'Enviando…' : 'Enviar propuesta de evento'}
+                </Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
