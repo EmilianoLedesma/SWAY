@@ -279,6 +279,18 @@ export async function getEventos() {
   }
 }
 
+export async function getEventosMine() {
+  try {
+    const res = await fetch(`${API_HOST}/api/eventos?mine=true`, { headers: await authHeaders() });
+    const data = await res.json();
+    if (!res.ok) return buildErrorResult(res, data, 'Error al obtener tus eventos');
+    return data;
+  } catch (error) {
+    console.error('Error en getEventosMine:', error);
+    return { success: false, eventos: [] };
+  }
+}
+
 export async function crearEvento(payload) {
   try {
     const res = await fetch(`${API_HOST}/api/eventos/crear`, {

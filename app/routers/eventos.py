@@ -18,9 +18,13 @@ async def get_eventos(
     modalidad: str = Query(""),
     fecha_inicio: str = Query(""),
     fecha_fin: str = Query(""),
+    mine: bool = Query(False),
+    current_user: Optional[dict] = Depends(get_optional_organizador_user),
     db: Session = Depends(get_db)
 ):
     try:
+        if mine and not current_user:
+            raise HTTPException(status_code=401, detail="Se requiere autenticación para filtrar tus eventos")
         q = (
             db.query(Evento, TipoEvento, Modalidad, Usuario, Estatus, Calle, Colonia, Municipio, Estado)
             .outerjoin(TipoEvento, Evento.id_tipo_evento == TipoEvento.id)
@@ -44,6 +48,8 @@ async def get_eventos(
             q = q.filter(Evento.fecha_evento >= fecha_inicio)
         if fecha_fin:
             q = q.filter(Evento.fecha_evento <= fecha_fin)
+        if mine:
+            q = q.filter(Organizador.id_usuario == int(current_user["sub"]))
 
         q = q.order_by(Evento.fecha_evento.asc(), Evento.hora_inicio.asc())
         filas = q.all()

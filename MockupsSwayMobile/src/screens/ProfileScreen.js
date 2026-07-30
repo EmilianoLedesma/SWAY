@@ -35,7 +35,7 @@ import {
   getEstadisticasEspecies,
   getAvistamientosMine,
   getAvistamientosAll,
-  getEventos,
+  getEventosMine,
   getImpactoSostenible,
   downloadReportePDF,
   isBiometricLoginEnabled,
@@ -249,17 +249,14 @@ export default function ProfileScreen() {
   }, []);
 
   useEffect(() => {
-    if (!personal.nombre || !personal.apellidoPaterno) return;
     let active = true;
-    const prefix = `${personal.nombre} ${personal.apellidoPaterno}`;
-    getEventos().then((data) => {
-      if (!active || !data?.eventos) return;
-      setEventosMineCount(data.eventos.filter((e) => e.organizador?.startsWith(prefix)).length);
+    getEventosMine().then((data) => {
+      if (active && data?.eventos) setEventosMineCount(data.eventos.length);
     });
     return () => {
       active = false;
     };
-  }, [personal.nombre, personal.apellidoPaterno]);
+  }, []);
 
   useEffect(() => {
     if (reportesSubTab !== 'global') return;
