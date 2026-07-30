@@ -7,11 +7,8 @@ import { radii, shadows } from '../theme/spacing';
 import ScreenHeader from '../components/ScreenHeader';
 import { useGamification } from '../context/GamificationContext';
 import useBreathe from '../hooks/useBreathe';
-import { sightingsList } from '../data/sightings';
 import { eventsList } from '../data/events';
-import { getProfile } from '../api/client';
-
-const pastEvents = eventsList.filter((e) => e.status === 'PAST');
+import { getProfile, getAvistamientosMine } from '../api/client';
 
 const nextEvent = eventsList
   .filter((e) => e.status === 'UPCOMING')
@@ -25,32 +22,36 @@ const relativeDate = (date) => {
   return `hace ${w} ${w === 1 ? 'semana' : 'semanas'}`;
 };
 
-const recentActivity = [
-  ...sightingsList
-    .slice()
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 3)
-    .map((s) => ({ text: `Avistamiento de ${s.species} en ${s.location}`, date: s.date })),
-  ...pastEvents
-    .slice()
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 1)
-    .map((e) => ({ text: `Asistió a ${e.name}`, date: e.date })),
-]
-  .sort((a, b) => b.date.localeCompare(a.date))
-  .slice(0, 3);
-
 export default function HomeScreen({ navigation }) {
   const { points, level, levelCeil, levelProgress, streakCount } = useGamification();
   const streakPulse = useBreathe();
   const pressScales = useRef({}).current;
   const entryAnims = useRef({}).current;
   const [firstName, setFirstName] = useState('colaborador');
+  const [recentActivity, setRecentActivity] = useState([]);
 
   useEffect(() => {
     let active = true;
     getProfile().then((data) => {
       if (active && data?.colaborador?.nombre) setFirstName(data.colaborador.nombre);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    getAvistamientosMine().then((data) => {
+      if (!active || !data?.success) return;
+      setRecentActivity(
+        (data.avistamientos || [])
+          .slice(0, 3)
+          .map((a) => ({
+            text: `Avistamiento de ${a.especie_nombre}${a.notas ? ` — ${a.notas}` : ''}`,
+            date: a.fecha,
+          }))
+      );
     });
     return () => {
       active = false;
