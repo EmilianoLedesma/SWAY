@@ -58,13 +58,13 @@ def get_current_colaborador(credentials: Optional[HTTPAuthorizationCredentials] 
     return payload
 
 
-def get_optional_tienda_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
+def get_optional_organizador_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
     token = _extract_token(credentials)
     if not token:
         return None
     try:
         payload = decode_token(token)
-        if payload.get("token_type") == "tienda":
+        if payload.get("token_type") in ("tienda", "colaborador"):
             return payload
         return None
     except HTTPException:
