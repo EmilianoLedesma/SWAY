@@ -26,7 +26,7 @@ import ShareCard from '../components/ShareCard';
 import DateField from '../components/DateField';
 import { sightingsList } from '../data/sightings';
 import { speciesList } from '../data/species';
-import { getAvistamientosAll, getProfile, crearAvistamiento, getEspecies } from '../api/client';
+import { getAvistamientosAll, getAvistamientosMine, getProfile, crearAvistamiento, getEspecies } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
 
 function mapEspecieFromApi(e) {
@@ -64,6 +64,7 @@ export default function SightingsScreen() {
   const { incrementSightings, bumpStreak } = useGamification();
   const [sightings, setSightings] = useState(sightingsList);
   const [search, setSearch] = useState('');
+  const [showMineOnly, setShowMineOnly] = useState(false);
   const [detailSighting, setDetailSighting] = useState(null);
   const [newModal, setNewModal] = useState(false);
   const [sightingForm, setSightingForm] = useState(initialSightingForm);
@@ -90,16 +91,15 @@ export default function SightingsScreen() {
 
   useEffect(() => {
     let active = true;
-    getAvistamientosAll().then((data) => {
+    const fetchSightings = showMineOnly ? getAvistamientosMine : getAvistamientosAll;
+    fetchSightings().then((data) => {
       if (!active) return;
-      if (data?.avistamientos?.length) {
-        setSightings(data.avistamientos.map(mapAvistamientoFromApi));
-      }
+      setSightings(data?.avistamientos ? data.avistamientos.map(mapAvistamientoFromApi) : []);
     });
     return () => {
       active = false;
     };
-  }, []);
+  }, [showMineOnly]);
 
   useEffect(() => {
     let active = true;
@@ -211,7 +211,7 @@ export default function SightingsScreen() {
       Alert.alert('Error', result.message || 'No se pudo reportar el avistamiento.');
       return;
     }
-    const refreshed = await getAvistamientosAll();
+    const refreshed = await (showMineOnly ? getAvistamientosMine() : getAvistamientosAll());
     if (refreshed?.avistamientos) {
       setSightings(refreshed.avistamientos.map(mapAvistamientoFromApi));
     }
@@ -367,6 +367,15 @@ export default function SightingsScreen() {
             </TouchableOpacity>
           ) : null}
         </View>
+
+        <TouchableOpacity
+          style={[styles.chip, showMineOnly && styles.chipActive, styles.mineChip]}
+          onPress={() => setShowMineOnly((prev) => !prev)}
+        >
+          <Text style={[styles.chipText, showMineOnly && styles.chipTextActive]}>
+            Míos
+          </Text>
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.newBtn}
@@ -1011,6 +1020,10 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: colors.blue,
     fontWeight: typography.weight.semibold,
+  },
+  mineChip: {
+    alignSelf: 'flex-start',
+    marginBottom: 12,
   },
   submitBtn: {
     flexDirection: 'row',

@@ -21,7 +21,7 @@ import ScreenHeader from '../components/ScreenHeader';
 import ShareCard from '../components/ShareCard';
 import DateField from '../components/DateField';
 import { eventsList } from '../data/events';
-import { getEventos, getTiposEvento, getModalidades, crearEvento } from '../api/client';
+import { getEventos, getEventosMine, getTiposEvento, getModalidades, crearEvento } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -74,6 +74,7 @@ export default function EventsScreen() {
   const [events, setEvents] = useState(eventsList);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState(null);
+  const [showMineOnly, setShowMineOnly] = useState(false);
   const [detailEvent, setDetailEvent] = useState(null);
   const [newModal, setNewModal] = useState(false);
   const [eventForm, setEventForm] = useState(initialEventForm);
@@ -86,16 +87,19 @@ export default function EventsScreen() {
 
   useEffect(() => {
     let active = true;
-    getEventos().then((data) => {
+    const fetchEvents = showMineOnly ? getEventosMine : getEventos;
+    fetchEvents().then((data) => {
       if (!active) return;
-      if (data?.eventos?.length) {
-        setEvents(data.eventos.map(mapEventoFromApi));
+      if (data?.sessionExpired) {
+        setIsLoggedIn(false);
+        return;
       }
+      setEvents(data?.eventos ? data.eventos.map(mapEventoFromApi) : []);
     });
     return () => {
       active = false;
     };
-  }, []);
+  }, [showMineOnly]);
 
   useEffect(() => {
     let active = true;
@@ -204,7 +208,7 @@ export default function EventsScreen() {
       Alert.alert('Error', result.message || 'No se pudo enviar la propuesta de evento.');
       return;
     }
-    const refreshed = await getEventos();
+    const refreshed = await (showMineOnly ? getEventosMine() : getEventos());
     if (refreshed?.eventos) {
       setEvents(refreshed.eventos.map(mapEventoFromApi));
     }
@@ -380,6 +384,14 @@ export default function EventsScreen() {
               </Text>
             </TouchableOpacity>
           ))}
+          <TouchableOpacity
+            style={[styles.filterChip, showMineOnly && styles.filterChipActive]}
+            onPress={() => setShowMineOnly((prev) => !prev)}
+          >
+            <Text style={[styles.filterChipText, showMineOnly && styles.filterChipTextActive]}>
+              Míos
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
 
         <TouchableOpacity style={styles.newBtn} onPress={() => setNewModal(true)}>
