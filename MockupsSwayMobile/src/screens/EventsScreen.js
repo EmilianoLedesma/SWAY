@@ -300,16 +300,10 @@ export default function EventsScreen() {
             <Text style={[styles.actionLabel, { color: colors.blue }]}>Ver</Text>
           </TouchableOpacity>
           {isUpcoming ? (
-            <>
-              <TouchableOpacity style={styles.actionBtn}>
-                <Ionicons name="pencil-outline" size={14} color={colors.blue} />
-                <Text style={[styles.actionLabel, { color: colors.blue }]}>Editar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionBtn} onPress={() => handleShare(item)}>
-                <Ionicons name="share-outline" size={14} color={colors.text2} />
-                <Text style={[styles.actionLabel, { color: colors.text2 }]}>Compartir</Text>
-              </TouchableOpacity>
-            </>
+            <TouchableOpacity style={styles.actionBtn} onPress={() => handleShare(item)}>
+              <Ionicons name="share-outline" size={14} color={colors.text2} />
+              <Text style={[styles.actionLabel, { color: colors.text2 }]}>Compartir</Text>
+            </TouchableOpacity>
           ) : null}
           <TouchableOpacity
             style={styles.actionBtn}
