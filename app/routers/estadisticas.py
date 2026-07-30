@@ -9,6 +9,7 @@ from app.data.models import (
     Especie, EstadoConservacion, Avistamiento, Pedido,
     DetallePedido, Usuario
 )
+from app.security.auth import get_current_colaborador
 from datetime import datetime
 
 router = APIRouter(prefix="/api", tags=["estadisticas"])
@@ -199,6 +200,29 @@ async def reportar_avistamiento(data: AvistamientoCreate, db: Session = Depends(
         raise
     except Exception as e:
         print(f"Error en reportar_avistamiento: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/avistamientos/{avistamiento_id}")
+async def eliminar_avistamiento(
+    avistamiento_id: int,
+    current_user: dict = Depends(get_current_colaborador),
+    db: Session = Depends(get_db)
+):
+    try:
+        avistamiento = db.query(Avistamiento).filter(Avistamiento.id == avistamiento_id).first()
+        if not avistamiento:
+            raise HTTPException(status_code=404, detail="Avistamiento no encontrado")
+
+        db.delete(avistamiento)
+        db.commit()
+
+        return {"success": True, "message": "Avistamiento eliminado exitosamente"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error en eliminar_avistamiento: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

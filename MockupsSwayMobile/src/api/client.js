@@ -257,6 +257,21 @@ export async function getAvistamientosMine() {
   }
 }
 
+export async function deleteAvistamiento(id) {
+  try {
+    const res = await fetch(`${API_HOST}/api/avistamientos/${id}`, {
+      method: 'DELETE',
+      headers: await authHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) return buildErrorResult(res, data, 'Error al eliminar el avistamiento');
+    return data;
+  } catch (error) {
+    console.error('Error en deleteAvistamiento:', error);
+    return { success: false, message: 'No se pudo conectar con el servidor' };
+  }
+}
+
 export async function crearAvistamiento(payload) {
   try {
     const res = await fetch(`${API_HOST}/api/reportar-avistamiento`, {

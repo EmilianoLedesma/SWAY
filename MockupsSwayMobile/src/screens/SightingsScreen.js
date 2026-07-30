@@ -26,7 +26,7 @@ import ShareCard from '../components/ShareCard';
 import DateField from '../components/DateField';
 import { sightingsList } from '../data/sightings';
 import { speciesList } from '../data/species';
-import { getAvistamientosAll, getAvistamientosMine, getProfile, crearAvistamiento, getEspecies } from '../api/client';
+import { getAvistamientosAll, getAvistamientosMine, getProfile, crearAvistamiento, deleteAvistamiento, getEspecies } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
 
 function mapEspecieFromApi(e) {
@@ -244,8 +244,17 @@ export default function SightingsScreen() {
         {
           text: 'Eliminar',
           style: 'destructive',
-          onPress: () =>
-            setSightings((prev) => prev.filter((s) => s.id !== item.id)),
+          onPress: async () => {
+            const result = await deleteAvistamiento(item.id);
+            if (!result.success) {
+              Alert.alert('Error', result.message || 'No se pudo eliminar el avistamiento.');
+              return;
+            }
+            const refreshed = await (showMineOnly ? getAvistamientosMine() : getAvistamientosAll());
+            if (refreshed?.avistamientos) {
+              setSightings(refreshed.avistamientos.map(mapAvistamientoFromApi));
+            }
+          },
         },
       ],
     );
