@@ -23,6 +23,7 @@ import DateField from '../components/DateField';
 import { eventsList } from '../data/events';
 import { getEventos, getTiposEvento, getModalidades, crearEvento } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
+import { useAuth } from '../context/AuthContext';
 
 function mapEventoFromApi(e) {
   const fechaEvento = e.fecha_evento ? e.fecha_evento.slice(0, 10) : '';
@@ -69,6 +70,7 @@ function formatDate(dateStr) {
 export default function EventsScreen() {
   const insets = useSafeAreaInsets();
   const { bumpStreak } = useGamification();
+  const { setIsLoggedIn } = useAuth();
   const [events, setEvents] = useState(eventsList);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState(null);
@@ -77,6 +79,7 @@ export default function EventsScreen() {
   const [eventForm, setEventForm] = useState(initialEventForm);
   const [shareTarget, setShareTarget] = useState(null);
   const shareCardRef = useRef(null);
+  const [saving, setSaving] = useState(false);
 
   const [tiposEvento, setTiposEvento] = useState([]);
   const [modalidades, setModalidades] = useState([]);
@@ -125,6 +128,7 @@ export default function EventsScreen() {
   };
 
   const handleCreateEvent = async () => {
+    if (saving) return;
     if (
       !eventForm.titulo ||
       !eventForm.tipoId ||
@@ -133,8 +137,7 @@ export default function EventsScreen() {
       !eventForm.modalidadId ||
       !eventForm.descripcion ||
       !eventForm.horaInicio ||
-      !eventForm.horaFin ||
-      !eventForm.contacto
+      !eventForm.horaFin
     ) {
       Alert.alert('Datos incompletos', 'Completa todos los campos obligatorios.');
       return;
@@ -160,7 +163,7 @@ export default function EventsScreen() {
       Alert.alert('Costo inválido', 'El costo debe ser un número mayor o igual a 0.');
       return;
     }
-    if (!/^\S+@\S+\.\S+$/.test(eventForm.contacto)) {
+    if (eventForm.contacto && !/^\S+@\S+\.\S+$/.test(eventForm.contacto)) {
       Alert.alert('Contacto inválido', 'Ingresa un correo electrónico de contacto válido.');
       return;
     }
@@ -171,7 +174,15 @@ export default function EventsScreen() {
     const descripcionFinal = eventForm.ubicacion.trim()
       ? `${eventForm.descripcion}\n\nUbicación: ${eventForm.ubicacion.trim()}`
       : eventForm.descripcion;
+    if (descripcionFinal.length > 2000) {
+      Alert.alert(
+        'Descripción muy larga',
+        'La descripción y la ubicación combinadas superan el límite de 2000 caracteres. Acorta alguno de los dos campos.',
+      );
+      return;
+    }
 
+    setSaving(true);
     const result = await crearEvento({
       titulo: eventForm.titulo,
       descripcion: descripcionFinal,
@@ -184,7 +195,12 @@ export default function EventsScreen() {
       costo,
       contacto: eventForm.contacto,
     });
+    setSaving(false);
     if (!result.success) {
+      if (result.sessionExpired) {
+        setIsLoggedIn(false);
+        return;
+      }
       Alert.alert('Error', result.message || 'No se pudo enviar la propuesta de evento.');
       return;
     }
@@ -638,7 +654,7 @@ export default function EventsScreen() {
                   />
                 </View>
                 <View style={[styles.formField, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Contacto *</Text>
+                  <Text style={styles.formLabel}>Contacto</Text>
                   <TextInput
                     style={styles.formInput}
                     placeholder="email@ejemplo.com"
@@ -670,9 +686,15 @@ export default function EventsScreen() {
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.submitBtn} onPress={handleCreateEvent}>
+              <TouchableOpacity
+                style={styles.submitBtn}
+                onPress={handleCreateEvent}
+                disabled={saving}
+              >
                 <Ionicons name="calendar" size={16} color="#fff" />
-                <Text style={styles.submitBtnText}>Enviar propuesta de evento</Text>
+                <Text style={styles.submitBtnText}>
+                  {saving ? 'Enviando…' : 'Enviar propuesta de evento'}
+                </Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
