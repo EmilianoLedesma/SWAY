@@ -1,3 +1,10 @@
+> **Nota (2026-07-31):** Este documento describe la implementación original de seguridad
+> de aplicación (bcrypt, JWT, API key, rate limiting, BOLA/IDOR) y una primera propuesta de
+> arquitectura de 2 servidores sobre VirtualBox que **no se usó**. La arquitectura real de
+> despliegue (2 droplets DigitalOcean) está en
+> `docs/superpowers/specs/2026-07-31-two-droplet-security-deploy-design.md`. La parte de
+> seguridad de aplicación (secciones 1-3) sigue vigente.
+
 > **Instrucciones para Claude (web):**
 > Convierte este documento Markdown en un PDF profesional con las siguientes características:
 > - Portada con título, nombre del proyecto, materia y fecha
