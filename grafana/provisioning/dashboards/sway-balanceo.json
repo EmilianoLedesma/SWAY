@@ -55,6 +55,27 @@
           "legendFormat": "{{proxy}}/{{server}}"
         }
       ]
+    },
+    {
+      "id": 6,
+      "title": "Conexiones activas a PostgreSQL",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 22 },
+      "targets": [
+        { "expr": "pg_stat_database_numbackends{datname=\"sway\"}", "legendFormat": "conexiones activas" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Respuestas 4xx/5xx por backend (protección API)",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 22 },
+      "targets": [
+        {
+          "expr": "sum by (proxy, server, code) (rate(haproxy_server_http_responses_total{code=~\"4xx|5xx\"}[5m]))",
+          "legendFormat": "{{proxy}}/{{server}} {{code}}"
+        }
+      ]
     }
   ],
   "schemaVersion": 39,
