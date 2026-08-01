@@ -24,8 +24,6 @@ docker compose -f docker-compose.private.yml ps
 ```
 Verificar 8 contenedores `Up`: postgres, api1, api2, flask1, flask2, postgres_exporter, node_exporter, prometheus (sin cadvisor — descartado por RAM ajustada, ver Tarea 6).
 
-**Importante:** el mismo valor de `API_KEY` que se acaba de definir en `.env` debe reemplazar el placeholder literal `REEMPLAZAR_CON_API_KEY_PUBLICA` en estos 3 archivos: `assets/js/main.js`, `web2/src/api/client.js` y `MockupsSwayMobile/src/api/client.js`. Hacer esto **antes** del build de `web2` y antes de publicar la app móvil — estos clientes incrustan el string literal en su bundle, así que un cambio posterior en `.env` no se propaga solo.
-
 Nota UFW: `scripts/ufw_private.sh` borra explícitamente las reglas `80/tcp`, `443/tcp` y sus variantes `(v6)` que quedaron del despliegue de un solo droplet, antes de aplicar las reglas nuevas (`ufw default deny` no revierte un `allow` ya puesto). Después de correr el script, verificar con `ufw status numbered` que no sobrevivió ninguna regla `80/tcp`/`443/tcp` IPv6 residual — el `delete` de esas reglas `(v6)` puede ser un no-op según la versión de UFW instalada, así que confirmar a mano.
 
 ## 2. Droplet público — preparar y levantar
@@ -44,6 +42,8 @@ cd sway
 Reemplazar `10.124.0.3` en `haproxy/haproxy.cfg` (backends `api_back`/`flask_back`) y en `grafana/provisioning/datasources/prometheus.yml` si por algún motivo el droplet privado se recrea con otra IP (no debería — es el droplet existente, la IP ya está confirmada). `scripts/ufw_public.sh` no necesita edición — ya usa `10.124.0.3` fijo para la regla de `:8405` y el resto de sus reglas (22/80/443/8404) son abiertas por diseño, sin placeholder que rellenar.
 
 En `haproxy/haproxy.cfg`, la sección `listen stats` trae la línea `stats auth admin:REEMPLAZAR_CON_PASSWORD_STATS` (agregada tras la revisión de seguridad de la Tarea 8) — reemplazar `REEMPLAZAR_CON_PASSWORD_STATS` por una contraseña real antes o durante el despliegue, mismo patrón que los demás placeholders `REEMPLAZAR_CON_*`.
+
+**Importante:** el mismo valor de `API_KEY` que se acaba de definir en el `.env` del droplet privado debe reemplazar el placeholder literal `REEMPLAZAR_CON_API_KEY_PUBLICA` en estos 3 archivos: `assets/js/api-key.js`, `web2/src/api/client.js` y `MockupsSwayMobile/src/api/client.js`. Se edita acá, en el checkout del **droplet público** (`assets/` se sirve desde este droplet vía nginx-portal, editarlo en el privado no tiene efecto) — hacerlo **antes** del build de `web2` y antes de publicar la app móvil, ya que estos clientes incrustan el string literal en su bundle y un cambio posterior en `.env` no se propaga solo.
 
 ```bash
 ./haproxy/generate_cert.sh
