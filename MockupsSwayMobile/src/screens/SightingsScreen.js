@@ -282,7 +282,15 @@ export default function SightingsScreen() {
           <View style={styles.cardHeader}>
             <View style={styles.cardHeaderLeft}>
               <View style={styles.cardIcon}>
-                <Ionicons name="camera" size={16} color={colors.ocean} />
+                {item.photoUrl ? (
+                  <Image
+                    source={{ uri: item.photoUrl }}
+                    style={styles.cardThumbnail}
+                    onError={() => {}}
+                  />
+                ) : (
+                  <Ionicons name="camera" size={16} color={colors.ocean} />
+                )}
               </View>
               <View style={styles.cardHeaderText}>
                 <Text style={styles.cardSpecies}>{item.species}</Text>
@@ -447,7 +455,15 @@ export default function SightingsScreen() {
                 showsVerticalScrollIndicator={false}
               >
                 <View style={styles.detailPhoto}>
-                  <Ionicons name="camera" size={48} color={colors.oceanDark} />
+                  {detailSighting.photoUrl ? (
+                    <Image
+                      source={{ uri: detailSighting.photoUrl }}
+                      style={styles.detailPhotoImage}
+                      onError={() => {}}
+                    />
+                  ) : (
+                    <Ionicons name="camera" size={48} color={colors.oceanDark} />
+                  )}
                 </View>
                 <Text style={styles.detailSpecies}>
                   {detailSighting.species}
@@ -783,6 +799,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  cardThumbnail: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+  },
   cardHeaderText: {
     flex: 1,
   },
@@ -901,6 +922,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
+  },
+  detailPhotoImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: radii.r16,
   },
   detailSpecies: {
     fontFamily: typography.display,
