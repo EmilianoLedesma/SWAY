@@ -78,7 +78,8 @@
       "Bash(npx babel *)",
       "Bash(echo \"EXIT:$?\")",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Read(//c/Users/Emiliano/Downloads/**)"
     ],
     "deny": []
   }
