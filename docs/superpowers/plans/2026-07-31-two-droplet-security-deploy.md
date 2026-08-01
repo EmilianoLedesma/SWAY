@@ -518,7 +518,6 @@ git add docker-compose.private.yml
 git commit -m "feat: docker-compose.private.yml — postgres + api1/api2 + flask1/flask2 + stack de métricas para droplet privado"
 ```
 
----
 
 ### Task 7: `docker-compose.public.yml` (droplet público)
 
