@@ -16,6 +16,12 @@ Este documento resume el trabajo hecho en los últimos días (fusión de segurid
 
 Contraseñas reales (`JWT_SECRET_KEY`, `DB_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`, password de HAProxy stats) **no están en este documento** — viven en el `.env` de cada droplet (`/root/sway/.env` privado, `/home/sway/sway/.env` público) y en el `.env` local del proyecto. Pedir acceso a quien tenga las llaves SSH si se necesitan para la demo.
 
+**Suite automatizada:** todos los comandos de este documento (secciones 1-7, 11-14) están scriptados en `scripts/verify_pi_requirements.sh` — corre contra producción real y da un resumen pass/fail:
+```bash
+SSH_KEY=~/.ssh/sway_deploy bash scripts/verify_pi_requirements.sh
+```
+Los ítems 8-10 (mobile UX) quedan como `SKIP` porque necesitan interacción manual con un dispositivo real (ver sección "Cómo levantar la app en Expo Go"). El rate limiting (429) también se skipea por defecto para no gastar el cupo real del endpoint de login en cada corrida.
+
 ---
 
 ## 0. Cómo generar tu propia llave SSH y obtener acceso
