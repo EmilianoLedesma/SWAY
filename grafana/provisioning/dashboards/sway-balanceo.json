@@ -9,8 +9,8 @@
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "sum by (proxy) (rate(haproxy_server_http_responses_total[1m]))",
-          "legendFormat": "{{proxy}}"
+          "expr": "sum by (proxy, server) (rate(haproxy_server_http_responses_total[1m]))",
+          "legendFormat": "{{proxy}}/{{server}}"
         }
       ]
     },

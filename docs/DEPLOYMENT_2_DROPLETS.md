@@ -17,10 +17,14 @@ docker compose -f docker-compose.prod.yml down   # baja el stack viejo de un sol
 Reemplazar `IP_PUBLICA_VPC` en `scripts/ufw_private.sh` y `prometheus/prometheus.yml` (campo `haproxy-edge`) por la IP privada real del droplet público (recién creado en el paso anterior), luego:
 ```bash
 sudo bash scripts/ufw_private.sh
+cp .env.example .env && chmod 600 .env
+nano .env   # rellenar JWT_SECRET_KEY, API_KEY, CORS_ORIGINS=https://<IP_PUBLICA>
 docker compose -f docker-compose.private.yml up --build -d
 docker compose -f docker-compose.private.yml ps
 ```
 Verificar 8 contenedores `Up`: postgres, api1, api2, flask1, flask2, postgres_exporter, node_exporter, prometheus (sin cadvisor — descartado por RAM ajustada, ver Tarea 6).
+
+**Importante:** el mismo valor de `API_KEY` que se acaba de definir en `.env` debe reemplazar el placeholder literal `REEMPLAZAR_CON_API_KEY_PUBLICA` en estos 3 archivos: `assets/js/main.js`, `web2/src/api/client.js` y `MockupsSwayMobile/src/api/client.js`. Hacer esto **antes** del build de `web2` y antes de publicar la app móvil — estos clientes incrustan el string literal en su bundle, así que un cambio posterior en `.env` no se propaga solo.
 
 Nota UFW: `scripts/ufw_private.sh` borra explícitamente las reglas `80/tcp`, `443/tcp` y sus variantes `(v6)` que quedaron del despliegue de un solo droplet, antes de aplicar las reglas nuevas (`ufw default deny` no revierte un `allow` ya puesto). Después de correr el script, verificar con `ufw status numbered` que no sobrevivió ninguna regla `80/tcp`/`443/tcp` IPv6 residual — el `delete` de esas reglas `(v6)` puede ser un no-op según la versión de UFW instalada, así que confirmar a mano.
 

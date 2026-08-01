@@ -2,8 +2,8 @@
 # ARCHIVO DE REFERENCIA — configuración monolítica original
 # Este compose ya NO se usa en producción.
 # Usar en su lugar:
-#   docker-compose.private.yml  → VM privada (10.10.10.2)
-#   docker-compose.public.yml   → VM pública (10.10.10.1)
+#   docker-compose.private.yml  → droplet privado
+#   docker-compose.public.yml   → droplet público
 # ============================================================
 
 services:

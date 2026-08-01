@@ -22,7 +22,7 @@ services:
     build: .
     container_name: sway_api1
     restart: unless-stopped
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips="10.124.0.3"
     env_file:
       - path: .env
         required: false
@@ -30,7 +30,7 @@ services:
       DATABASE_URL: postgresql+psycopg://${DB_USER:-sway_app}:${DB_PASSWORD:-sway123}@postgres:5432/${DB_NAME:-sway}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5000,http://localhost:5173}
     ports:
-      - "8001:8000"
+      - "10.124.0.3:8001:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -42,7 +42,7 @@ services:
     build: .
     container_name: sway_api2
     restart: unless-stopped
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips="10.124.0.3"
     env_file:
       - path: .env
         required: false
@@ -50,7 +50,7 @@ services:
       DATABASE_URL: postgresql+psycopg://${DB_USER:-sway_app}:${DB_PASSWORD:-sway123}@postgres:5432/${DB_NAME:-sway}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5000,http://localhost:5173}
     ports:
-      - "8002:8000"
+      - "10.124.0.3:8002:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -73,7 +73,7 @@ services:
       FLASK_ENV: production
       API_BASE_URL: /api
     ports:
-      - "5001:5000"
+      - "10.124.0.3:5001:5000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -96,7 +96,7 @@ services:
       FLASK_ENV: production
       API_BASE_URL: /api
     ports:
-      - "5002:5000"
+      - "10.124.0.3:5002:5000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -140,7 +140,7 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     ports:
-      - "9090:9090"
+      - "10.124.0.3:9090:9090"
     networks:
       - app_network
       - monitoring_network
