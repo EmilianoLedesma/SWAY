@@ -4,10 +4,10 @@ import Constants from 'expo-constants';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
-// TEMPORAL: apuntando a producción (droplet DigitalOcean) para probar contra
+// TEMPORAL: apuntando a producción (droplet público, HAProxy) para probar contra
 // datos reales vía Expo Go. Revertir a la lógica dinámica de Metro (comentada
 // abajo) cuando se termine de probar.
-export const API_HOST = 'http://165.232.146.240';
+export const API_HOST = 'https://proyecto-sway.site';
 
 const SWAY_API_KEY = 'f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b';
 
