@@ -167,7 +167,7 @@ Esperado: `prometheus up`, `node up`, `postgres up`, `haproxy-edge up` — los 4
 2. Usuario `admin`, contraseña real en `/home/sway/sway/.env` del droplet público (variable `GRAFANA_ADMIN_PASSWORD`) — pedirla a quien tenga acceso SSH si no se tiene a la mano.
 3. En el menú lateral izquierdo, click en **Dashboards**.
 4. Click en la carpeta **SWAY**, luego en **SWAY — Balanceo y Monitoreo**.
-5. El dashboard tiene 3 paneles:
+5. El dashboard tiene 7 paneles:
    - **"Peticiones por backend (HAProxy)"** (arriba, gráfica de líneas) — muestra cuánto tráfico recibe cada réplica (`api1`, `api2`, `flask1`, `flask2`) en tiempo real. Para generar tráfico visible en vivo durante la demo: abrir otra pestaña y refrescar `https://proyecto-sway.site/api/estadisticas` varias veces, o simplemente navegar la app — las líneas del gráfico deben moverse.
    - **"Backends activos (up/down)"** — 6 números, cada uno debe decir `1` (activo). Si alguno cae a `0`, esa réplica/servicio está caído.
    - **"Uso de CPU del host"** — carga del droplet privado en tiempo real.
@@ -183,10 +183,12 @@ https://proyecto-sway.site/grafana/login
 ```
 Login con `admin` / contraseña real en `.env` del droplet público. Abrir dashboard "SWAY — Balanceo y Monitoreo", panel "Peticiones por backend (HAProxy)" debe mostrar 2 líneas (api1/api2) con tráfico.
 
-**Verificado en navegador real (no solo `curl`) — captura de pantalla tomada en vivo:** login exitoso en `https://proyecto-sway.site/grafana/login`, dashboard "SWAY — Balanceo y Monitoreo" abierto y renderizando datos reales en sus 3 paneles:
+**Verificado en navegador real (no solo `curl`) — capturas de pantalla tomadas en vivo en 2 pasadas de esta verificación:** login exitoso en `https://proyecto-sway.site/grafana/login`, dashboard "SWAY — Balanceo y Monitoreo" abierto y renderizando datos reales en los 7 paneles:
 - **"Peticiones por backend (HAProxy)"** — picos de tráfico reales etiquetados `api_back/api1`, `api_back/api2`, `flask_back/flask1`, `flask_back/flask2`, `grafana_back/grafana`, `portal_back/portal`.
 - **"Backends activos (up/down)"** — 6 indicadores, todos en `1` (activo).
 - **"Uso de CPU del host (droplet privado)"** — serie de tiempo real desde `node_exporter`.
+- **"Distribución de tráfico entre réplicas (%)"** — pie chart con 4 porciones reales (`api1`/`api2`/`flask1`/`flask2`) de tamaño similar.
+- **"Sesiones actuales por réplica"**, **"Conexiones activas a PostgreSQL"**, **"Respuestas 4xx/5xx por backend"** — los 3 más recientes, confirmados vía la API de Grafana (`/grafana/api/dashboards/uid/...`) cargando los 7 títulos correctamente tras el despliegue.
 
 **Bug real encontrado y corregido durante esta verificación:** el panel "Backends activos" usaba la métrica `haproxy_server_up`, que **no existe** en las métricas reales que expone el exporter de HAProxy 3.2 (confirmado corriendo `curl http://146.190.136.236:8405/metrics | grep haproxy_server_`) — el panel hubiera quedado sin datos. Corregido a `haproxy_server_active` (métrica real, `1` = activo), commit `700f831`, desplegado y reverificado con el dashboard abierto en el navegador mostrando datos.
 
