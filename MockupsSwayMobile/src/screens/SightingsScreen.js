@@ -26,7 +26,7 @@ import ShareCard from '../components/ShareCard';
 import DateField from '../components/DateField';
 import { sightingsList } from '../data/sightings';
 import { speciesList } from '../data/species';
-import { getAvistamientosAll, getAvistamientosMine, getProfile, crearAvistamiento, deleteAvistamiento, getEspecies } from '../api/client';
+import { API_HOST, getAvistamientosAll, getAvistamientosMine, getProfile, crearAvistamiento, uploadAvistamientoFoto, deleteAvistamiento, getEspecies } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
 
 function mapEspecieFromApi(e) {
@@ -45,7 +45,8 @@ function mapAvistamientoFromApi(a) {
     location: a.latitud != null && a.longitud != null ? `${a.latitud}, ${a.longitud}` : 'Sin coordenadas',
     status: 'PENDING',
     notes: a.notas || '',
-    hasPhoto: false,
+    hasPhoto: !!a.foto_url,
+    photoUrl: a.foto_url ? `${API_HOST}${a.foto_url}` : null,
   };
 }
 
@@ -210,6 +211,12 @@ export default function SightingsScreen() {
     if (!result.success) {
       Alert.alert('Error', result.message || 'No se pudo reportar el avistamiento.');
       return;
+    }
+    if (sightingForm.fotoUri && result.id) {
+      const fotoResult = await uploadAvistamientoFoto(result.id, sightingForm.fotoUri);
+      if (!fotoResult.success) {
+        Alert.alert('Avistamiento guardado', 'El avistamiento se reportó, pero la foto no se pudo subir. Puedes intentarlo de nuevo más tarde.');
+      }
     }
     const refreshed = await (showMineOnly ? getAvistamientosMine() : getAvistamientosAll());
     if (refreshed?.avistamientos) {
