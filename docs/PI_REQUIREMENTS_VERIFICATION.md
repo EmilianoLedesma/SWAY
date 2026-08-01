@@ -76,6 +76,12 @@ Referencia rápida de archivo:línea para quien quiera leer el código fuente di
 
 **Qué se hizo:** todos los endpoints que crean o cambian contraseñas (`/api/colaboradores/register`, `/api/colaboradores/perfil/password`, `/api/user/register`, `/api/auth/register`) usan `werkzeug.security.generate_password_hash` — hash salteado (`pbkdf2:sha256`, 600,000 iteraciones), nunca texto plano. Verificación (`check_password_hash`) en cada login.
 
+**Cómo funciona técnicamente:** PBKDF2 (Password-Based Key Derivation Function 2) no es un hash simple como `SHA256(password)` — aplica la función hash **repetidamente** (600,000 veces en este caso) sobre la contraseña combinada con un salt aleatorio generado por petición. Dos efectos de esto:
+1. **El salt evita ataques de tabla precomputada (rainbow tables).** Si dos usuarios tienen la misma contraseña, sus hashes salen distintos porque el salt es distinto — comparar la BD contra una tabla de hashes conocidos no sirve de nada.
+2. **Las 600,000 iteraciones son deliberadamente lentas.** Un hash rápido (como SHA256 sin iterar) permite a un atacante con GPU probar miles de millones de contraseñas por segundo si roba la BD. Con 600,000 iteraciones, cada intento de "adivinar" una contraseña toma milisegundos reales — un ataque de fuerza bruta offline se vuelve computacionalmente caro, no imposible pero sí impráctico.
+
+El string guardado (`pbkdf2:sha256:600000$<salt>$<hash>`) codifica el algoritmo y el número de iteraciones junto con el resultado — así `check_password_hash` sabe exactamente cómo re-derivar el hash al verificar un login, sin necesitar guardar esa configuración en otro lado. La comparación interna usa `hmac.compare_digest` (tiempo constante), evitando timing attacks donde un atacante mide cuánto tarda la respuesta para inferir cuántos caracteres coinciden.
+
 **Cómo confirmarlo — SQL directo contra la base real:**
 ```bash
 ssh -i ~/.ssh/sway_droplet root@165.232.146.240
@@ -112,6 +118,10 @@ Esperado: lista de colaboradores aprobados que actualmente no pueden iniciar ses
 
 **Qué se hizo:** arquitectura separada en 2 droplets DigitalOcean reales, comunicados por red privada VPC (`10.124.0.0/20`, mismo datacenter `sfo3`). El privado corre Postgres + 2 réplicas de la API (FastAPI) + 2 réplicas de Flask (web1), sin exponer nada a internet salvo SSH. El público corre HAProxy (borde + SSL + balanceo) + nginx (portal estático) + Grafana.
 
+**Cómo funciona técnicamente:** una VPC (Virtual Private Cloud) de DigitalOcean es una red privada aislada a nivel de datacenter — los droplets dentro de la misma VPC se ven entre sí por IPs `10.x.x.x` (rango RFC 1918, no enrutable en internet público) a través de una interfaz de red separada (`eth1`) de la interfaz pública (`eth0`). El tráfico entre droplets de la misma VPC nunca sale a internet — viaja por la red interna del datacenter, lo que además de más seguro es más rápido (sin salir por el borde de red pública) y no consume el ancho de banda medido de la IP pública. Esto es lo que hace posible que el droplet privado no necesite exponer Postgres/API directo a internet: solo necesita ser alcanzable por la IP VPC del droplet público, algo que UFW puede filtrar explícitamente (sección 4).
+
+La separación real (no solo "dos procesos en la misma máquina con puertos distintos") importa porque un compromiso del droplet público (el que sí está expuesto a todo internet en los puertos 80/443) no le da a un atacante acceso directo al sistema operativo del droplet privado — tendría que además comprometer la VPC o robar credenciales SSH válidas, una capa adicional de defensa.
+
 **Cómo confirmarlo — ping cruzado real por VPC:**
 ```bash
 ssh -i ~/.ssh/sway_droplet root@146.190.136.236 "ping -c 3 10.124.0.3"
@@ -139,6 +149,12 @@ Esperado público: `sway_haproxy`, `sway_nginx_portal`, `sway_grafana` — 3 con
 **Qué se hizo:** Prometheus corre en el droplet privado, scrapea métricas locales (`node_exporter`, `postgres_exporter`, sí mismo) y remotas (HAProxy `/metrics` del droplet público, vía VPC). Grafana corre en el droplet público con datasource pre-provisionado apuntando a Prometheus, y un dashboard con panel de reparto de tráfico entre las 2 réplicas de la API.
 
 Adicional: se instaló el **agente nativo de monitoreo de DigitalOcean** (`do-agent`) en ambos droplets — visible directo en el panel de DO (Droplet → Insights), sin configuración extra.
+
+**Cómo funciona técnicamente:** Prometheus usa un modelo **pull** (a diferencia de sistemas como StatsD que usan push) — cada 15 segundos (`scrape_interval` en `prometheus.yml`), Prometheus hace una petición HTTP GET a `/metrics` en cada target configurado y guarda los valores como series de tiempo. Cada "exporter" (`node_exporter`, `postgres_exporter`, el exporter integrado en HAProxy) es simplemente un servidor HTTP que traduce el estado interno de su sistema (CPU, conexiones a BD, sesiones de HAProxy) al formato de texto plano que Prometheus entiende (`nombre_metrica{etiqueta="valor"} numero`).
+
+El scrape cross-droplet (Prometheus en el privado leyendo HAProxy en el público) funciona porque ambos están en la misma VPC — Prometheus le pega a `10.124.0.2:8405/metrics` como si fuera local, sin necesitar exponer ese puerto a internet (UFW en el público solo permite `8405` desde la IP VPC del privado, sección 4).
+
+Grafana no almacena datos propios — cuando se abre un panel, Grafana traduce la expresión PromQL configurada (ej. `haproxy_server_active`) en una consulta HTTP a la API de Prometheus (`/api/v1/query` o `/api/v1/query_range`), y renderiza la respuesta. Esto es por lo que un panel con una métrica que no existe (como el bug de `haproxy_server_up` encontrado esta sesión) no da error — simplemente devuelve un resultado vacío, y el panel se ve en blanco sin ninguna alerta obvia de que algo está mal.
 
 **Cómo confirmarlo — targets de Prometheus saludables:**
 ```bash
@@ -187,6 +203,10 @@ Esperado: `active` en ambos. También visible en el panel de DigitalOcean → ca
 
 **Qué se hizo:** UFW configurado distinto en cada droplet. Privado: deniega todo entrante salvo SSH (22) y los puertos de la app (8001/8002/5001/5002/9090) **solo desde la IP VPC del droplet público**. Público: permite 22/80/443/8404 (stats) a cualquiera, y 8405 (métricas HAProxy) solo desde la IP VPC del privado. Además, los puertos publicados por Docker en el droplet privado están bindeados a la IP VPC real (no `0.0.0.0`) — corrige un bug real donde Docker saltea UFW por completo si se publica a todas las interfaces.
 
+**Cómo funciona técnicamente:** UFW (Uncomplicated Firewall) es una capa de abstracción sobre `iptables`/`nftables`, el firewall real del kernel de Linux. La política aplicada aquí es **default-deny**: por defecto se rechaza todo paquete entrante que no coincida explícitamente con una regla `ALLOW`, en vez de la alternativa (default-allow con reglas de bloqueo específicas) — es el enfoque recomendado en seguridad de redes porque un error de omisión (olvidar una regla) falla de forma segura (bloquea de más) en vez de insegura (permite de más).
+
+El detalle técnico del bug de Docker (explicado también en el FAQ) es específico de cómo Docker gestiona el networking: cuando un contenedor publica un puerto, Docker inserta sus propias reglas en la cadena `DOCKER` de `iptables`, y esa cadena se evalúa **antes** que la cadena `INPUT` donde vive UFW. El resultado es que un paquete destinado a un puerto publicado por Docker nunca llega a ser evaluado por las reglas de UFW — Docker ya lo redirigió al contenedor. Bindear el puerto a una IP específica (`10.124.0.3:8001:8000` en vez de `8001:8000`) hace que Docker solo escuche en esa interfaz — un paquete que llega por la interfaz pública (`eth0`) nunca coincide con esa regla de Docker, así que sí cae en la cadena `INPUT` y ahí UFW lo evalúa normalmente.
+
 **Cómo confirmarlo — estado real del firewall:**
 ```bash
 ssh -i ~/.ssh/sway_droplet root@165.232.146.240 "ufw status verbose"
@@ -217,6 +237,12 @@ Esperado: `Permission denied (publickey,password)` — la conexión se rechaza d
 ## 5. Protección de API con JWT
 
 **Qué se hizo:** login de colaboradores y de usuarios de tienda devuelven un JWT (`python-jose`, HS256) que se exige (`Authorization: Bearer`) en todos los endpoints de escritura y datos personales. Adicional a JWT, **todos** los endpoints (sin excepción) exigen también un `x-api-key` global — segunda capa. Rate limiting agregado en endpoints sensibles (login, register, cambio de password, verificación de email/orcid/cédula) y un límite global de 100 peticiones/minuto por IP en toda la API.
+
+**Cómo funciona técnicamente:** un JWT (JSON Web Token) tiene 3 partes separadas por `.`: header, payload, y firma. El payload contiene los "claims" — en este proyecto, `sub` (id de usuario), `email`, `token_type` (`colaborador` o `tienda`, para que un token de un tipo no sirva donde se espera el otro), y `exp` (timestamp de expiración). La firma (`HS256` = HMAC-SHA256) se genera con `JWT_SECRET_KEY` — cualquiera puede *leer* el payload de un JWT (solo está codificado en base64, no cifrado), pero nadie puede *modificarlo* sin la clave secreta, porque la firma no coincidiría en la verificación (`app/security/auth.py`, `get_current_colaborador`/`get_current_tienda_user`).
+
+Esto es lo que hace al JWT **stateless** — a diferencia de un session cookie tradicional (que requiere que el servidor guarde una tabla de sesiones activas en memoria o BD), el servidor no necesita recordar nada: cada request trae su propia prueba de identidad, verificable matemáticamente con la clave secreta. La ventaja para esta arquitectura específica: como hay 2 réplicas de la API (`api1`/`api2`) sin estado compartido entre ellas, un JWT emitido por `api1` es válido en `api2` sin ninguna sincronización — ambas usan el mismo `JWT_SECRET_KEY` del `.env`.
+
+La API key (`x-api-key`) es una capa completamente distinta y más simple: no lleva información, solo se compara con un valor fijo en el servidor (`app/security/api_key.py`, `require_api_key`) — su propósito no es autenticar usuarios sino filtrar tráfico automatizado que no pasa por ningún cliente oficial del proyecto (ver FAQ "¿La API key es un secreto real?").
 
 **Cómo confirmarlo — JWT real emitido y exigido:**
 ```bash
@@ -255,6 +281,12 @@ Esperado: intentos 1-5 → `401`, intento 6 → `429`.
 
 **Qué se hizo:** certificado real emitido por **Let's Encrypt** (no autofirmado) para el dominio `proyecto-sway.site`, servido por HAProxy en el droplet público. Renovación automática configurada (`certbot` con hooks que detienen HAProxy, renuevan, recombinan el `.pem` y reinician — probado con `certbot renew --dry-run` exitoso).
 
+**Cómo funciona técnicamente:** Let's Encrypt emite certificados gratis usando el protocolo **ACME** (Automatic Certificate Management Environment). El método usado aquí (`certbot certonly --standalone`) es el desafío **HTTP-01**: certbot levanta temporalmente un servidor en el puerto 80 (por eso hubo que detener HAProxy un momento — ambos no pueden escuchar el mismo puerto), Let's Encrypt le pide al dominio `proyecto-sway.site` que sirva un archivo específico en una ruta específica (`/.well-known/acme-challenge/<token>`), y si logra descargarlo exitosamente desde el dominio público, eso prueba que quien pidió el certificado controla realmente ese dominio (porque solo el dueño del DNS/servidor puede hacer que esa ruta responda lo esperado). Con esa prueba, Let's Encrypt firma un certificado válido por 90 días.
+
+HAProxy espera el certificado y la llave privada concatenados en un solo archivo `.pem` (`fullchain.pem` + `privkey.pem`) — por eso el script de renovación no solo corre `certbot renew`, sino que recombina esos 2 archivos cada vez y reinicia HAProxy para que cargue el archivo actualizado (los certificados no se recargan solos sin reiniciar el proceso que los sirve).
+
+El candado del navegador funciona verificando una **cadena de confianza**: el certificado de `proyecto-sway.site` está firmado por una autoridad intermedia de Let's Encrypt (`YE2` en este caso), que a su vez está firmada por una autoridad raíz (`ISRG Root X1`/`X2`) que viene preinstalada como "confiable" en el sistema operativo o navegador. El navegador valida esa cadena completa antes de mostrar el candado — es matemáticamente imposible falsificar sin robar la clave privada de alguna autoridad en la cadena.
+
 **Cómo confirmarlo — navegador:** abrir `https://proyecto-sway.site` en cualquier dispositivo — candado cerrado, sin advertencias. Click en el candado → certificado emitido por `Let's Encrypt`, válido hasta `30 oct 2026`.
 
 **Cómo confirmarlo — línea de comandos, cadena de confianza real (sin `-k`):**
@@ -275,6 +307,10 @@ Esperado: `issuer=... O = Let's Encrypt`, `subject=CN = proyecto-sway.site`, fec
 
 **Qué se hizo:** HAProxy en el droplet público reparte tráfico `round robin` entre 2 réplicas de la API (`api1`, `api2`) y 2 réplicas de Flask (`flask1`, `flask2`) corriendo en el droplet privado. Healthcheck activo (`GET /health`) saca del pool cualquier réplica caída. Página de stats con autenticación en `:8404/stats`.
 
+**Cómo funciona técnicamente:** HAProxy actúa como **reverse proxy** — recibe la conexión del cliente (browser, app, curl) y abre una conexión nueva y separada hacia la réplica que le toque, actuando de intermediario. `round robin` es el algoritmo más simple: mantiene un puntero que avanza secuencialmente por la lista de servidores del backend (`api1` → `api2` → `api1` → `api2`...) — no mira carga real ni tiempo de respuesta, solo reparte por turnos. Con 2 réplicas idénticas y peticiones de costo similar (que es el caso aquí), esto produce un reparto casi perfectamente parejo, como se ve en la evidencia (`43`/`42` en 20+ peticiones).
+
+El healthcheck (`option httpchk GET /health`, `http-check expect status 200`) corre en segundo plano, independiente del tráfico real de usuarios — HAProxy le pega periódicamente al endpoint `/health` de cada réplica (que responde sin tocar la base de datos, para que un fallo de BD no derribe el healthcheck también). Si una réplica deja de responder `200`, HAProxy la marca como `DOWN` internamente y deja de enviarle tráfico nuevo hasta que vuelva a responder sano — sin ninguna intervención manual ni reinicio del propio HAProxy. Esto es lo que hace posible actualizar el código (como se hizo 3 veces esta sesión) sin caída total: si se reiniciara una réplica a la vez, la otra seguiría atendiendo tráfico mientras tanto (no se hizo así esta sesión porque el usuario indicó que el downtime no importaba, pero la capacidad existe).
+
 **Cómo confirmarlo — reparto real de tráfico:**
 ```bash
 for i in $(seq 1 20); do curl -sk -H "x-api-key: f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b" https://proyecto-sway.site/api/estadisticas -o /dev/null; done
@@ -290,6 +326,13 @@ Esperado: filas `api_back,api1,<N>` y `api_back,api2,<M>` con `N` y `M` cercanos
 
 **Qué existe:** login biométrico real (huella, atado a token JWT — no decorativo), GPS real para geolocalizar avistamientos, cámara del dispositivo para fotos de avistamientos, sistema de gamificación en el perfil. Estas son capacidades nativas de mobile que Web1/Web2 no tienen.
 
+**Cómo funciona técnicamente:** estas capacidades usan módulos nativos de Expo que acceden directo al hardware del dispositivo vía APIs del sistema operativo (Android/iOS) — algo que un navegador web no puede hacer con el mismo nivel de acceso:
+- **Biometría** (`expo-local-authentication`) invoca el sensor de huella/Face ID del propio SO, que compara contra los datos biométricos ya enrolados en el dispositivo (la app nunca ve ni guarda la huella en sí, solo recibe un `true`/`false` de "coincide" del SO) — el resultado exitoso desbloquea el token JWT guardado localmente en `expo-secure-store` (que en Android usa el Keystore del sistema, en iOS el Keychain — almacenamiento cifrado a nivel de SO, no un archivo plano).
+- **GPS** (`expo-location`) pide el permiso de ubicación del SO y lee las coordenadas reales del receptor GPS/red del dispositivo — un navegador web puede pedir ubicación también (`navigator.geolocation`), pero con menos precisión y sujeto a que el usuario esté en ese momento en un navegador abierto, no es una capacidad "always available" como en una app nativa.
+- **Cámara** (`expo-image-picker`) abre la interfaz nativa de cámara del SO, no un `<input type=file>` de HTML — permite tomar la foto ahí mismo en vez de solo seleccionar un archivo ya existente.
+
+La diferencia real con "una copia de Web" es que estas 3 capacidades requieren acceso a hardware que Web1/Web2 (corriendo en un navegador de escritorio típico durante el desarrollo/demo) no puede replicar de forma nativa — no es una limitación de diseño, es una limitación de la plataforma web tradicional.
+
 **Cómo confirmarlo:** abrir la app en Expo Go, ir a Perfil → Seguridad → activar biometría, cerrar sesión, volver a abrir — debe pedir huella/Face ID antes de re-entrar. Ir a "Reportar avistamiento" — debe pedir permiso de cámara y ubicación real del dispositivo (no un input de texto manual como en Web).
 
 ---
@@ -297,6 +340,8 @@ Esperado: filas `api_back,api1,<N>` y `api_back,api2,<M>` con `N` y `M` cercanos
 ## 9. Diseño y estética profesional de la app móvil
 
 **Qué existe:** sistema de tema propio (paleta de colores, tipografía consistente), componentes reutilizables (tarjetas, botones, chips de filtro), sin inconsistencias visuales entre pantallas.
+
+**Cómo funciona técnicamente:** en vez de que cada pantalla defina sus propios colores/tamaños de fuente/espaciados sueltos (lo que produce inconsistencias visuales acumuladas con el tiempo), el proyecto centraliza esos valores en un módulo de tema compartido — cada pantalla importa las mismas constantes (color primario, color de fondo, radios de borde, etc.) en vez de hardcodear valores propios. Los componentes reutilizables (tarjetas, chips) son funciones de React que reciben props y renderizan siempre la misma estructura visual — cambiar el estilo de "tarjeta" en un solo lugar lo actualiza en todas las pantallas que la usan, en vez de tener que editar cada pantalla por separado.
 
 **Cómo confirmarlo:** recorrer las 5 pantallas principales (Home, Especies, Avistamientos, Eventos, Perfil) y confirmar tipografía/color/espaciado consistente en todas — mismo patrón de tarjeta, mismo header, mismo bottom-nav.
 
@@ -306,6 +351,8 @@ Esperado: filas `api_back,api1,<N>` y `api_back,api2,<M>` con `N` y `M` cercanos
 
 **Qué existe:** `bottom-tabs` (5 secciones principales siempre visibles) + `stack navigation` para detalle/edición dentro de cada sección — patrón estándar de UX mobile, sin menús ocultos ni gestos no obvios.
 
+**Cómo funciona técnicamente:** `AppNavigator.js` usa React Navigation con 2 niveles anidados. El nivel externo es un `Tab.Navigator` — siempre visible, siempre en la misma posición (abajo de la pantalla), cambia entre las 5 secciones principales con un solo toque. Dentro de cada tab vive un `Stack.Navigator` propio — permite "entrar" a una pantalla de detalle (ej. ver un avistamiento específico) sin perder el contexto de en qué tab se está, y volver atrás con el botón nativo del sistema o un botón "atrás" en el header, comportamiento que el usuario ya conoce de cualquier otra app. Esta combinación (tabs + stack anidado) es el patrón estándar de navegación mobile — no requiere aprendizaje porque coincide con lo que casi cualquier app instalada en un teléfono ya usa.
+
 **Cómo confirmarlo:** cualquier persona sin instrucciones previas debe poder llegar a "ver mis avistamientos" y "editar mi perfil" en menos de 3 toques desde Home.
 
 ---
@@ -313,6 +360,12 @@ Esperado: filas `api_back,api1,<N>` y `api_back,api2,<M>` con `N` y `M` cercanos
 ## 11. Formularios con validación real antes de enviar a la BD
 
 **Qué se hizo:** validación client-side en todos los formularios que escriben en la BD (registro de colaborador, edición de perfil personal/profesional, cambio de contraseña, creación de especie, reporte de avistamiento, creación de evento) — mismos validadores compartidos entre pantallas (`collaboratorValidation.js`), no solo validación server-side.
+
+**Cómo funciona técnicamente — defensa en profundidad (2 capas independientes):**
+1. **Client-side (JS, antes de enviar la petición):** funciones puras en `collaboratorValidation.js` que reciben un valor y devuelven un mensaje de error o `null`. Se ejecutan en el evento `onChangeText`/submit del formulario, antes de que exista cualquier llamada de red — el usuario ve el error al instante, sin esperar respuesta del servidor. Esta capa existe por **experiencia de usuario**, no por seguridad — es trivial de saltarse (cualquiera con `curl` o Postman puede mandar lo que quiera directo a la API, sin pasar por esta validación).
+2. **Server-side (Pydantic, en cada request):** FastAPI usa los modelos Pydantic (`ColaboradorRegister`, etc.) para parsear automáticamente el cuerpo JSON de la petición — si un campo no cumple sus restricciones (`min_length`, tipo `EmailStr`, campo faltante), FastAPI nunca llega a ejecutar el código del endpoint: devuelve `422 Unprocessable Entity` automáticamente, con el detalle exacto de qué campo falló y por qué. Esta capa **sí es la que realmente protege la base de datos** — es la que se ejecuta sin importar qué cliente (app, web, o un atacante con curl) haya mandado la petición.
+
+La razón de tener ambas capas: la validación client-side es más rápida y da mejor experiencia de usuario (feedback instantáneo), pero nunca se puede confiar en que el cliente sea honesto — cualquier validación que solo exista en el JS del navegador/app es, en la práctica, opcional para quien controla la petición HTTP directamente. Por eso toda regla de negocio real (formato de email, longitud de contraseña, campos requeridos) está duplicada en el servidor.
 
 **Cómo confirmarlo — intentar registro con datos inválidos, debe fallar antes de tocar la red:**
 En la app: Registro → dejar email vacío o mal formado → debe mostrar error inline sin intentar el submit.
@@ -345,6 +398,10 @@ Esperado: `422`, con `"msg":"value is not a valid email address: An email addres
 
 **Qué se hizo:** mobile, Web1 y Web2 comparten la misma API y misma base de datos — no hay duplicación de datos ni sincronización manual. Un avistamiento creado desde mobile aparece de inmediato en el dashboard de Web2 y en el portal de Web1.
 
+**Cómo funciona técnicamente:** no hay ningún mecanismo de "sincronización" porque no hace falta — las 3 plataformas (mobile, Web1, Web2) son clientes independientes de la misma API REST, que a su vez es el único punto de acceso a la única base de datos Postgres. Cuando mobile hace `POST /api/reportar-avistamiento`, ese request llega a una réplica de la API (`api1` o `api2`, según el balanceador), que ejecuta un `INSERT` directo en la tabla `avistamientos`. La próxima vez que Web2 haga `GET /api/avistamientos` (sea porque el usuario recargó la página, o porque el componente hace polling), esa consulta lee la misma tabla y ve la fila nueva — no hay retraso de "propagación" ni caché intermedio que pueda quedar desactualizado, porque cada lectura es una consulta SQL fresca contra el estado actual real de la base.
+
+Esto es distinto de arquitecturas con múltiples bases de datos que se sincronizan entre sí (ej. una BD local en el dispositivo mobile que se sincroniza periódicamente con el servidor) — ese patrón sí necesitaría lógica de reconciliación de conflictos y tendría ventanas de inconsistencia temporal. Aquí no existe ese problema porque solo hay una fuente de verdad.
+
 **Cómo confirmarlo — extremo a extremo:**
 1. Crear un avistamiento desde la app mobile (con foto/GPS real).
 2. Abrir `https://proyecto-sway.site/portal/` (Web2), ir a Reportes → debe aparecer el avistamiento recién creado.
@@ -358,6 +415,12 @@ ssh -i ~/.ssh/sway_droplet root@165.232.146.240 "docker exec sway_postgres psql 
 ## 13. Web, API y BD alojados y funcionando en la nube
 
 **Qué se hizo:** los 3 corren en DigitalOcean, repartidos en 2 droplets reales sobre VPC privada, con dominio propio y SSL real (no `localhost`, no `ngrok`).
+
+**Cómo funciona técnicamente — qué distingue esto de "corre en mi computadora":**
+- **IP pública fija y persistente:** cada droplet tiene una IP pública asignada por DigitalOcean que no cambia (a diferencia de una IP doméstica, que puede cambiar cuando el router se reinicia, o de un túnel tipo `ngrok`, que genera una URL nueva cada vez que se reinicia). El registro DNS de `proyecto-sway.site` apunta a esa IP de forma estable.
+- **Disponibilidad no depende de que una laptop esté encendida.** El servicio sigue corriendo mientras el droplet esté activo en el datacenter de DigitalOcean — no depende de que la máquina de ningún desarrollador esté prendida y conectada.
+- **Red real de internet, no NAT/túnel.** El tráfico llega directo del cliente al droplet vía enrutamiento normal de internet (BGP, el mismo mecanismo que usa cualquier sitio web real) — no hay un túnel intermediario (como `ngrok`) que podría caerse o tener límites de ancho de banda/conexiones simultáneas.
+- **Persistencia real de datos.** Los datos en Postgres sobreviven reinicios del contenedor porque están en un volumen Docker (`sway_postgres_data`) montado en el disco real del droplet, no en memoria ni en un contenedor efímero.
 
 **Cómo confirmarlo — los 3 componentes responden simultáneamente desde internet:**
 ```bash
@@ -379,6 +442,8 @@ Esperado: 25+ tablas (esquema completo).
 ## 14. App móvil 100% funcional con su API y BD reales
 
 **Qué se hizo:** `API_HOST` de la app apunta al dominio de producción con SSL real (`https://proyecto-sway.site`), no a `localhost` ni a un mock. Todos los flujos (login, registro, CRUD especies, avistamientos, eventos, perfil) pasan por la API real desplegada en el droplet privado.
+
+**Cómo funciona técnicamente — una distinción importante para entender qué es "real" acá:** Expo Go (la app usada para probar sin compilar un `.apk`/`.ipa`) funciona sirviendo el *bundle de JavaScript* de la app desde un servidor de desarrollo (Metro) que corre en la máquina del desarrollador — eso es normal y no afecta lo que se está verificando aquí. Lo que sí importa es a **dónde apuntan las llamadas de red que ese código hace** (`fetch(`API_HOST + '/api/...'`)`) — y esa constante (`API_HOST`) apunta al dominio real de producción, no a `localhost` ni a un servidor mock. Es decir: el *código* de la app se está sirviendo temporalmente desde una máquina de desarrollo (así funciona Expo Go, es normal en cualquier desarrollo con Expo), pero los *datos* con los que interactúa son 100% reales — la misma base de datos, la misma API, el mismo droplet que usan Web1 y Web2. Cuando la app se compile a un build de producción real (`.apk`/`.ipa` final), el único cambio sería dejar de depender de Metro para servir el JS — el `API_HOST` seguiría siendo exactamente el mismo.
 
 **Cómo confirmarlo:** abrir la app en un dispositivo real vía Expo Go, hacer login, verificar en el certificado del navegador o en los logs del droplet que las peticiones llegan de verdad:
 ```bash
