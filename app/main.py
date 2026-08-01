@@ -79,3 +79,7 @@ app.openapi = custom_openapi
 @app.get("/")
 def root():
     return {"message": "SWAY FastAPI v2.0", "docs": "/docs"}
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
