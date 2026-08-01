@@ -2,6 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/certs"
 
+# MSYS_NO_PATHCONV=1 evita que Git Bash en Windows mangle el subject (/CN=...) como una ruta; sin efecto en Linux/macOS
 MSYS_NO_PATHCONV=1 openssl req -x509 -newkey rsa:2048 \
   -keyout server.key \
   -out server.crt \
