@@ -132,3 +132,45 @@ Plan ejecutado vía `subagent-driven-development` en worktree aislado (`worktree
 - **Desactivación de cuenta (soft-delete) confirmada funcionando en producción real** — usuario creó cuenta "Juan Rulfo" (`usuarios.id=39`), la eliminó desde la app, verificado vía `psql`: `usuarios.activo=f`, `colaboradores.activo=f`, `estado_solicitud=inactivo`. Soft-delete correcto, no borra la fila.
 - **Correo de bienvenida al registrar colaborador (SMTP roto, ver investigación anterior) no es un bug** — confirmado por el usuario: por diseño, esa notificación es exclusiva de web, la app mobile no debería mandarla. Descartado de pendientes.
 - **Validación de formato de ORCID confirmada correcta** — `collaboratorValidation.js:9`, `ORCID_RE = /^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/` (formato ORCID real, último carácter dígito o X). Campo opcional respetado (`validateOrcid` retorna `null` si está vacío), pero si se llena, exige el patrón exacto. Wireado correctamente: `LoginScreen.js:136` llama `validateRegisterForm()` en el submit del registro, que incluye esta validación. No es un pendiente — solo falta la UX de auto-formato mientras se escribe (ver pendiente #9).
+
+---
+
+## Sesión 2026-07-31 — Seguridad: merge de `seguridad_api` + despliegue en 2 droplets
+
+Ciclo completo `brainstorming → writing-plans → subagent-driven-development (agentes especializados) → review final` en worktree aislado (`two-droplet-security-deploy`). PR abierto contra `master`: **https://github.com/EmilianoLedesma/SWAY-POO/pull/3** (rama `worktree-two-droplet-security-deploy`, sin mergear todavía).
+
+**Contexto de arranque:** rúbrica de seguridad pedía hasheo, 2 servidores (uno público/uno privado), monitoreo Prometheus/Grafana, firewall, JWT, SSL, balanceador de carga con reparto visible. Existía rama `seguridad_api` (5 commits) con la parte de aplicación ya resuelta pero diseñada para 2 VMs VirtualBox — arquitectura descartada, se adaptó a 2 droplets DigitalOcean reales (uno existente, `165.232.146.240`, otro por crear).
+
+### Investigación previa (spec + brainstorming)
+- Se encontró un proyecto de referencia en `Downloads/demo-files` con el mismo patrón (HAProxy + Prometheus + Grafana + 2 servidores) para otro stack — se adoptó el patrón de balanceador (nginx solo no mostraba reparto de tráfico; HAProxy sí, con `/stats` + exporter Prometheus propio).
+- Diagnóstico SSH real sobre el droplet privado (con autorización explícita, key temporal agregada y dejada por pedido del usuario): 1.9GB RAM con solo 241Mi libres → se descartó `cadvisor` del stack de monitoreo. UFW ya tenía `22/80/443 Anywhere` del despliegue de un solo droplet → el plan tuvo que agregar `ufw delete` explícito antes de las reglas nuevas. Red VPC ya activa, IP real `10.124.0.3` (no hubo que inventar el esquema de IPs).
+
+### Implementación (15 tareas, subagent-driven-development)
+- **Tareas 1-5** (código): merge de `seguridad_api` a `master` (bcrypt, JWT, API key global, rate limiting, BOLA/IDOR) + fix de web1/web2/mobile, que dejaron de funcionar al quedar la API key exigida globalmente — hallazgo no cubierto por el spec original, detectado durante la planeación, no durante la ejecución.
+- **Tareas 6-15** (infra, agente `DevOps-CI-CD-Engineer`): `docker-compose.private.yml`/`.public.yml`, `haproxy.cfg`, `nginx/portal.conf`, `prometheus.yml`, provisioning de Grafana, script de cert autofirmado, scripts UFW, `.env.example`, runbook manual (`docs/DEPLOYMENT_2_DROPLETS.md`).
+- Reviews por tarea con agente `Application-Security-Specialist` (hallazgos reales, no trámite): página de stats de HAProxy sin auth expuesta a todo internet (corregido, `stats auth`), script de cert sin comentario explicando un workaround de Windows (corregido), bit ejecutable perdido en 2 scripts al commitear desde Windows (corregido).
+- **Review final de rama completa** (`Application-Security-Specialist`, modelo opus): encontró 3 Critical + 4 Important de integración cruzada que ninguna review por tarea podía ver sola —
+  1. Docker publica puertos a `0.0.0.0`, lo que **saltea UFW por completo** (DNAT de Docker corre antes de la cadena INPUT) — el firewall del droplet privado no protegía nada en la práctica. Corregido: bindear los puertos publicados a la IP VPC real en vez de todas las interfaces.
+  2. El runbook nunca creaba el `.env` del droplet privado ni indicaba reemplazar el placeholder de `API_KEY` en los 3 clientes — la app hubiera muerto con 500 en todos los endpoints al primer despliegue real.
+  3. `templates/payment.html` (donaciones) era la única plantilla que no cargaba `main.js`, así que el parche de `x-api-key` nunca se aplicaba ahí — las donaciones hubieran devuelto 401. Se resolvió de raíz extrayendo el parche a `assets/js/api-key.js` e incluyéndolo en todas las plantillas que llaman a la API, no solo parcheando `payment.html`.
+  4. Panel de Grafana agrupaba por `proxy` en vez de `proxy+server`, mezclando api1 y api2 en una sola línea — invisibilizaba justo lo que la rúbrica pedía demostrar (el reparto de tráfico).
+  5. Rate limiting quedaba con un solo cupo global compartido por todo internet (uvicorn no confiaba en `X-Forwarded-For` detrás de HAProxy).
+  6. `JWT_SECRET_KEY` caía en un fallback hardcodeado silencioso si faltaba la variable — combinado con el hallazgo #2, un despliegue sin `.env` completo hubiera quedado firmando tokens con un secreto público.
+  - Un solo fix wave para todos los hallazgos + re-review acotado (como pide el proceso — nunca un fixer por hallazgo). La re-review encontró un residual: el propio fix wave movió el parche a `api-key.js` pero el texto del runbook seguía apuntando a `main.js` y en la sección equivocada del droplet — corregido directo (cambio de 2 líneas en un doc, sin riesgo de código).
+
+### Decisiones tomadas con el usuario durante la ejecución
+- `JWT_SECRET_KEY` con fallback débil heredado de `seguridad_api`: se dejó tal cual (decisión explícita, "keep tal cual" del brief original).
+- Defaults débiles de `DB_PASSWORD`/`SECRET_KEY` en `docker-compose.private.yml`: se dejaron por consistencia con el `docker-compose.prod.yml` actual (mismo patrón ya en uso).
+- Página de stats de HAProxy (`:8404`): se agregó `stats auth` (no estaba en el plan original, hallazgo de seguridad).
+
+### Pendiente real antes de que esto funcione en producción
+1. **El droplet público no existe todavía** — hay que crearlo en DigitalOcean, mismo datacenter (`sfo3`) que el privado para compartir la VPC `10.124.0.0/20`.
+2. **Nada de esto se probó contra servidores reales** — toda la validación fue local (sintaxis de compose/haproxy/nginx/prometheus, JSON de Grafana, pytest). El runbook es la guía para el despliegue real, todavía no ejecutado.
+3. Generar valores reales para `JWT_SECRET_KEY`, `API_KEY`, `GRAFANA_ADMIN_PASSWORD`, contraseña de `stats auth` — hoy son placeholders `REEMPLAZAR_CON_*`.
+4. Verificar en el droplet real, después de `ufw_private.sh`, que no sobrevivieron reglas IPv6 residuales de `80/443` (posible no-op de UFW según versión).
+5. Confirmar en vivo la prueba de balanceo (`:8404/stats` + panel de Grafana con tráfico repartido entre api1/api2) — es la evidencia que pide la rúbrica.
+6. Dejado fuera de alcance a propósito (mismo hallazgo #1 pero en el droplet público, `docker-compose.public.yml` publica `:8405` a `0.0.0.0`): no se pudo bindear a una IP real porque el droplet público todavía no existe — revisar con la IP real una vez creado.
+
+### Nota de proceso
+- Dos desvíos del proceso estándar de subagent-driven-development, ambos anotados en el ledger de la ejecución (ya borrado, historia vive en los commits): un fix de bit ejecutable (Tarea 13) y la corrección final del runbook se hicieron directo por el controlador en vez de resumir al implementador — en ambos casos por ser cambios triviales de metadata/doc sin riesgo de lógica, y en ambos casos se verificaron con re-review de todas formas.
+- Key SSH temporal (`claude-diag-temp`) sigue autorizada en `root@165.232.146.240` — el usuario pidió dejarla para cuando se retome el despliegue real.
