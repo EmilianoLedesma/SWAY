@@ -1,0 +1,38 @@
+{
+  "title": "SWAY — Balanceo y Monitoreo",
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Peticiones por backend (HAProxy)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (proxy, server) (rate(haproxy_server_http_responses_total[1m]))",
+          "legendFormat": "{{proxy}}/{{server}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Backends activos (up/down)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "expr": "haproxy_server_up" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Uso de CPU del host (droplet privado)",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m])) * 100)" }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1
+}

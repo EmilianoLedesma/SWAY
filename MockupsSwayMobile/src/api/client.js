@@ -9,6 +9,12 @@ import * as Sharing from 'expo-sharing';
 // abajo) cuando se termine de probar.
 export const API_HOST = 'http://165.232.146.240';
 
+const SWAY_API_KEY = 'REEMPLAZAR_CON_API_KEY_PUBLICA';
+
+function apiFetch(url, opts = {}) {
+  return fetch(url, { ...opts, headers: { ...(opts.headers || {}), 'x-api-key': SWAY_API_KEY } });
+}
+
 // hostUri = IP:puerto que Metro usa para servir el bundle a este dispositivo,
 // se actualiza solo al cambiar de red (no hay backend con dominio fijo aun).
 // const devHost = Constants.expoConfig?.hostUri?.split(':')[0];
@@ -42,7 +48,7 @@ async function buildErrorResult(res, data, fallback) {
 
 export async function login(email, password) {
   try {
-    const res = await fetch(`${API_HOST}/api/colaboradores/login`, {
+    const res = await apiFetch(`${API_HOST}/api/colaboradores/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -61,7 +67,7 @@ export async function login(email, password) {
 
 export async function registerColaborador(payload) {
   try {
-    const res = await fetch(`${API_HOST}/api/colaboradores/register`, {
+    const res = await apiFetch(`${API_HOST}/api/colaboradores/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -77,7 +83,7 @@ export async function registerColaborador(payload) {
 
 export async function checkEmail(email) {
   try {
-    const res = await fetch(`${API_HOST}/api/colaboradores/check-email`, {
+    const res = await apiFetch(`${API_HOST}/api/colaboradores/check-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
@@ -91,7 +97,7 @@ export async function checkEmail(email) {
 
 export async function checkOrcid(orcid) {
   try {
-    const res = await fetch(`${API_HOST}/api/colaboradores/check-orcid`, {
+    const res = await apiFetch(`${API_HOST}/api/colaboradores/check-orcid`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ orcid }),
@@ -105,7 +111,7 @@ export async function checkOrcid(orcid) {
 
 export async function checkCedula(cedula) {
   try {
-    const res = await fetch(`${API_HOST}/api/colaboradores/check-cedula`, {
+    const res = await apiFetch(`${API_HOST}/api/colaboradores/check-cedula`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cedula }),
@@ -143,7 +149,7 @@ export async function setBiometricLoginEnabled(enabled) {
 
 export async function createEspecie(payload) {
   try {
-    const res = await fetch(`${API_HOST}/api/especies`, {
+    const res = await apiFetch(`${API_HOST}/api/especies`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify(payload),
@@ -159,7 +165,7 @@ export async function createEspecie(payload) {
 
 export async function updateEspecie(id, payload) {
   try {
-    const res = await fetch(`${API_HOST}/api/especies/${id}`, {
+    const res = await apiFetch(`${API_HOST}/api/especies/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify(payload),
@@ -175,7 +181,7 @@ export async function updateEspecie(id, payload) {
 
 export async function deleteEspecie(id) {
   try {
-    const res = await fetch(`${API_HOST}/api/especies/${id}`, {
+    const res = await apiFetch(`${API_HOST}/api/especies/${id}`, {
       method: 'DELETE',
       headers: await authHeaders(),
     });
@@ -190,7 +196,7 @@ export async function deleteEspecie(id) {
 
 export async function updatePerfil(payload) {
   try {
-    const res = await fetch(`${API_HOST}/api/colaboradores/perfil`, {
+    const res = await apiFetch(`${API_HOST}/api/colaboradores/perfil`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify(payload),
@@ -206,7 +212,7 @@ export async function updatePerfil(payload) {
 
 export async function changePassword(payload) {
   try {
-    const res = await fetch(`${API_HOST}/api/colaboradores/perfil/password`, {
+    const res = await apiFetch(`${API_HOST}/api/colaboradores/perfil/password`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify(payload),
@@ -222,7 +228,7 @@ export async function changePassword(payload) {
 
 export async function deletePerfil() {
   try {
-    const res = await fetch(`${API_HOST}/api/colaboradores/perfil`, {
+    const res = await apiFetch(`${API_HOST}/api/colaboradores/perfil`, {
       method: 'DELETE',
       headers: await authHeaders(),
     });
@@ -237,7 +243,7 @@ export async function deletePerfil() {
 
 export async function getProfile() {
   try {
-    const res = await fetch(`${API_HOST}/api/colaboradores/profile`, { headers: await authHeaders() });
+    const res = await apiFetch(`${API_HOST}/api/colaboradores/profile`, { headers: await authHeaders() });
     const data = await res.json();
     return data;
   } catch (error) {
@@ -248,7 +254,7 @@ export async function getProfile() {
 
 export async function getAvistamientosMine() {
   try {
-    const res = await fetch(`${API_HOST}/api/colaboradores/avistamientos`, { headers: await authHeaders() });
+    const res = await apiFetch(`${API_HOST}/api/colaboradores/avistamientos`, { headers: await authHeaders() });
     const data = await res.json();
     return data;
   } catch (error) {
@@ -259,7 +265,7 @@ export async function getAvistamientosMine() {
 
 export async function deleteAvistamiento(id) {
   try {
-    const res = await fetch(`${API_HOST}/api/avistamientos/${id}`, {
+    const res = await apiFetch(`${API_HOST}/api/avistamientos/${id}`, {
       method: 'DELETE',
       headers: await authHeaders(),
     });
@@ -274,7 +280,7 @@ export async function deleteAvistamiento(id) {
 
 export async function crearAvistamiento(payload) {
   try {
-    const res = await fetch(`${API_HOST}/api/reportar-avistamiento`, {
+    const res = await apiFetch(`${API_HOST}/api/reportar-avistamiento`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -290,7 +296,7 @@ export async function crearAvistamiento(payload) {
 
 export async function getEventos() {
   try {
-    const res = await fetch(`${API_HOST}/api/eventos`);
+    const res = await apiFetch(`${API_HOST}/api/eventos`);
     const data = await res.json();
     return data;
   } catch (error) {
@@ -301,7 +307,7 @@ export async function getEventos() {
 
 export async function getEventosMine() {
   try {
-    const res = await fetch(`${API_HOST}/api/eventos?mine=true`, { headers: await authHeaders() });
+    const res = await apiFetch(`${API_HOST}/api/eventos?mine=true`, { headers: await authHeaders() });
     const data = await res.json();
     if (!res.ok) return buildErrorResult(res, data, 'Error al obtener tus eventos');
     return data;
@@ -313,7 +319,7 @@ export async function getEventosMine() {
 
 export async function crearEvento(payload) {
   try {
-    const res = await fetch(`${API_HOST}/api/eventos/crear`, {
+    const res = await apiFetch(`${API_HOST}/api/eventos/crear`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify(payload),
@@ -329,7 +335,7 @@ export async function crearEvento(payload) {
 
 export async function getTiposEvento() {
   try {
-    const res = await fetch(`${API_HOST}/api/tipos-evento`);
+    const res = await apiFetch(`${API_HOST}/api/tipos-evento`);
     return await res.json();
   } catch (error) {
     console.error('Error en getTiposEvento:', error);
@@ -339,7 +345,7 @@ export async function getTiposEvento() {
 
 export async function getModalidades() {
   try {
-    const res = await fetch(`${API_HOST}/api/modalidades`);
+    const res = await apiFetch(`${API_HOST}/api/modalidades`);
     return await res.json();
   } catch (error) {
     console.error('Error en getModalidades:', error);
@@ -349,7 +355,7 @@ export async function getModalidades() {
 
 export async function getEspecies() {
   try {
-    const res = await fetch(`${API_HOST}/api/especies?limit=500`);
+    const res = await apiFetch(`${API_HOST}/api/especies?limit=500`);
     const data = await res.json();
     return data;
   } catch (error) {
@@ -360,7 +366,7 @@ export async function getEspecies() {
 
 export async function getEstadosConservacion() {
   try {
-    const res = await fetch(`${API_HOST}/api/estados-conservacion`);
+    const res = await apiFetch(`${API_HOST}/api/estados-conservacion`);
     const data = await res.json();
     return data;
   } catch (error) {
@@ -371,7 +377,7 @@ export async function getEstadosConservacion() {
 
 export async function getAmenazas() {
   try {
-    const res = await fetch(`${API_HOST}/api/amenazas`);
+    const res = await apiFetch(`${API_HOST}/api/amenazas`);
     const data = await res.json();
     return data;
   } catch (error) {
@@ -382,7 +388,7 @@ export async function getAmenazas() {
 
 export async function getHabitats() {
   try {
-    const res = await fetch(`${API_HOST}/api/habitats`);
+    const res = await apiFetch(`${API_HOST}/api/habitats`);
     const data = await res.json();
     return data;
   } catch (error) {
@@ -393,7 +399,7 @@ export async function getHabitats() {
 
 export async function getEstadisticas() {
   try {
-    const res = await fetch(`${API_HOST}/api/estadisticas`);
+    const res = await apiFetch(`${API_HOST}/api/estadisticas`);
     return await res.json();
   } catch (error) {
     console.error('Error en getEstadisticas:', error);
@@ -404,7 +410,7 @@ export async function getEstadisticas() {
 export async function getEstadisticasEspecies(filtros) {
   try {
     const query = buildQuery(filtros);
-    const res = await fetch(`${API_HOST}/api/especies/estadisticas${query}`);
+    const res = await apiFetch(`${API_HOST}/api/especies/estadisticas${query}`);
     return await res.json();
   } catch (error) {
     console.error('Error en getEstadisticasEspecies:', error);
@@ -415,7 +421,7 @@ export async function getEstadisticasEspecies(filtros) {
 export async function getAvistamientosAll(filtros) {
   try {
     const query = buildQuery(filtros);
-    const res = await fetch(`${API_HOST}/api/avistamientos${query}`);
+    const res = await apiFetch(`${API_HOST}/api/avistamientos${query}`);
     return await res.json();
   } catch (error) {
     console.error('Error en getAvistamientosAll:', error);
@@ -425,7 +431,7 @@ export async function getAvistamientosAll(filtros) {
 
 export async function getImpactoSostenible() {
   try {
-    const res = await fetch(`${API_HOST}/api/impacto-sostenible`);
+    const res = await apiFetch(`${API_HOST}/api/impacto-sostenible`);
     return await res.json();
   } catch (error) {
     console.error('Error en getImpactoSostenible:', error);
@@ -436,7 +442,7 @@ export async function getImpactoSostenible() {
 export async function downloadReportePDF(filtros) {
   try {
     const query = buildQuery(filtros);
-    const res = await fetch(`${API_HOST}/api/reportes/especies${query}`);
+    const res = await apiFetch(`${API_HOST}/api/reportes/especies${query}`);
     if (!res.ok) return { success: false, message: `Error ${res.status}` };
     const buffer = await res.arrayBuffer();
     const file = new File(Paths.cache, 'reporte-especies-sway.pdf');

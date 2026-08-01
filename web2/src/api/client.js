@@ -1,4 +1,5 @@
 const BASE = '/api'
+const API_KEY = 'REEMPLAZAR_CON_API_KEY_PUBLICA'
 
 function getToken() {
   return localStorage.getItem('colab_token')
@@ -6,7 +7,7 @@ function getToken() {
 
 async function request(method, path, body) {
   const token = getToken()
-  const headers = {}
+  const headers = { 'x-api-key': API_KEY }
   if (body) headers['Content-Type'] = 'application/json'
   if (token) headers['Authorization'] = `Bearer ${token}`
 
@@ -67,7 +68,7 @@ export const api = {
   // Reportes PDF
   downloadReportePDF: async () => {
     const token = getToken()
-    const headers = {}
+    const headers = { 'x-api-key': API_KEY }
     if (token) headers['Authorization'] = `Bearer ${token}`
     const res = await fetch(BASE + '/reportes/especies', { headers })
     if (!res.ok) throw new Error(`Error ${res.status}`)

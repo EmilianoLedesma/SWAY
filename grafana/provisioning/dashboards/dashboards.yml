@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: SWAY
+    folder: SWAY
+    type: file
+    options:
+      # Grafana intentará parsear los propios dashboards.yml/prometheus.yml como
+      # dashboard JSON al arrancar (comparten directorio con el JSON real) y
+      # logueará un error de parseo inofensivo — no afecta el funcionamiento.
+      path: /etc/grafana/provisioning/dashboards

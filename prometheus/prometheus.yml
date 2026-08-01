@@ -1,0 +1,21 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: [prometheus:9090]
+
+  - job_name: node
+    static_configs:
+      - targets: [node_exporter:9100]
+
+  - job_name: postgres
+    static_configs:
+      - targets: [postgres_exporter:9187]
+
+  - job_name: haproxy-edge
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["IP_PUBLICA_VPC:8405"]

@@ -60,6 +60,13 @@ nul
 
 # Environment variables (IMPORTANTE - nunca subir credenciales)
 .env
+
+# Certificados SSL (generados localmente, no versionar)
+nginx/certs/
+haproxy/certs/*.pem
+haproxy/certs/*.key
+haproxy/certs/*.crt
+!haproxy/certs/.gitkeep
 .env.local
 .env.production
 

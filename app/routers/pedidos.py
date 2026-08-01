@@ -5,7 +5,7 @@ from app.data.models import (
     Pedido, DetallePedido, PagoPedido, Producto,
     Estado, Municipio, Colonia, Calle, Direccion, Estatus
 )
-from app.security.auth import get_current_tienda_user
+from app.security.auth import get_current_tienda_user, get_current_colaborador
 from app.models.pedidos import PedidoCreate, CarritoAgregar
 
 router = APIRouter(prefix="/api", tags=["pedidos"])
@@ -63,8 +63,14 @@ def _buscar_o_crear_calle(db: Session, direccion_info) -> int:
 
 
 @router.post("/pedidos/crear")
-async def crear_pedido(data: PedidoCreate, db: Session = Depends(get_db)):
+async def crear_pedido(
+    data: PedidoCreate,
+    current_user: dict = Depends(get_current_tienda_user),
+    db: Session = Depends(get_db)
+):
     try:
+        user_id = int(current_user["sub"])
+
         id_calle = _buscar_o_crear_calle(db, data.direccion)
 
         nueva_direccion = Direccion(id_calle=id_calle)
@@ -81,7 +87,7 @@ async def crear_pedido(data: PedidoCreate, db: Session = Depends(get_db)):
                 total += float(producto.precio) * item_qty
 
         nuevo_pedido = Pedido(
-            id_usuario=data.user_id,
+            id_usuario=user_id,
             total=total,
             id_estatus=1,
             id_direccion=nueva_direccion.id,
