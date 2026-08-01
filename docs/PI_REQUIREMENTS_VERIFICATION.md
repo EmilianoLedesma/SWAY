@@ -128,6 +128,8 @@ Esperado: `prometheus up`, `node up`, `postgres up`, `haproxy-edge up` — los 4
    - **"Uso de CPU del host"** — carga del droplet privado en tiempo real.
    - **"Distribución de tráfico entre réplicas (%)"** — pie chart, evidencia visual directa del balanceador: debe mostrar 4 porciones (`api1`, `api2`, `flask1`, `flask2`) de tamaño similar entre sí. Es el panel más claro para mostrar en la presentación del PI — una sola imagen que prueba el balanceo.
    - **"Sesiones actuales por réplica"** — conexiones activas en tiempo real por backend. Al ser peticiones HTTP cortas (no conexiones persistentes), normalmente se ve en `0` con picos breves cuando llega tráfico — comportamiento esperado, no un error.
+   - **"Conexiones activas a PostgreSQL"** — número de conexiones abiertas a la base de datos en este momento (típicamente 3-5, una por réplica de la API/Flask más overhead normal de pooling).
+   - **"Respuestas 4xx/5xx por backend (protección API)"** — visualiza en tiempo real cuándo la API rechaza peticiones (401 sin token/API-key, 422 validación fallida, 429 rate limit excedido). Útil para demostrar en vivo que la protección de la API (JWT + rate limiting) está realmente activa, no solo en el código — generar tráfico inválido (ej. login con password incorrecta varias veces) y ver el pico aparecer en este panel.
 6. Selector de rango de tiempo arriba a la derecha (por defecto "Last 6 hours") — se puede cambiar a "Last 15 minutes" para ver el tráfico de la demo en vivo más de cerca, o click en **Refresh** (o activar auto-refresh con la flechita junto al botón) para que los paneles se actualicen solos cada pocos segundos.
 
 **Cómo confirmarlo — Grafana accesible y con datos:**
