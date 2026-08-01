@@ -18,4 +18,4 @@ scrape_configs:
   - job_name: haproxy-edge
     metrics_path: /metrics
     static_configs:
-      - targets: ["IP_PUBLICA_VPC:8405"]
+      - targets: ["10.124.0.2:8405"]

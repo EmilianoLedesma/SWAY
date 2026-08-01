@@ -5,7 +5,7 @@ Este documento son pasos manuales que **el usuario ejecuta por SSH sobre los dro
 ## 0. Prerrequisitos
 - Droplet privado: el existente (`165.232.146.240`, `sway-server`, 2GB) — ya tiene el proyecto en `/home/sway/sway` con `master` actualizado (`git pull`).
 - Crear droplet público nuevo en DigitalOcean: Ubuntu 22.04, **mismo datacenter que el privado** (San Francisco 3 / `sfo3`, confirmado — el privado es `s-1vcpu-2gb-sfo3-01`), 1GB/$6 alcanza (solo corre HAProxy+nginx+Grafana). Mismo datacenter → mismo VPC por defecto (`10.124.0.0/20`, ya confirmado activo en el privado vía `ip -4 addr show`, interfaz `eth1`, IP real `10.124.0.3`).
-- Al crear el droplet público, anotar su IP privada asignada (panel de DO → Networking, o `ip -4 addr show eth1` una vez creado) — es el valor real que reemplaza `IP_PUBLICA_VPC` en los pasos de abajo.
+- Al crear el droplet público, anotar su IP privada asignada (panel de DO → Networking, o `ip -4 addr show eth1` una vez creado) — es el valor real que reemplaza `10.124.0.2` en los pasos de abajo.
 
 ## 1. Droplet privado — actualizar y aplicar UFW
 ```bash
@@ -14,11 +14,11 @@ cd /home/sway/sway
 git pull
 docker compose -f docker-compose.prod.yml down   # baja el stack viejo de un solo droplet
 ```
-Reemplazar `IP_PUBLICA_VPC` en `scripts/ufw_private.sh` y `prometheus/prometheus.yml` (campo `haproxy-edge`) por la IP privada real del droplet público (recién creado en el paso anterior), luego:
+Reemplazar `10.124.0.2` en `scripts/ufw_private.sh` y `prometheus/prometheus.yml` (campo `haproxy-edge`) por la IP privada real del droplet público (recién creado en el paso anterior), luego:
 ```bash
 sudo bash scripts/ufw_private.sh
 cp .env.example .env && chmod 600 .env
-nano .env   # rellenar JWT_SECRET_KEY, API_KEY, CORS_ORIGINS=https://<IP_PUBLICA>
+nano .env   # rellenar JWT_SECRET_KEY, API_KEY, CORS_ORIGINS=https://146.190.136.236
 docker compose -f docker-compose.private.yml up --build -d
 docker compose -f docker-compose.private.yml ps
 ```
@@ -28,13 +28,13 @@ Nota UFW: `scripts/ufw_private.sh` borra explícitamente las reglas `80/tcp`, `4
 
 ## 2. Droplet público — preparar y levantar
 ```bash
-ssh root@<IP_PUBLICA>
+ssh root@146.190.136.236
 adduser sway && usermod -aG sudo sway
 rsync --archive --chown=sway:sway ~/.ssh /home/sway
 su - sway
 curl -fsSL https://get.docker.com | sudo bash
 sudo usermod -aG docker sway
-exit && ssh sway@<IP_PUBLICA>
+exit && ssh sway@146.190.136.236
 
 git clone https://github.com/TU_USUARIO/TU_REPO.git sway
 cd sway
@@ -58,12 +58,12 @@ Verificar 3 contenedores `Up`: haproxy, nginx-portal, grafana.
 
 ## 3. Verificación end-to-end (desde cualquier máquina fuera de la VPC)
 ```bash
-curl -k -s -o /dev/null -w "%{http_code}\n" https://<IP_PUBLICA>/api/estadisticas -H "x-api-key: <API_KEY>"   # 200
-curl -k -s https://<IP_PUBLICA>/docs | grep -o "<title>.*</title>"                                             # Swagger
-curl -k -s -o /dev/null -w "%{http_code}\n" https://<IP_PUBLICA>/portal/                                       # 200
-curl -k -s -o /dev/null -w "%{http_code}\n" https://<IP_PUBLICA>/                                               # 200, Flask
-curl -k -s https://<IP_PUBLICA>:8404/stats | grep -o "<title>.*</title>"                                        # stats HAProxy
-curl -k -s https://<IP_PUBLICA>/grafana/login                                                                   # Grafana
+curl -k -s -o /dev/null -w "%{http_code}\n" https://146.190.136.236/api/estadisticas -H "x-api-key: <API_KEY>"   # 200
+curl -k -s https://146.190.136.236/docs | grep -o "<title>.*</title>"                                             # Swagger
+curl -k -s -o /dev/null -w "%{http_code}\n" https://146.190.136.236/portal/                                       # 200
+curl -k -s -o /dev/null -w "%{http_code}\n" https://146.190.136.236/                                               # 200, Flask
+curl -k -s https://146.190.136.236:8404/stats | grep -o "<title>.*</title>"                                        # stats HAProxy
+curl -k -s https://146.190.136.236/grafana/login                                                                   # Grafana
 ```
 Desde el droplet privado, confirmar que las IPs directas no responden desde fuera de la VPC:
 ```bash
@@ -72,11 +72,11 @@ curl -m 3 http://<IP_PUBLICA_de_internet>:8001/   # debe fallar (UFW bloquea, so
 
 ## 4. Prueba de balanceo visible (evidencia para la rúbrica)
 ```bash
-for i in $(seq 1 20); do curl -sk https://<IP_PUBLICA>/api/estadisticas -H "x-api-key: <API_KEY>" -o /dev/null; done
+for i in $(seq 1 20); do curl -sk https://146.190.136.236/api/estadisticas -H "x-api-key: <API_KEY>" -o /dev/null; done
 ```
-Abrir `https://<IP_PUBLICA>:8404/stats` — la fila `api1` y `api2` dentro de `api_back` deben mostrar sesiones/peticiones repartidas entre ambas, no todo en una. Mismo resultado esperado en el panel de Grafana "Peticiones por backend (HAProxy)".
+Abrir `https://146.190.136.236:8404/stats` — la fila `api1` y `api2` dentro de `api_back` deben mostrar sesiones/peticiones repartidas entre ambas, no todo en una. Mismo resultado esperado en el panel de Grafana "Peticiones por backend (HAProxy)".
 
 ## 5. Reconfigurar clientes con la nueva URL pública
-- `MockupsSwayMobile/src/api/client.js`: `API_HOST` → `https://<IP_PUBLICA>`.
+- `MockupsSwayMobile/src/api/client.js`: `API_HOST` → `https://146.190.136.236`.
 - `web2/vite.config.js` (proxy de dev) y build de producción: sin cambios si sigue siendo mismo-origen tras el build (`/api` relativo).
 - `assets/js/main.js` / templates Flask: siguen usando rutas relativas `/api/...`, sin cambios — HAProxy ya enruta.
