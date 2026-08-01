@@ -31,6 +31,30 @@
       "targets": [
         { "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m])) * 100)" }
       ]
+    },
+    {
+      "id": 4,
+      "title": "Distribución de tráfico entre réplicas (%)",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "targets": [
+        {
+          "expr": "sum by (proxy, server) (increase(haproxy_server_http_responses_total{proxy=~\"api_back|flask_back\"}[1h]))",
+          "legendFormat": "{{proxy}}/{{server}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Sesiones actuales por réplica",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "targets": [
+        {
+          "expr": "haproxy_server_current_sessions{proxy=~\"api_back|flask_back\"}",
+          "legendFormat": "{{proxy}}/{{server}}"
+        }
+      ]
     }
   ],
   "schemaVersion": 39,
