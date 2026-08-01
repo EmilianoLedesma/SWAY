@@ -1,0 +1,392 @@
+# Verificación de requisitos del PI — SWAY
+
+Última actualización: 2026-08-01
+
+Este documento resume el trabajo hecho en los últimos días (fusión de seguridad de aplicación + migración a arquitectura de 2 droplets + SSL real) y da, para cada punto de la rúbrica, una forma rápida y objetiva de comprobarlo: `curl`, consultas SQL, `ping`, revisión en navegador, etc. Todos los comandos son copiar/pegar directos.
+
+**Datos de referencia (no sensibles):**
+
+| Recurso | Valor |
+|---|---|
+| Droplet privado (datos + lógica) | `165.232.146.240` — VPC `10.124.0.3` |
+| Droplet público (borde + monitoreo) | `146.190.136.236` — VPC `10.124.0.2` |
+| Dominio | `https://proyecto-sway.site` |
+| Datacenter | DigitalOcean `sfo3`, misma VPC `10.124.0.0/20` |
+| API Key pública (anti-scraping, no es secreto) | `f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b` |
+
+Contraseñas reales (`JWT_SECRET_KEY`, `DB_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`, password de HAProxy stats) **no están en este documento** — viven en el `.env` de cada droplet (`/root/sway/.env` privado, `/home/sway/sway/.env` público) y en el `.env` local del proyecto. Pedir acceso a quien tenga las llaves SSH si se necesitan para la demo.
+
+---
+
+## 1. Hasheado y encriptado funcionando
+
+**Qué se hizo:** todos los endpoints que crean o cambian contraseñas (`/api/colaboradores/register`, `/api/colaboradores/perfil/password`, `/api/user/register`, `/api/auth/register`) usan `werkzeug.security.generate_password_hash` — hash salteado (`pbkdf2:sha256`, 600,000 iteraciones), nunca texto plano. Verificación (`check_password_hash`) en cada login.
+
+**Cómo confirmarlo — SQL directo contra la base real:**
+```bash
+ssh -i ~/.ssh/sway_droplet root@165.232.146.240
+docker exec sway_postgres psql -U sway_app -d sway -c "SELECT id, email, password_hash FROM usuarios ORDER BY id DESC LIMIT 5;"
+```
+Esperado: columna `password_hash` con formato `pbkdf2:sha256:600000$<salt>$<hash>`, nunca la contraseña real. Dos usuarios distintos deben tener salts distintos aunque usen la misma contraseña.
+
+**Cómo confirmarlo — registro real + verificación:**
+```bash
+curl -s -X POST https://proyecto-sway.site/api/colaboradores/register \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b" \
+  -d '{"nombre":"Demo","email":"demo-pi@sway.test","password":"claveDemo123","especialidad":"Demo","grado_academico":"Licenciatura","institucion":"UPQ","años_experiencia":"1","motivacion":"Demo PI"}'
+```
+Luego repetir la consulta SQL de arriba y mostrar que `password_hash` no contiene `claveDemo123` en ningún lado.
+
+---
+
+## 2. Dos servidores — uno público, uno privado
+
+**Qué se hizo:** arquitectura separada en 2 droplets DigitalOcean reales, comunicados por red privada VPC (`10.124.0.0/20`, mismo datacenter `sfo3`). El privado corre Postgres + 2 réplicas de la API (FastAPI) + 2 réplicas de Flask (web1), sin exponer nada a internet salvo SSH. El público corre HAProxy (borde + SSL + balanceo) + nginx (portal estático) + Grafana.
+
+**Cómo confirmarlo — ping cruzado real por VPC:**
+```bash
+ssh -i ~/.ssh/sway_droplet root@146.190.136.236 "ping -c 3 10.124.0.3"
+```
+Esperado: respuestas `64 bytes from 10.124.0.3`, 0% packet loss.
+
+**Cómo confirmarlo — el privado no responde nada por internet salvo SSH:**
+```bash
+curl -m 5 http://165.232.146.240/          # debe fallar / timeout, no hay nada en :80 ahí
+curl -m 5 http://165.232.146.240:8001/     # debe fallar, UFW solo permite la IP VPC del público
+```
+
+**Cómo confirmarlo — contenedores corriendo en cada droplet:**
+```bash
+ssh -i ~/.ssh/sway_droplet root@165.232.146.240 "docker ps --format '{{.Names}}: {{.Status}}'"
+ssh -i ~/.ssh/sway_droplet root@146.190.136.236 "docker ps --format '{{.Names}}: {{.Status}}'"
+```
+Esperado privado: `sway_postgres`, `sway_api1`, `sway_api2`, `sway_flask1`, `sway_flask2`, `sway_prometheus`, `sway_node_exporter`, `sway_postgres_exporter` — 8 contenedores.
+Esperado público: `sway_haproxy`, `sway_nginx_portal`, `sway_grafana` — 3 contenedores.
+
+---
+
+## 3. Monitoreo del sistema (Prometheus, Grafana)
+
+**Qué se hizo:** Prometheus corre en el droplet privado, scrapea métricas locales (`node_exporter`, `postgres_exporter`, sí mismo) y remotas (HAProxy `/metrics` del droplet público, vía VPC). Grafana corre en el droplet público con datasource pre-provisionado apuntando a Prometheus, y un dashboard con panel de reparto de tráfico entre las 2 réplicas de la API.
+
+Adicional: se instaló el **agente nativo de monitoreo de DigitalOcean** (`do-agent`) en ambos droplets — visible directo en el panel de DO (Droplet → Insights), sin configuración extra.
+
+**Cómo confirmarlo — targets de Prometheus saludables:**
+```bash
+ssh -i ~/.ssh/sway_droplet root@165.232.146.240 "curl -s http://10.124.0.3:9090/api/v1/targets | python3 -c \"import json,sys; d=json.load(sys.stdin); [print(t['labels']['job'], t['health']) for t in d['data']['activeTargets']]\""
+```
+Esperado: `prometheus up`, `node up`, `postgres up`, `haproxy-edge up` — los 4 en `up`.
+
+**Cómo confirmarlo — Grafana accesible y con datos:**
+```
+https://proyecto-sway.site/grafana/login
+```
+Login con `admin` / contraseña real en `.env` del droplet público. Abrir dashboard "SWAY — Balanceo y Monitoreo", panel "Peticiones por backend (HAProxy)" debe mostrar 2 líneas (api1/api2) con tráfico.
+
+**Cómo confirmarlo — agente nativo de DigitalOcean activo:**
+```bash
+ssh -i ~/.ssh/sway_droplet root@165.232.146.240 "systemctl is-active do-agent"
+ssh -i ~/.ssh/sway_droplet root@146.190.136.236 "systemctl is-active do-agent"
+```
+Esperado: `active` en ambos. También visible en el panel de DigitalOcean → cada Droplet → pestaña **Insights**.
+
+---
+
+## 4. Firewall aplicado y monitoreado
+
+**Qué se hizo:** UFW configurado distinto en cada droplet. Privado: deniega todo entrante salvo SSH (22) y los puertos de la app (8001/8002/5001/5002/9090) **solo desde la IP VPC del droplet público**. Público: permite 22/80/443/8404 (stats) a cualquiera, y 8405 (métricas HAProxy) solo desde la IP VPC del privado. Además, los puertos publicados por Docker en el droplet privado están bindeados a la IP VPC real (no `0.0.0.0`) — corrige un bug real donde Docker saltea UFW por completo si se publica a todas las interfaces.
+
+**Cómo confirmarlo — estado real del firewall:**
+```bash
+ssh -i ~/.ssh/sway_droplet root@165.232.146.240 "ufw status verbose"
+ssh -i ~/.ssh/sway_droplet root@146.190.136.236 "ufw status verbose"
+```
+Esperado privado: `Status: active`, reglas `8001/8002/5001/5002/9090` con `ALLOW IN` solo desde `10.124.0.2`, sin reglas abiertas a `Anywhere` en 80/443.
+Esperado público: `Status: active`, `22/80/443/8404` abiertos a `Anywhere`, `8405` solo desde `10.124.0.3`.
+
+**Cómo confirmarlo — el bug de bind a 0.0.0.0 está corregido:**
+```bash
+ssh -i ~/.ssh/sway_droplet root@165.232.146.240 "docker ps --format '{{.Names}}: {{.Ports}}' | grep api"
+```
+Esperado: `10.124.0.3:8001->8000/tcp` (con IP explícita), **no** `0.0.0.0:8001->8000/tcp`.
+
+**Cómo confirmarlo — puertos internos inalcanzables desde fuera de la VPC:**
+```bash
+curl -m 5 http://165.232.146.240:8001/health   # debe dar timeout, no 200
+```
+
+---
+
+## 5. Protección de API con JWT
+
+**Qué se hizo:** login de colaboradores y de usuarios de tienda devuelven un JWT (`python-jose`, HS256) que se exige (`Authorization: Bearer`) en todos los endpoints de escritura y datos personales. Adicional a JWT, **todos** los endpoints (sin excepción) exigen también un `x-api-key` global — segunda capa. Rate limiting agregado en endpoints sensibles (login, register, cambio de password, verificación de email/orcid/cédula) y un límite global de 100 peticiones/minuto por IP en toda la API.
+
+**Cómo confirmarlo — JWT real emitido y exigido:**
+```bash
+curl -s -X POST https://proyecto-sway.site/api/colaboradores/login \
+  -H "Content-Type: application/json" -H "x-api-key: f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b" \
+  -d '{"email":"demo-pi@sway.test","password":"claveDemo123"}'
+```
+Copiar el `access_token` de la respuesta, luego:
+```bash
+curl -s -o /dev/null -w "sin token: %{http_code}\n" https://proyecto-sway.site/api/colaboradores/profile -H "x-api-key: f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b"
+curl -s -o /dev/null -w "con token: %{http_code}\n" https://proyecto-sway.site/api/colaboradores/profile -H "x-api-key: f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b" -H "Authorization: Bearer <TOKEN>"
+```
+Esperado: `401` sin token, `200` con token.
+
+**Cómo confirmarlo — rate limiting real (fuerza bruta bloqueada):**
+```bash
+for i in 1 2 3 4 5 6; do curl -s -o /dev/null -w "intento $i: %{http_code}\n" -X POST https://proyecto-sway.site/api/colaboradores/login -H "Content-Type: application/json" -H "x-api-key: f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b" -d '{"email":"demo-pi@sway.test","password":"incorrecta"}'; done
+```
+Esperado: los primeros 5 dan `401`, el 6to da `429` con mensaje `Rate limit exceeded: 5 per 1 minute`.
+
+---
+
+## 6. Certificado SSL
+
+**Qué se hizo:** certificado real emitido por **Let's Encrypt** (no autofirmado) para el dominio `proyecto-sway.site`, servido por HAProxy en el droplet público. Renovación automática configurada (`certbot` con hooks que detienen HAProxy, renuevan, recombinan el `.pem` y reinician — probado con `certbot renew --dry-run` exitoso).
+
+**Cómo confirmarlo — navegador:** abrir `https://proyecto-sway.site` en cualquier dispositivo — candado cerrado, sin advertencias. Click en el candado → certificado emitido por `Let's Encrypt`, válido hasta `30 oct 2026`.
+
+**Cómo confirmarlo — línea de comandos, cadena de confianza real (sin `-k`):**
+```bash
+curl -v https://proyecto-sway.site/ -o /dev/null 2>&1 | grep -i "SSL connection\|subject\|issuer"
+```
+Esperado: conexión TLS exitosa sin necesitar `-k` (que ignora errores de certificado) — si el certificado fuera inválido, `curl` fallaría sin `-k`.
+
+**Cómo confirmarlo — detalle completo del certificado:**
+```bash
+echo | openssl s_client -connect 146.190.136.236:443 -servername proyecto-sway.site 2>&1 | openssl x509 -noout -issuer -subject -dates
+```
+Esperado: `issuer=... O = Let's Encrypt`, `subject=CN = proyecto-sway.site`, fechas de validez vigentes.
+
+---
+
+## 7. Balanceador de carga
+
+**Qué se hizo:** HAProxy en el droplet público reparte tráfico `round robin` entre 2 réplicas de la API (`api1`, `api2`) y 2 réplicas de Flask (`flask1`, `flask2`) corriendo en el droplet privado. Healthcheck activo (`GET /health`) saca del pool cualquier réplica caída. Página de stats con autenticación en `:8404/stats`.
+
+**Cómo confirmarlo — reparto real de tráfico:**
+```bash
+for i in $(seq 1 20); do curl -sk -H "x-api-key: f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b" https://proyecto-sway.site/api/estadisticas -o /dev/null; done
+curl -s -u "admin:<password real en .env>" "http://146.190.136.236:8404/stats;csv" | grep "^api_back," | cut -d',' -f1,2,8
+```
+Esperado: filas `api_back,api1,<N>` y `api_back,api2,<M>` con `N` y `M` cercanos entre sí (reparto real, no todo en una réplica).
+
+**Cómo confirmarlo — visual:** abrir `http://146.190.136.236:8404/stats` (usuario/password en `.env`), ver las filas `api1`/`api2` dentro de `api_back` con sesiones y peticiones repartidas. También visible en el dashboard de Grafana, panel "Peticiones por backend (HAProxy)".
+
+---
+
+## 8. App móvil de utilidad real (no solo copia de Web)
+
+**Qué existe:** login biométrico real (huella, atado a token JWT — no decorativo), GPS real para geolocalizar avistamientos, cámara del dispositivo para fotos de avistamientos, sistema de gamificación en el perfil. Estas son capacidades nativas de mobile que Web1/Web2 no tienen.
+
+**Cómo confirmarlo:** abrir la app en Expo Go, ir a Perfil → Seguridad → activar biometría, cerrar sesión, volver a abrir — debe pedir huella/Face ID antes de re-entrar. Ir a "Reportar avistamiento" — debe pedir permiso de cámara y ubicación real del dispositivo (no un input de texto manual como en Web).
+
+---
+
+## 9. Diseño y estética profesional de la app móvil
+
+**Qué existe:** sistema de tema propio (paleta de colores, tipografía consistente), componentes reutilizables (tarjetas, botones, chips de filtro), sin inconsistencias visuales entre pantallas.
+
+**Cómo confirmarlo:** recorrer las 5 pantallas principales (Home, Especies, Avistamientos, Eventos, Perfil) y confirmar tipografía/color/espaciado consistente en todas — mismo patrón de tarjeta, mismo header, mismo bottom-nav.
+
+---
+
+## 10. Navegación móvil clara
+
+**Qué existe:** `bottom-tabs` (5 secciones principales siempre visibles) + `stack navigation` para detalle/edición dentro de cada sección — patrón estándar de UX mobile, sin menús ocultos ni gestos no obvios.
+
+**Cómo confirmarlo:** cualquier persona sin instrucciones previas debe poder llegar a "ver mis avistamientos" y "editar mi perfil" en menos de 3 toques desde Home.
+
+---
+
+## 11. Formularios con validación real antes de enviar a la BD
+
+**Qué se hizo:** validación client-side en todos los formularios que escriben en la BD (registro de colaborador, edición de perfil personal/profesional, cambio de contraseña, creación de especie, reporte de avistamiento, creación de evento) — mismos validadores compartidos entre pantallas (`collaboratorValidation.js`), no solo validación server-side.
+
+**Cómo confirmarlo — intentar registro con datos inválidos, debe fallar antes de tocar la red:**
+En la app: Registro → dejar email vacío o mal formado → debe mostrar error inline sin intentar el submit.
+
+**Cómo confirmarlo — el servidor también valida (defensa en profundidad):**
+```bash
+curl -s -X POST https://proyecto-sway.site/api/colaboradores/register \
+  -H "Content-Type: application/json" -H "x-api-key: f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b" \
+  -d '{"nombre":"","email":"no-es-email","password":"123"}'
+```
+Esperado: `422` con detalle de los campos que fallan validación Pydantic (no un 500 ni un guardado silencioso).
+
+---
+
+## 12. Info de la app móvil reflejada en su contraparte Web
+
+**Qué se hizo:** mobile, Web1 y Web2 comparten la misma API y misma base de datos — no hay duplicación de datos ni sincronización manual. Un avistamiento creado desde mobile aparece de inmediato en el dashboard de Web2 y en el portal de Web1.
+
+**Cómo confirmarlo — extremo a extremo:**
+1. Crear un avistamiento desde la app mobile (con foto/GPS real).
+2. Abrir `https://proyecto-sway.site/portal/` (Web2), ir a Reportes → debe aparecer el avistamiento recién creado.
+3. Confirmar en SQL directo:
+```bash
+ssh -i ~/.ssh/sway_droplet root@165.232.146.240 "docker exec sway_postgres psql -U sway_app -d sway -c \"SELECT id, fecha, notas FROM avistamientos ORDER BY id DESC LIMIT 3;\""
+```
+
+---
+
+## 13. Web, API y BD alojados y funcionando en la nube
+
+**Qué se hizo:** los 3 corren en DigitalOcean, repartidos en 2 droplets reales sobre VPC privada, con dominio propio y SSL real (no `localhost`, no `ngrok`).
+
+**Cómo confirmarlo — los 3 componentes responden simultáneamente desde internet:**
+```bash
+curl -s -o /dev/null -w "Web1 (Flask): %{http_code}\n" https://proyecto-sway.site/
+curl -s -o /dev/null -w "Web2 (portal): %{http_code}\n" https://proyecto-sway.site/portal/
+curl -s -o /dev/null -w "API (docs): %{http_code}\n" https://proyecto-sway.site/docs
+curl -s -o /dev/null -w "API (dato real): %{http_code}\n" -H "x-api-key: f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b" https://proyecto-sway.site/api/estadisticas
+```
+Esperado: los 4, `200`.
+
+**Cómo confirmarlo — la BD es real y persistente, no un mock:**
+```bash
+ssh -i ~/.ssh/sway_droplet root@165.232.146.240 "docker exec sway_postgres psql -U sway_app -d sway -c '\dt' | wc -l"
+```
+Esperado: 25+ tablas (esquema completo).
+
+---
+
+## 14. App móvil 100% funcional con su API y BD reales
+
+**Qué se hizo:** `API_HOST` de la app apunta al dominio de producción con SSL real (`https://proyecto-sway.site`), no a `localhost` ni a un mock. Todos los flujos (login, registro, CRUD especies, avistamientos, eventos, perfil) pasan por la API real desplegada en el droplet privado.
+
+**Cómo confirmarlo:** abrir la app en un dispositivo real vía Expo Go, hacer login, verificar en el certificado del navegador o en los logs del droplet que las peticiones llegan de verdad:
+```bash
+ssh -i ~/.ssh/sway_droplet root@165.232.146.240 "docker logs sway_api1 --tail 20"
+```
+Esperado: líneas de log con peticiones reales (`GET /api/especies`, `POST /api/colaboradores/login`, etc.) apareciendo en tiempo real mientras se usa la app.
+
+---
+
+## Resumen ejecutivo
+
+| # | Requisito | Estado | Evidencia principal |
+|---|---|---|---|
+| 1 | Hasheo/encriptado | ✅ | SQL: `password_hash` salteado real |
+| 2 | 2 servidores público/privado | ✅ | `ping` VPC cruzado, contenedores por droplet |
+| 3 | Monitoreo Prometheus/Grafana | ✅ | Targets `up`, Grafana vía HTTPS, `do-agent` activo |
+| 4 | Firewall | ✅ | `ufw status` en ambos, bind a IP VPC (no `0.0.0.0`) |
+| 5 | JWT | ✅ | 401 sin token / 200 con token, rate limit real (429) |
+| 6 | SSL | ✅ | Let's Encrypt real, verificado en navegador + `openssl` |
+| 7 | Balanceador | ✅ | Split real api1/api2 vía stats CSV |
+| 8 | Utilidad real mobile | ✅ | Biometría, GPS, cámara — nativas |
+| 9 | Diseño profesional | ✅ | Sistema de tema consistente |
+| 10 | Navegación clara | ✅ | bottom-tabs + stack estándar |
+| 11 | Formularios validados | ✅ | Client-side + server-side (422 real) |
+| 12 | Mobile reflejado en Web | ✅ | Mismos endpoints, mismo dato, verificable en SQL |
+| 13 | Alojado en la nube | ✅ | 2 droplets DO, dominio propio, SSL real |
+| 14 | App móvil 100% funcional | ✅ | `API_HOST` producción, logs reales confirmando tráfico |
+
+**14/14.**
+
+---
+
+## Preguntas frecuentes de revisión (Q&A)
+
+Preguntas típicas que un evaluador puede hacer, organizadas por tema, con respuesta directa y dónde verificarla en vivo si hace falta.
+
+### Arquitectura general
+
+**P: ¿Por qué 2 servidores y no uno solo con todo junto?**
+R: Separación de responsabilidades — el privado tiene los datos (Postgres) y la lógica (API/Flask), nunca expuesto directo a internet; el público solo tiene el borde (HAProxy con SSL) y el panel de monitoreo (Grafana). Si alguien compromete el borde público, no llega directo a la base de datos — tiene que pasar primero por la capa de autenticación de la API, que sigue corriendo en una máquina aislada solo alcanzable por VPC.
+
+**P: ¿Los dos servidores están realmente separados o es el mismo servidor con dos IPs?**
+R: Son 2 droplets físicamente distintos de DigitalOcean, cada uno con su propio SO, disco, y firewall. Se puede confirmar con `ping` cruzado por la red privada (sección 2) y viendo que cada uno tiene contenedores Docker completamente distintos corriendo.
+
+**P: ¿Qué pasa si el droplet público se cae?**
+R: El privado sigue funcionando pero queda inalcanzable desde internet (por diseño — nadie puede llegar a él directo salvo el público vía VPC). Es un punto único de falla del lado del borde, aceptable para el alcance de este proyecto (no hay presupuesto/tiempo para HAProxy redundante). Si se cae el privado, el público sigue sirviendo el portal estático y Grafana, pero la API responde error de conexión (los backends no están disponibles).
+
+**P: ¿Por qué el droplet privado reutiliza el droplet viejo en vez de crear uno nuevo?**
+R: Decisión explícita para no perder los datos ya cargados en Postgres (usuarios, colaboradores, especies, avistamientos reales de pruebas previas). El volumen de Docker (`sway_postgres_data`) se mantuvo intacto durante toda la migración — se puede confirmar que sigue teniendo los mismos registros de antes del cambio de arquitectura.
+
+### Seguridad de la aplicación
+
+**P: ¿Por qué `werkzeug.security` y no la librería `bcrypt` directamente?**
+R: Ambas son hashing salteado con factor de trabajo configurable, criptográficamente equivalentes en la práctica (Werkzeug usa PBKDF2-SHA256 con 600,000 iteraciones por defecto, comparable en costo computacional a bcrypt con un `cost factor` alto). La elección fue por ya estar en las dependencias del proyecto (Flask/Werkzeug), no una debilidad.
+
+**P: ¿La API key es un secreto real?**
+R: No, y no pretende serlo. Es una segunda capa **anti-scraping**, no de autenticación — está literalmente hardcodeada en el código de los 3 clientes (web1, web2, mobile) porque cualquiera que instale la app o inspeccione el JS del sitio puede verla. Lo que protege identidad y permisos reales es el JWT (`Authorization: Bearer`), que sí es secreto por usuario y expira.
+
+**P: ¿Qué pasa si alguien roba el JWT de un usuario?**
+R: Puede actuar como ese usuario hasta que el token expire (revisar `exp` en el payload — actualmente sin revocación activa de tokens individuales, limitación conocida). Mitigación parcial: tokens de vida corta, y todo tráfico va sobre HTTPS (no se puede interceptar en tránsito con TLS activo).
+
+**P: ¿Por qué el rate limit de login es 5/minuto y no otro número?**
+R: Balance entre usabilidad (un usuario real rara vez falla el login 5 veces seguidas en un minuto) y mitigar fuerza bruta (5 intentos/minuto = 300/hora máximo por IP, insuficiente para un ataque de diccionario efectivo contra un hash salteado). Los endpoints de verificación (`check-email/orcid/cedula`) tienen 20/minuto porque son de uso legítimo más frecuente durante el llenado del formulario (debounce de UI).
+
+**P: ¿El límite de 100/minuto por defecto no es muy alto?**
+R: Es un piso de seguridad para endpoints públicos de lectura (catálogo de especies, estadísticas) que un usuario normal puede refrescar varias veces sin ser un atacante. Los endpoints realmente sensibles (login, registro, cambio de password) tienen límites explícitos más estrictos que anulan ese default.
+
+### Monitoreo y Firewall
+
+**P: ¿Qué pasa si Prometheus se cae?**
+R: Los servicios de la app (API, Flask, Postgres) siguen funcionando normal — Prometheus solo recolecta métricas, no es una dependencia en el camino crítico de ninguna petición de usuario.
+
+**P: ¿Por qué no hay `cadvisor` si Prometheus/Grafana normalmente lo incluyen?**
+R: Decisión tomada tras diagnóstico real del droplet privado — 1.9GB de RAM total, solo 241MB libres con el stack de 4 contenedores original. `cadvisor` es el exporter más pesado de la stack típica de monitoreo Docker y el menos crítico para lo que pide la rúbrica (node_exporter + postgres_exporter + Prometheus ya cubren host, base de datos, y balanceo). Agregarlo hubiera arriesgado quedarse sin memoria (`OOM kill`) en producción.
+
+**P: ¿El firewall realmente bloquea algo o es solo decorativo?**
+R: Se puede probar en vivo — intentar `curl` directo a un puerto interno del droplet privado (`8001`, `9090`) desde cualquier máquina que no sea el droplet público da timeout, no conexión rechazada ni datos. Ver sección 4 para el comando exacto.
+
+**P: ¿Qué es el bug de "Docker salta el firewall" que se menciona?**
+R: Docker, por defecto, cuando publica un puerto (`ports: - "8001:8000"`), lo hace vía reglas `iptables`/`DNAT` que se insertan **antes** de la cadena `INPUT` que UFW usa para filtrar — esto significa que aunque UFW diga "denegado", el tráfico ya fue redirigido al contenedor antes de que UFW lo evalúe. La única forma correcta de que UFW funcione con Docker es publicar el puerto atado a una IP específica (`10.124.0.3:8001:8000` en vez de `8001:8000`, que equivale a `0.0.0.0:8001`). Este proyecto lo corrigió explícitamente — verificable con `docker ps` mostrando la IP en el mapeo de puertos (sección 4).
+
+### SSL y dominio
+
+**P: ¿Por qué el certificado era autofirmado al principio y ahora es real?**
+R: La rúbrica solo pedía "certificado SSL para la plataforma" sin especificar autoridad certificadora, y no había un dominio confirmado al momento de escribir el plan original (solo IP). Una vez que se confirmó que el proyecto ya tenía un dominio comprado (`proyecto-sway.site`, gestionado en DigitalOcean DNS) se hizo el upgrade a un certificado real de Let's Encrypt — mejor evidencia para la evaluación y resuelve el problema de que apps móviles no confían en certificados autofirmados por defecto.
+
+**P: ¿El certificado se renueva solo o hay que hacerlo a mano cada vez?**
+R: Se renueva solo. Let's Encrypt emite certificados de 90 días; `certbot` deja una tarea programada de renovación automática, con hooks que detienen HAProxy, renuevan el certificado, lo recombinan al formato que HAProxy necesita, y reinician — probado con `certbot renew --dry-run` exitoso (simulación completa sin gastar cuota real de emisión).
+
+**P: ¿Por qué el certificado no sirve si se accede por la IP en vez del dominio?**
+R: Los certificados TLS están atados al *nombre de host* (`proyecto-sway.site`), no a la IP. Si el navegador se conecta a `https://146.190.136.236` directo, el certificado que el servidor presenta (válido para `proyecto-sway.site`) no coincide con el host al que el navegador cree estar hablando — eso es justamente lo que el TLS está diseñado para detectar y bloquear (evita ataques de suplantación). Es comportamiento esperado, no un error de configuración. Acceder siempre por el dominio.
+
+### Balanceador de carga
+
+**P: ¿Cómo se sabe que realmente hay 2 réplicas y no una sola respondiendo dos veces?**
+R: Cada réplica (`api1`, `api2`) es un contenedor Docker separado con su propio proceso `uvicorn`, visible individualmente en `docker ps` en el droplet privado. La página de stats de HAProxy (`:8404/stats`) muestra cada una como una fila independiente con sus propias métricas de sesiones/peticiones — si fuera una sola instancia, solo habría una fila.
+
+**P: ¿Qué algoritmo de balanceo se usa?**
+R: `round robin` — reparte peticiones de forma secuencial y pareja entre las réplicas disponibles. HAProxy soporta otros algoritmos (`leastconn`, `source`, etc.) pero `round robin` es el estándar para servicios sin estado como esta API (JWT en cada petición, sin sesiones pegajosas necesarias).
+
+**P: ¿Si una réplica se cae, el balanceador se entera?**
+R: Sí — `option httpchk GET /health` en la configuración de HAProxy consulta cada réplica periódicamente; si una falla el healthcheck, HAProxy la saca del pool automáticamente sin necesitar intervención manual, y todo el tráfico se redirige a la réplica sana.
+
+### Mobile
+
+**P: ¿La app funciona sin conexión a la API real (modo offline)?**
+R: No — es una app cliente-servidor pura, no tiene modo offline ni caché local persistente de datos de negocio. Cualquier pantalla que muestre datos de la BD requiere conexión activa a `https://proyecto-sway.site`.
+
+**P: ¿Qué pasa si la app se abre sin haber iniciado sesión antes?**
+R: Muestra el formulario de login/registro estándar. La biometría solo aparece como atajo si ya hubo un login exitoso previo en ese dispositivo (token guardado en `expo-secure-store`, cifrado a nivel de SO) — nunca reemplaza el primer login real.
+
+**P: ¿Los datos de ubicación/foto se guardan en el dispositivo o se suben al servidor?**
+R: La foto (`expo-image-picker`) es actualmente local/efímera — se usa para mostrarla en el formulario y en el compartir de tarjeta, pero no hay columna en la BD ni endpoint para persistir la imagen del lado del servidor (limitación conocida, documentada como pendiente). La ubicación GPS sí se envía y se guarda como `latitud`/`longitud` en la tabla `avistamientos`.
+
+### Datos compartidos entre plataformas
+
+**P: ¿Mobile y Web usan bases de datos distintas que se sincronizan, o la misma BD?**
+R: La misma base de datos Postgres, sin sincronización — ambas plataformas hablan con la misma API REST, que lee/escribe directo sobre las mismas tablas. No hay retraso ni proceso de sync porque no hay dos fuentes de verdad.
+
+**P: ¿Qué pasa si dos usuarios (uno en mobile, otro en Web2) editan el mismo registro al mismo tiempo?**
+R: Gana el último `UPDATE` en llegar (no hay control de concurrencia optimista/locking implementado) — limitación conocida, aceptable para el alcance y volumen de uso real del proyecto.
+
+### Despliegue en la nube
+
+**P: ¿Por qué DigitalOcean y no AWS/Azure/GCP?**
+R: Simplicidad de red privada (VPC) sin configuración adicional entre droplets del mismo datacenter, precio predecible por droplet, y suficiente para el volumen de tráfico de un proyecto académico. No hay requisito de la rúbrica que pida un proveedor específico.
+
+**P: ¿Cuánto cuesta mantener esto corriendo?**
+R: Droplet privado 2GB ~$18 USD/mes (ya existía antes de este trabajo), droplet público 1GB ~$6 USD/mes — total ~$24 USD/mes mientras el proyecto esté activo. Después de la entrega se pueden apagar ambos droplets para no seguir generando costo.
+
+**P: ¿Qué se necesitaría para llevar esto a producción real (más allá del PI)?**
+R: (1) Certificado wildcard o multi-dominio si se agregan subdominios, (2) réplica de Postgres para alta disponibilidad (hoy es instancia única, punto de falla), (3) rotación real de `JWT_SECRET_KEY`/`API_KEY` con proceso documentado, (4) CI/CD para que un `git push` a `master` despliegue solo automático (hoy el despliegue es manual por SSH), (5) alertas de Grafana (hoy solo hay dashboards, no notificaciones activas ante caídas).
+
