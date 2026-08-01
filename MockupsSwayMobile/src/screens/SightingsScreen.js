@@ -26,7 +26,7 @@ import ShareCard from '../components/ShareCard';
 import DateField from '../components/DateField';
 import { sightingsList } from '../data/sightings';
 import { speciesList } from '../data/species';
-import { getAvistamientosAll, getAvistamientosMine, getProfile, crearAvistamiento, deleteAvistamiento, getEspecies } from '../api/client';
+import { API_HOST, getAvistamientosAll, getAvistamientosMine, getProfile, crearAvistamiento, uploadAvistamientoFoto, deleteAvistamiento, getEspecies } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
 
 function mapEspecieFromApi(e) {
@@ -45,7 +45,8 @@ function mapAvistamientoFromApi(a) {
     location: a.latitud != null && a.longitud != null ? `${a.latitud}, ${a.longitud}` : 'Sin coordenadas',
     status: 'PENDING',
     notes: a.notas || '',
-    hasPhoto: false,
+    hasPhoto: !!a.foto_url,
+    photoUrl: a.foto_url ? `${API_HOST}${a.foto_url}` : null,
   };
 }
 
@@ -211,11 +212,19 @@ export default function SightingsScreen() {
       Alert.alert('Error', result.message || 'No se pudo reportar el avistamiento.');
       return;
     }
+    let fotoSubida = false;
+    if (sightingForm.fotoUri && result.id) {
+      const fotoResult = await uploadAvistamientoFoto(result.id, sightingForm.fotoUri);
+      fotoSubida = !!fotoResult.success;
+      if (!fotoResult.success) {
+        Alert.alert('Avistamiento guardado', 'El avistamiento se reportó, pero la foto no se pudo subir. Puedes intentarlo de nuevo más tarde.');
+      }
+    }
     const refreshed = await (showMineOnly ? getAvistamientosMine() : getAvistamientosAll());
     if (refreshed?.avistamientos) {
       setSightings(refreshed.avistamientos.map(mapAvistamientoFromApi));
     }
-    incrementSightings(false, !!sightingForm.fotoUri);
+    incrementSightings(false, fotoSubida);
     bumpStreak();
     setSightingForm(initialSightingForm);
     setNewModal(false);
@@ -275,7 +284,15 @@ export default function SightingsScreen() {
           <View style={styles.cardHeader}>
             <View style={styles.cardHeaderLeft}>
               <View style={styles.cardIcon}>
-                <Ionicons name="camera" size={16} color={colors.ocean} />
+                {item.photoUrl ? (
+                  <Image
+                    source={{ uri: item.photoUrl }}
+                    style={styles.cardThumbnail}
+                    onError={() => {}}
+                  />
+                ) : (
+                  <Ionicons name="camera" size={16} color={colors.ocean} />
+                )}
               </View>
               <View style={styles.cardHeaderText}>
                 <Text style={styles.cardSpecies}>{item.species}</Text>
@@ -440,7 +457,15 @@ export default function SightingsScreen() {
                 showsVerticalScrollIndicator={false}
               >
                 <View style={styles.detailPhoto}>
-                  <Ionicons name="camera" size={48} color={colors.oceanDark} />
+                  {detailSighting.photoUrl ? (
+                    <Image
+                      source={{ uri: detailSighting.photoUrl }}
+                      style={styles.detailPhotoImage}
+                      onError={() => {}}
+                    />
+                  ) : (
+                    <Ionicons name="camera" size={48} color={colors.oceanDark} />
+                  )}
                 </View>
                 <Text style={styles.detailSpecies}>
                   {detailSighting.species}
@@ -655,6 +680,7 @@ export default function SightingsScreen() {
           <ShareCard
             icon="camera"
             title={shareTarget.species}
+            photoUrl={shareTarget.photoUrl}
             lines={[
               { icon: 'calendar-outline', text: shareTarget.date },
               { icon: 'location-outline', text: shareTarget.location },
@@ -776,6 +802,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  cardThumbnail: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+  },
   cardHeaderText: {
     flex: 1,
   },
@@ -894,6 +925,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
+  },
+  detailPhotoImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: radii.r16,
   },
   detailSpecies: {
     fontFamily: typography.display,

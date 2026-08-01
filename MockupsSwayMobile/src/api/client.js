@@ -294,6 +294,29 @@ export async function crearAvistamiento(payload) {
   }
 }
 
+export async function uploadAvistamientoFoto(avistamientoId, fotoUri) {
+  try {
+    const formData = new FormData();
+    // Asume JPEG: la única fuente de fotoUri es ImagePicker.launchCameraAsync (sin opción de formato).
+    formData.append('foto', {
+      uri: fotoUri,
+      name: 'sighting.jpg',
+      type: 'image/jpeg',
+    });
+    const res = await fetch(`${API_HOST}/api/avistamientos/${avistamientoId}/foto`, {
+      method: 'POST',
+      headers: { ...(await authHeaders()), 'x-api-key': SWAY_API_KEY },
+      body: formData,
+    });
+    const data = await res.json();
+    if (!res.ok) return buildErrorResult(res, data, 'Error al subir la foto');
+    return data;
+  } catch (error) {
+    console.error('Error en uploadAvistamientoFoto:', error);
+    return { success: false, message: 'No se pudo conectar con el servidor' };
+  }
+}
+
 export async function getEventos() {
   try {
     const res = await apiFetch(`${API_HOST}/api/eventos`);
