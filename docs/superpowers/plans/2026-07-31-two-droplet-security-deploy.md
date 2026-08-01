@@ -1154,7 +1154,7 @@ exit && ssh sway@<IP_PUBLICA>
 git clone https://github.com/TU_USUARIO/TU_REPO.git sway
 cd sway
 ```
-Reemplazar `10.124.0.3` en `haproxy/haproxy.cfg` (backends `api_back`/`flask_back`) y en `grafana/provisioning/datasources/prometheus.yml` si por algún motivo el droplet privado se recrea con otra IP (no debería — es el droplet existente, la IP ya está confirmada). Reemplazar `IP_PUBLICA_VPC` en `scripts/ufw_public.sh` — ojo, ese placeholder en realidad va con la IP privada de **este mismo droplet público** que se está por levantar, corregir a su propia IP VPC recién asignada, no la del privado (la del privado ya está hardcodeada como `10.124.0.3` directo en el script).
+Reemplazar `10.124.0.3` en `haproxy/haproxy.cfg` (backends `api_back`/`flask_back`) y en `grafana/provisioning/datasources/prometheus.yml` si por algún motivo el droplet privado se recrea con otra IP (no debería — es el droplet existente, la IP ya está confirmada). `scripts/ufw_public.sh` no necesita edición — ya usa `10.124.0.3` fijo para la regla de `:8405` y el resto de sus reglas (22/80/443/8404) son abiertas por diseño, sin placeholder que rellenar.
 
 ```bash
 ./haproxy/generate_cert.sh
