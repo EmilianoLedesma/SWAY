@@ -60,6 +60,9 @@ nul
 
 # Environment variables (IMPORTANTE - nunca subir credenciales)
 .env
+
+# Certificados SSL (generados localmente, no versionar)
+nginx/certs/
 .env.local
 .env.production
 

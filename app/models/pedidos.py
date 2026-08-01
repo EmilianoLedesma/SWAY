@@ -90,10 +90,10 @@ class ProductoItem(BaseModel):
 
 
 class PedidoCreate(BaseModel):
-    # NOT NULL en tabla Pedidos — todos requeridos
-    user_id: int = Field(
-        ..., gt=0,
-        description="ID del usuario que realiza el pedido"
+    # user_id ignorado en el servidor — se extrae del JWT para prevenir BOLA/IDOR
+    user_id: Optional[int] = Field(
+        None, gt=0,
+        description="Ignorado por el servidor; el usuario se identifica por el token JWT"
     )
     productos: List[Any] = Field(
         ..., min_length=1,

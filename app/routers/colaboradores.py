@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
+from werkzeug.security import generate_password_hash, check_password_hash
 from app.data.database import get_db, construir_nombre_completo
 from app.data.models import Usuario, Colaborador, Avistamiento, Especie
 from app.security.auth import create_token, get_current_colaborador
@@ -33,7 +34,7 @@ async def colaborador_login(data: ColaboradorLogin, db: Session = Depends(get_db
 
         user, colaborador = resultado
 
-        if user.password_hash != data.password:
+        if not check_password_hash(user.password_hash, data.password):
             raise HTTPException(status_code=401, detail="Contraseña incorrecta")
 
         nombre_completo = construir_nombre_completo(
@@ -116,7 +117,7 @@ async def colaborador_register(
                 apellido_paterno=apellido_paterno,
                 apellido_materno=apellido_materno,
                 email=data.email.lower(),
-                password_hash=data.password,
+                password_hash=generate_password_hash(data.password),
                 suscrito_newsletter=False,
                 activo=True
             )
@@ -398,10 +399,10 @@ async def change_colaborador_password(
         user_id = int(current_user.get("sub"))
 
         user = db.query(Usuario).filter(Usuario.id == user_id).first()
-        if not user or user.password_hash != data.password_actual:
+        if not user or not check_password_hash(user.password_hash, data.password_actual):
             raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta")
 
-        user.password_hash = data.password_nuevo
+        user.password_hash = generate_password_hash(data.password_nuevo)
         db.commit()
         return {"success": True, "message": "Contraseña actualizada correctamente"}
 
