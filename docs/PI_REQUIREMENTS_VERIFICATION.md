@@ -324,6 +324,45 @@ Esperado: filas `api_back,api1,<N>` y `api_back,api2,<M>` con `N` y `M` cercanos
 
 ---
 
+## Cómo levantar la app en Expo Go (necesario para las secciones 8-10 y 14)
+
+Esta sección aplica a los 4 puntos de la rúbrica que necesitan la app corriendo en un dispositivo real — la sesión de verificación de este documento se saltó estas pruebas explícitamente por decisión del usuario, quedan pendientes de correr paso a paso cuando se retome.
+
+**Paso 1 — Instalar Expo Go en el dispositivo de prueba:**
+- Android: [Expo Go en Google Play](https://play.google.com/store/apps/details?id=host.exp.exponent)
+- iOS: [Expo Go en App Store](https://apps.apple.com/app/expo-go/id982107779)
+
+**Paso 2 — Levantar el servidor de desarrollo (Metro) desde la máquina de desarrollo:**
+```bash
+cd MockupsSwayMobile
+npm install
+npx expo start
+```
+Esto abre una terminal con un QR code y una URL tipo `exp://192.168.x.x:8081`.
+
+**Paso 3 — Confirmar que `API_HOST` apunta a producción real (no a `localhost`):**
+```bash
+grep "API_HOST" MockupsSwayMobile/src/api/client.js
+```
+Esperado: `export const API_HOST = 'https://proyecto-sway.site';`. Si dice otra cosa, alguien lo cambió para pruebas locales — revertir antes de usar para la demo del PI.
+
+**Paso 4 — Escanear el QR con la cámara del dispositivo (iOS) o desde la app Expo Go (Android).** La app se abre, el bundle de JS se descarga de la máquina de desarrollo (normal, ver nota técnica en la sección 14), pero todas las llamadas de red van directo a `https://proyecto-sway.site` — el dispositivo solo necesita internet, no estar en la misma red WiFi que la máquina de desarrollo (a menos que se use el modo `--localhost` de Expo, que no es el caso acá).
+
+**Credenciales reales para probar sin registrar una cuenta nueva:**
+```
+Email:    123046244@upq.edu.mx
+Password: SwayExpo2026
+```
+Cuenta real de colaborador (`colaborador_id:11`) con datos históricos reales (avistamientos ya cargados) — útil para probar que la app muestra datos reales desde el primer login, no una cuenta vacía. Password fue reseteado durante esta sesión de verificación porque la cuenta original tenía el password guardado en texto plano de antes de que existiera el hasheo (ver sección 1) y no podía iniciar sesión.
+
+**Qué probar una vez adentro (cubre las 4 secciones pendientes):**
+1. **Ítem 8 (utilidad real):** Perfil → Seguridad → activar biometría → cerrar sesión → reabrir la app → debe pedir huella/Face ID. Reportar avistamiento → debe pedir permiso de cámara y ubicación real.
+2. **Ítem 9 (diseño):** recorrer Home, Especies, Avistamientos, Eventos, Perfil — confirmar consistencia visual.
+3. **Ítem 10 (navegación):** desde Home, llegar a "Mis avistamientos" y "Editar perfil" en menos de 3 toques.
+4. **Ítem 14 (100% funcional):** mientras se usa la app, correr en paralelo `ssh -i ~/.ssh/sway_deploy root@165.232.146.240 "docker logs sway_api1 --tail 20 -f"` — debe verse cada acción de la app aparecer como una línea de log real en el droplet, en tiempo real.
+
+---
+
 ## 8. App móvil de utilidad real (no solo copia de Web)
 
 **Qué existe:** login biométrico real (huella, atado a token JWT — no decorativo), GPS real para geolocalizar avistamientos, cámara del dispositivo para fotos de avistamientos, sistema de gamificación en el perfil. Estas son capacidades nativas de mobile que Web1/Web2 no tienen.
