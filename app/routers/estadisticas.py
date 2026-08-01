@@ -122,7 +122,8 @@ async def get_avistamientos(
                 "notas": avistamiento.notas,
                 "especie_nombre": especie.nombre_comun,
                 "especie_cientifica": especie.nombre_cientifico,
-                "email_usuario": usuario.email
+                "email_usuario": usuario.email,
+                "foto_url": avistamiento.foto_url
             })
 
         return {"success": True, "avistamientos": avistamientos}
@@ -193,8 +194,9 @@ async def reportar_avistamiento(data: AvistamientoCreate, db: Session = Depends(
         )
         db.add(nuevo_avistamiento)
         db.commit()
+        db.refresh(nuevo_avistamiento)
 
-        return {"success": True, "message": "Avistamiento reportado exitosamente"}
+        return {"success": True, "message": "Avistamiento reportado exitosamente", "id": nuevo_avistamiento.id}
 
     except HTTPException:
         raise

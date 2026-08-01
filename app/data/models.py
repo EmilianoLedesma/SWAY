@@ -334,6 +334,7 @@ class Avistamiento(Base):
     longitud = Column(Numeric(11, 8))
     notas = Column(Text)
     id_usuario = Column(Integer, ForeignKey("usuarios.id"))
+    foto_url = Column(Text, nullable=True)
 
     especie = relationship("Especie", back_populates="avistamientos")
     usuario = relationship("Usuario", back_populates="avistamientos")

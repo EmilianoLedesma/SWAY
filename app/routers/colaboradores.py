@@ -480,7 +480,8 @@ async def get_colaborador_avistamientos(
                 "especie_nombre": especie.nombre_comun,
                 "especie_cientifica": especie.nombre_cientifico,
                 "reportado_por": nombre_completo or None,
-                "email_usuario": usuario.email
+                "email_usuario": usuario.email,
+                "foto_url": avistamiento.foto_url
             })
 
         return {"success": True, "avistamientos": avistamientos}
