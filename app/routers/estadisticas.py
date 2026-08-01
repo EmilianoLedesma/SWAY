@@ -1,6 +1,6 @@
 import os
 import uuid
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Optional
@@ -234,8 +234,12 @@ async def eliminar_avistamiento(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Sin verificación de propiedad: cualquier colaborador autenticado puede
+# subir/reemplazar la foto de cualquier avistamiento, igual que en el
+# DELETE de abajo. Es intencional (no un descuido).
 @router.post("/avistamientos/{avistamiento_id}/foto")
 async def subir_foto_avistamiento(
+    request: Request,
     avistamiento_id: int,
     foto: UploadFile = File(...),
     current_user: dict = Depends(get_current_colaborador),
@@ -249,6 +253,10 @@ async def subir_foto_avistamiento(
         extension = ALLOWED_FOTO_CONTENT_TYPES.get(foto.content_type)
         if not extension:
             raise HTTPException(status_code=400, detail="Formato de imagen no soportado (usa JPEG o PNG)")
+
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > MAX_FOTO_SIZE:
+            raise HTTPException(status_code=413, detail="La imagen supera el límite de 5MB")
 
         contenido = await foto.read()
         if len(contenido) > MAX_FOTO_SIZE:

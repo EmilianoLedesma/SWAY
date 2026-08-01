@@ -297,6 +297,7 @@ export async function crearAvistamiento(payload) {
 export async function uploadAvistamientoFoto(avistamientoId, fotoUri) {
   try {
     const formData = new FormData();
+    // Asume JPEG: la única fuente de fotoUri es ImagePicker.launchCameraAsync (sin opción de formato).
     formData.append('foto', {
       uri: fotoUri,
       name: 'sighting.jpg',

@@ -35,6 +35,9 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://sway_app:sway123@postgres:5432/sway
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,6 +49,9 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://sway_app:sway123@postgres:5432/sway
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy

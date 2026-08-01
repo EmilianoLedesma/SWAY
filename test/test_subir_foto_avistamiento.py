@@ -4,35 +4,12 @@ import shutil
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.main import app
-from app.data.database import get_db, Base
-from app.security.api_key import require_api_key
 from app.security.auth import get_current_colaborador
 from app.data.models import EstadoConservacion, Especie, Avistamiento, Usuario
+from conftest import TestSession
 
-engine = create_engine(
-    "sqlite:///:memory:",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-TestSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base.metadata.create_all(engine)
-
-
-def override_get_db():
-    db = TestSession()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-app.dependency_overrides[get_db] = override_get_db
-app.dependency_overrides[require_api_key] = lambda: True
 app.dependency_overrides[get_current_colaborador] = lambda: {"email": "foto.test@demo-sway.com", "token_type": "colaborador"}
 
 client = TestClient(app)
@@ -69,13 +46,15 @@ def _clean_uploads():
 
 def test_upload_requires_auth():
     app.dependency_overrides.pop(get_current_colaborador, None)
-    avistamiento_id = _seed_avistamiento()
-    resp = client.post(
-        f"/api/avistamientos/{avistamiento_id}/foto",
-        files={"foto": ("photo.jpg", b"fake-bytes", "image/jpeg")},
-    )
-    assert resp.status_code == 401
-    app.dependency_overrides[get_current_colaborador] = lambda: {"email": "foto.test@demo-sway.com", "token_type": "colaborador"}
+    try:
+        avistamiento_id = _seed_avistamiento()
+        resp = client.post(
+            f"/api/avistamientos/{avistamiento_id}/foto",
+            files={"foto": ("photo.jpg", b"fake-bytes", "image/jpeg")},
+        )
+        assert resp.status_code == 401
+    finally:
+        app.dependency_overrides[get_current_colaborador] = lambda: {"email": "foto.test@demo-sway.com", "token_type": "colaborador"}
 
 
 def test_upload_rejects_bad_content_type():

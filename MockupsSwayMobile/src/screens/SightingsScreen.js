@@ -212,8 +212,10 @@ export default function SightingsScreen() {
       Alert.alert('Error', result.message || 'No se pudo reportar el avistamiento.');
       return;
     }
+    let fotoSubida = false;
     if (sightingForm.fotoUri && result.id) {
       const fotoResult = await uploadAvistamientoFoto(result.id, sightingForm.fotoUri);
+      fotoSubida = !!fotoResult.success;
       if (!fotoResult.success) {
         Alert.alert('Avistamiento guardado', 'El avistamiento se reportó, pero la foto no se pudo subir. Puedes intentarlo de nuevo más tarde.');
       }
@@ -222,7 +224,7 @@ export default function SightingsScreen() {
     if (refreshed?.avistamientos) {
       setSightings(refreshed.avistamientos.map(mapAvistamientoFromApi));
     }
-    incrementSightings(false, !!sightingForm.fotoUri);
+    incrementSightings(false, fotoSubida);
     bumpStreak();
     setSightingForm(initialSightingForm);
     setNewModal(false);
