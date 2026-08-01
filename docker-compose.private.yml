@@ -1,0 +1,157 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: sway_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-sway_app}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-sway123}
+      POSTGRES_DB: ${DB_NAME:-sway}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./SWAY_PostgreSQL.sql:/docker-entrypoint-initdb.d/01_init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-sway_app} -d ${DB_NAME:-sway}"]
+      interval: 5s
+      retries: 5
+      timeout: 5s
+    networks:
+      - data_network
+
+  api1:
+    build: .
+    container_name: sway_api1
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://${DB_USER:-sway_app}:${DB_PASSWORD:-sway123}@postgres:5432/${DB_NAME:-sway}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5000,http://localhost:5173}
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app_network
+      - data_network
+
+  api2:
+    build: .
+    container_name: sway_api2
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://${DB_USER:-sway_app}:${DB_PASSWORD:-sway123}@postgres:5432/${DB_NAME:-sway}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5000,http://localhost:5173}
+    ports:
+      - "8002:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app_network
+      - data_network
+
+  flask1:
+    build: .
+    container_name: sway_flask1
+    restart: unless-stopped
+    command: gunicorn web:app --bind 0.0.0.0:5000 --workers 2 --timeout 120
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://${DB_USER:-sway_app}:${DB_PASSWORD:-sway123}@postgres:5432/${DB_NAME:-sway}
+      SECRET_KEY: ${SECRET_KEY:-sway_secret_key_ultra_secreta}
+      DEBUG: "False"
+      FLASK_ENV: production
+      API_BASE_URL: /api
+    ports:
+      - "5001:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app_network
+      - data_network
+
+  flask2:
+    build: .
+    container_name: sway_flask2
+    restart: unless-stopped
+    command: gunicorn web:app --bind 0.0.0.0:5000 --workers 2 --timeout 120
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://${DB_USER:-sway_app}:${DB_PASSWORD:-sway123}@postgres:5432/${DB_NAME:-sway}
+      SECRET_KEY: ${SECRET_KEY:-sway_secret_key_ultra_secreta}
+      DEBUG: "False"
+      FLASK_ENV: production
+      API_BASE_URL: /api
+    ports:
+      - "5002:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app_network
+      - data_network
+
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: sway_postgres_exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: postgresql://${DB_USER:-sway_app}:${DB_PASSWORD:-sway123}@postgres:5432/${DB_NAME:-sway}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - data_network
+      - monitoring_network
+
+  node_exporter:
+    image: prom/node-exporter:latest
+    container_name: sway_node_exporter
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - monitoring_network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: sway_prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - app_network
+      - monitoring_network
+
+networks:
+  app_network:
+  data_network:
+    internal: true
+  monitoring_network:
+    internal: true
+
+volumes:
+  postgres_data:
+  prometheus_data:
