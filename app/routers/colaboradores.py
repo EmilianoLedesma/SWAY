@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
 from sqlalchemy.orm import Session
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.data.database import get_db, construir_nombre_completo
 from app.data.models import Usuario, Colaborador, Avistamiento, Especie
 from app.security.auth import create_token, get_current_colaborador
+from app.security.rate_limit import limiter
 from app.models.colaboradores import (
     ColaboradorLogin, ColaboradorRegister, CheckEmail,
     CheckOrcid, CheckCedula, ColaboradorPerfilUpdate, ColaboradorPasswordChange
@@ -14,7 +15,8 @@ router = APIRouter(prefix="/api/colaboradores", tags=["colaboradores"])
 
 
 @router.post("/login")
-async def colaborador_login(data: ColaboradorLogin, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+async def colaborador_login(request: Request, data: ColaboradorLogin, db: Session = Depends(get_db)):
     try:
         email = data.email.strip().lower()
 
@@ -77,7 +79,9 @@ async def colaborador_login(data: ColaboradorLogin, db: Session = Depends(get_db
 
 
 @router.post("/register")
+@limiter.limit("10/minute")
 async def colaborador_register(
+    request: Request,
     data: ColaboradorRegister,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
@@ -253,7 +257,8 @@ async def colaborador_status(current_user: dict = Depends(get_current_colaborado
 
 
 @router.post("/check-email")
-async def check_collaborator_email(data: CheckEmail, db: Session = Depends(get_db)):
+@limiter.limit("20/minute")
+async def check_collaborator_email(request: Request, data: CheckEmail, db: Session = Depends(get_db)):
     try:
         email = data.email.strip().lower()
 
@@ -284,7 +289,8 @@ async def check_collaborator_email(data: CheckEmail, db: Session = Depends(get_d
 
 
 @router.post("/check-orcid")
-async def check_collaborator_orcid(data: CheckOrcid, db: Session = Depends(get_db)):
+@limiter.limit("20/minute")
+async def check_collaborator_orcid(request: Request, data: CheckOrcid, db: Session = Depends(get_db)):
     try:
         orcid = data.orcid.strip()
 
@@ -311,7 +317,8 @@ async def check_collaborator_orcid(data: CheckOrcid, db: Session = Depends(get_d
 
 
 @router.post("/check-cedula")
-async def check_collaborator_cedula(data: CheckCedula, db: Session = Depends(get_db)):
+@limiter.limit("20/minute")
+async def check_collaborator_cedula(request: Request, data: CheckCedula, db: Session = Depends(get_db)):
     try:
         cedula = data.cedula.strip()
 
@@ -390,7 +397,9 @@ async def update_colaborador_perfil(
 
 
 @router.put("/perfil/password")
+@limiter.limit("5/minute")
 async def change_colaborador_password(
+    request: Request,
     data: ColaboradorPasswordChange,
     current_user: dict = Depends(get_current_colaborador),
     db: Session = Depends(get_db)
