@@ -186,6 +186,18 @@ for i in 1 2 3 4 5 6; do curl -s -o /dev/null -w "intento $i: %{http_code}\n" -X
 ```
 Esperado: los primeros 5 dan `401`, el 6to da `429` con mensaje `Rate limit exceeded: 5 per 1 minute`.
 
+**Limitación real conocida — el límite se cuenta por réplica, no globalmente.** El rate limiting usa almacenamiento en memoria (`storage_uri="memory://"`) dentro de cada proceso de la API. Como hay 2 réplicas (`api1`/`api2`) balanceadas por HAProxy, cada una lleva su propio contador independiente — un cliente que alterna entre ambas por el balanceo efectivamente tiene ~2x el límite configurado (ej. `login` termina permitiendo ~10 intentos/minuto en vez de 5, repartidos 5+5 entre las dos réplicas) antes de que ambos contadores se agoten. **No es un bypass total** (sigue habiendo un techo real, verificable), pero es más débil que el límite nominal.
+
+Verificación de este comportamiento — pegarle a una sola réplica directo (sin pasar por el balanceador) sí dispara el `429` exactamente en el intento 6, confirmando que la lógica de conteo por cliente es correcta y el problema es solo la falta de estado compartido entre réplicas:
+```bash
+ssh -i ~/.ssh/sway_deploy root@146.190.136.236 "for i in 1 2 3 4 5 6; do curl -s -o /dev/null -w \"intento \$i: %{http_code}\n\" -X POST http://10.124.0.3:8001/api/colaboradores/login -H 'Content-Type: application/json' -H 'x-api-key: f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b' -d '{\"email\":\"demo-pi@sway.test\",\"password\":\"incorrecta\"}'; done"
+```
+Esperado: intentos 1-5 → `401`, intento 6 → `429`.
+
+**Fix real pendiente (fuera de alcance de esta entrega):** mover `storage_uri` de `memory://` a un backend compartido entre réplicas — típicamente **Redis** (`storage_uri="redis://redis:6379"` en `app/security/rate_limit.py`, más un contenedor `redis:alpine` nuevo en `docker-compose.private.yml` conectado a `api1`/`api2`). Con eso, ambas réplicas verían el mismo contador y el límite nominal (5/minuto) sería exacto sin importar cuántas réplicas balanceen el tráfico. No se implementó ahora por ser una dependencia nueva de infraestructura fuera del alcance de esta sesión — queda documentado como mejora futura, no como bug silencioso.
+
+**Bug real ya corregido en esta sesión — antes el límite era compartido por TODO internet:** originalmente `slowapi` identificaba al cliente por `request.client.host`, que detrás de HAProxy es siempre la IP del proxy (`10.124.0.2`), nunca la IP real del visitante — esto significaba que **todos los usuarios de internet compartían un solo cupo de 5 intentos/minuto** (mucho peor que el problema de arriba). Corregido leyendo el header `X-Forwarded-For` que HAProxy ya envía (`option forwardfor` en `haproxy.cfg`), con fallback a `get_remote_address` para desarrollo local sin proxy. Commit `d40be5b`.
+
 ---
 
 ## 6. Certificado SSL

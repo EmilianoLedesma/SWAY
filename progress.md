@@ -174,3 +174,55 @@ Ciclo completo `brainstorming → writing-plans → subagent-driven-development 
 ### Nota de proceso
 - Dos desvíos del proceso estándar de subagent-driven-development, ambos anotados en el ledger de la ejecución (ya borrado, historia vive en los commits): un fix de bit ejecutable (Tarea 13) y la corrección final del runbook se hicieron directo por el controlador en vez de resumir al implementador — en ambos casos por ser cambios triviales de metadata/doc sin riesgo de lógica, y en ambos casos se verificaron con re-review de todas formas.
 - Key SSH temporal (`claude-diag-temp`) sigue autorizada en `root@165.232.146.240` — el usuario pidió dejarla para cuando se retome el despliegue real.
+
+---
+
+## Sesión 2026-08-01 — Despliegue real en 2 droplets + SSL real + dominio + verificación en vivo
+
+Continuación directa de la sesión anterior (PR #3 mergeado a `master`). Se ejecutó el runbook completo contra servidores reales de DigitalOcean, no solo validación local.
+
+### Merge y hardening previo al despliegue
+- PR #3 mergeado a `master` (`0f7c958`).
+- Placeholder `API_KEY` reemplazado por clave real generada, en los 3 clientes (`assets/js/api-key.js`, `web2/src/api/client.js`, `MockupsSwayMobile/src/api/client.js`).
+- **Rate limiting extendido a `colaboradores.py`** (antes solo existía en `auth.py`/tienda) — `default_limits=["100/minute"]` global en el `Limiter`, más límites explícitos en `/login` y `/perfil/password` (5/min), `/register` (10/min), `/check-email`/`/check-orcid`/`/check-cedula` (20/min). Verificado en vivo con `curl`: `429` real tras exceder el límite.
+- Placeholder de password de `stats auth` de HAProxy reemplazado por valor real.
+
+### Despliegue real
+- **Droplet público creado** en DigitalOcean: `sway-public`, `146.190.136.236` (pública) / `10.124.0.2` (VPC), mismo datacenter `sfo3` que el privado — confirmado en la misma VPC `10.124.0.0/20` con `ping` cruzado real (0% packet loss).
+- Agente nativo de monitoreo de DigitalOcean (`do-agent`) instalado y activo en ambos droplets.
+- Placeholders `IP_PUBLICA_VPC` reemplazados por la IP real en `prometheus.yml`, `ufw_private.sh`, `docs/DEPLOYMENT_2_DROPLETS.md`.
+- Público: usuario `sway` creado, Docker ya venía preinstalado, repo clonado, `web2/dist` transferido por `scp` (gitignored, no viaja con `git clone`), certificado autofirmado inicial generado, `.env` con `GRAFANA_ADMIN_PASSWORD` real, UFW aplicado, stack (`haproxy`+`nginx-portal`+`grafana`) levantado — un bug real encontrado y corregido en el momento: HAProxy no arrancaba porque el cert (`600`, dueño `sway`) no era legible por el usuario no-root del contenedor `haproxy:3.2-alpine` — corregido a `644`.
+- Privado: `.env` completado con `JWT_SECRET_KEY`/`API_KEY` reales y `CORS_ORIGINS` apuntando al dominio público, stack viejo (`docker-compose.prod.yml`, un solo servidor) bajado, stack nuevo (`docker-compose.private.yml`, 8 contenedores) levantado reusando el volumen de Postgres existente (sin pérdida de datos), UFW aplicado con la IP VPC real del público.
+- **Verificado en vivo, extremo a extremo, con evidencia real (no solo "debería funcionar"):** ping VPC cruzado, contenedores `docker ps` en ambos droplets, bind de puertos a IP VPC (no `0.0.0.0`) confirmado, `ufw status` en ambos, backends alcanzables desde el público vía VPC (`200` en los 4), API vía HAProxy con y sin `x-api-key` (`401`/`200`), reparto de tráfico real entre `api1`/`api2` vía `stats;csv` de HAProxy (~50/50 sobre 20+ peticiones), targets de Prometheus (`up` los 4), Grafana accesible vía HTTPS.
+
+### SSL real (upgrade de autofirmado a Let's Encrypt)
+- Se confirmó que el proyecto ya tenía un dominio propio (`proyecto-sway.site`, DNS gestionado en DigitalOcean) — decisión de subir de certificado autofirmado a uno real en vez de quedarse con el autofirmado original del plan.
+- Registro `A` del dominio movido de la IP del droplet privado (`165.232.146.240`, apuntaba ahí desde el despliegue de un solo droplet) a la IP del droplet público (`146.190.136.236`) — confirmado propagado globalmente (`8.8.8.8`, `1.1.1.1`) aunque el resolver local de esta máquina tardó bastante más en actualizar su caché (no es un problema de configuración, es caché de TTL normal).
+- `certbot` instalado en el droplet público, certificado real emitido (`certonly --standalone`, requiere detener HAProxy brevemente para liberar el puerto 80 durante el desafío ACME).
+- Renovación automática configurada con `pre_hook`/`post_hook` (detener HAProxy → renovar → recombinar `fullchain.pem`+`privkey.pem` al formato que HAProxy necesita → reiniciar) — probada con `certbot renew --dry-run` exitoso.
+- **Confirmado en dispositivo real** (captura de pantalla del usuario): Chrome mobile muestra "Connection is secure", TLS 1.3, certificado válido emitido por Let's Encrypt — no solo `curl`, verificación real en hardware real.
+- `MockupsSwayMobile/src/api/client.js` → `API_HOST` actualizado a `https://proyecto-sway.site` (pasó por IP autofirmada primero, luego al dominio con cert real).
+
+### Documentación de verificación para revisión del PI
+- Nuevo `docs/PI_REQUIREMENTS_VERIFICATION.md`: los 14 puntos de la rúbrica, qué se hizo por cada uno, y cómo confirmarlo con comandos copy-paste reales (`curl`, SQL, `ping`, `openssl`, `ufw status`, `docker logs`) — sin secretos reales incluidos (solo la API key pública, que ya está expuesta en el código cliente por diseño).
+- Extendido con sección de preguntas frecuentes de revisión (Q&A) por tema: arquitectura, seguridad de aplicación, monitoreo/firewall, SSL/dominio, balanceador, mobile, datos compartidos, despliegue en la nube — anticipando preguntas típicas de evaluador con respuesta directa.
+- Sección 0 nueva: guía de cómo generar una llave SSH propia y pedir acceso, alternativa vía Web Console de DigitalOcean sin llave.
+- Nota agregada sobre cuentas legacy con password en texto plano (anteriores al merge de seguridad de esta sesión, no se corrigen solas — requeriría script de migración, fuera de alcance) con query de auditoría real.
+- Prueba agregada de que SSH rechaza conexión sin llave válida (`Permission denied` real, no solo un candado decorativo).
+
+### Nueva llave SSH generada
+- Par de llaves `sway_deploy` (sin nombre "claude"/temporal) generado y autorizado en `root@` de ambos droplets — confirmado funcionando. Coexiste con la llave temporal de la sesión anterior (`claude-diag-temp`), ninguna reemplaza a la otra.
+
+### Bug real encontrado durante verificación en vivo (no durante desarrollo) — rate limiting identificaba mal al cliente
+- Al probar force-brute en producción real contra `/api/colaboradores/login`, no se disparaba el `429` esperado. Investigado: `slowapi`'s `get_remote_address` lee `request.client.host`, que detrás de HAProxy es **siempre la IP del proxy** (`10.124.0.2`) para cualquier visitante de internet — el límite de 5/minuto era, en la práctica, **un solo cupo global compartido por todos los usuarios de internet**, mucho peor que el problema original que se estaba intentando resolver.
+- Corregido (`app/security/rate_limit.py`, commit `d40be5b`): función `get_real_client_ip` que lee `X-Forwarded-For` (que HAProxy ya manda vía `option forwardfor` en `haproxy.cfg`) con fallback a `get_remote_address` para desarrollo local sin proxy.
+- Verificado en vivo tras redeploy: pegándole a una sola réplica directo (bypass del balanceador), el intento 6 da `429` correctamente — la lógica de conteo por cliente ya es correcta.
+- **Limitación real que queda documentada, no arreglada ahora (decisión explícita del usuario):** el almacenamiento del rate limit es en memoria por proceso (`storage_uri="memory://"`), y como hay 2 réplicas de la API balanceadas, cada una lleva su propio contador — el límite efectivo en producción es ~2x el nominal (ej. `login` permite ~10/min repartidos entre las 2 réplicas, no exactamente 5/min). No es un bypass total, sigue habiendo techo real. **Fix futuro documentado:** mover `storage_uri` a un backend compartido — típicamente Redis (`storage_uri="redis://redis:6379"` + contenedor `redis:alpine` nuevo en `docker-compose.private.yml`). Requiere nueva dependencia de infraestructura, fuera de alcance de esta sesión.
+
+### Hallazgo real durante verificación, explicado (no un bug) — cuentas legacy con password en texto plano
+- Al auditar la tabla `usuarios` en producción se encontraron 13 cuentas con `password_hash` en texto plano y 34 con el campo vacío/nulo, de 48 totales. Confirmado por el usuario: son cuentas creadas **antes** de que el hasheo de contraseñas existiera en el código (todo el trabajo de `seguridad_api` es de esta y la sesión anterior) — no es una regresión de esta sesión. Una cuenta de prueba registrada hoy contra producción real (`user_id:59`) sí quedó con hash correcto (`pbkdf2:sha256:600000$...`), confirmando que el hasheo funciona hacia adelante. Las cuentas legacy no se corrigen solas — necesitarían un script de migración forzando reset de password, fuera de alcance.
+
+### Estado del despliegue al cierre de esta sesión
+- **Los 2 droplets están corriendo en producción real ahora mismo**, con dominio propio y SSL real de Let's Encrypt, verificados extremo a extremo con evidencia reproducible (no solo "debería funcionar").
+- Pendiente explícito para la próxima sesión: continuar la verificación paso a paso de los puntos restantes de la rúbrica (mobile, formularios, dashboards, etc. — ya cubiertos en el doc pero sin el mismo nivel de prueba en vivo que la parte de infraestructura) y decidir si probar la app real en Expo Go contra `https://proyecto-sway.site`.
+- Redis para rate limiting compartido entre réplicas: pendiente, documentado como mejora futura, no bloqueante para la entrega actual.
