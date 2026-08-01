@@ -117,11 +117,29 @@ ssh -i ~/.ssh/sway_droplet root@165.232.146.240 "curl -s http://10.124.0.3:9090/
 ```
 Esperado: `prometheus up`, `node up`, `postgres up`, `haproxy-edge up` — los 4 en `up`.
 
+**Cómo acceder y usar Grafana (para la presentación del PI):**
+1. Abrir `https://proyecto-sway.site/grafana/login` en cualquier navegador.
+2. Usuario `admin`, contraseña real en `/home/sway/sway/.env` del droplet público (variable `GRAFANA_ADMIN_PASSWORD`) — pedirla a quien tenga acceso SSH si no se tiene a la mano.
+3. En el menú lateral izquierdo, click en **Dashboards**.
+4. Click en la carpeta **SWAY**, luego en **SWAY — Balanceo y Monitoreo**.
+5. El dashboard tiene 3 paneles:
+   - **"Peticiones por backend (HAProxy)"** (arriba, gráfica de líneas) — muestra cuánto tráfico recibe cada réplica (`api1`, `api2`, `flask1`, `flask2`) en tiempo real. Para generar tráfico visible en vivo durante la demo: abrir otra pestaña y refrescar `https://proyecto-sway.site/api/estadisticas` varias veces, o simplemente navegar la app — las líneas del gráfico deben moverse.
+   - **"Backends activos (up/down)"** (abajo-izquierda, 6 números) — cada uno debe decir `1` (activo). Si alguno cae a `0`, esa réplica/servicio está caído.
+   - **"Uso de CPU del host"** (abajo-derecha) — carga del droplet privado en tiempo real.
+6. Selector de rango de tiempo arriba a la derecha (por defecto "Last 6 hours") — se puede cambiar a "Last 15 minutes" para ver el tráfico de la demo en vivo más de cerca, o click en **Refresh** (o activar auto-refresh con la flechita junto al botón) para que los paneles se actualicen solos cada pocos segundos.
+
 **Cómo confirmarlo — Grafana accesible y con datos:**
 ```
 https://proyecto-sway.site/grafana/login
 ```
 Login con `admin` / contraseña real en `.env` del droplet público. Abrir dashboard "SWAY — Balanceo y Monitoreo", panel "Peticiones por backend (HAProxy)" debe mostrar 2 líneas (api1/api2) con tráfico.
+
+**Verificado en navegador real (no solo `curl`) — captura de pantalla tomada en vivo:** login exitoso en `https://proyecto-sway.site/grafana/login`, dashboard "SWAY — Balanceo y Monitoreo" abierto y renderizando datos reales en sus 3 paneles:
+- **"Peticiones por backend (HAProxy)"** — picos de tráfico reales etiquetados `api_back/api1`, `api_back/api2`, `flask_back/flask1`, `flask_back/flask2`, `grafana_back/grafana`, `portal_back/portal`.
+- **"Backends activos (up/down)"** — 6 indicadores, todos en `1` (activo).
+- **"Uso de CPU del host (droplet privado)"** — serie de tiempo real desde `node_exporter`.
+
+**Bug real encontrado y corregido durante esta verificación:** el panel "Backends activos" usaba la métrica `haproxy_server_up`, que **no existe** en las métricas reales que expone el exporter de HAProxy 3.2 (confirmado corriendo `curl http://146.190.136.236:8405/metrics | grep haproxy_server_`) — el panel hubiera quedado sin datos. Corregido a `haproxy_server_active` (métrica real, `1` = activo), commit `700f831`, desplegado y reverificado con el dashboard abierto en el navegador mostrando datos.
 
 **Cómo confirmarlo — agente nativo de DigitalOcean activo:**
 ```bash
