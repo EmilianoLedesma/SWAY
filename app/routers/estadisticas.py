@@ -1,4 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends
+import os
+import uuid
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Optional
@@ -10,9 +12,13 @@ from app.data.models import (
     DetallePedido, Usuario
 )
 from app.security.auth import get_current_colaborador
+from app.config import AVISTAMIENTOS_UPLOAD_DIR
 from datetime import datetime
 
 router = APIRouter(prefix="/api", tags=["estadisticas"])
+
+ALLOWED_FOTO_CONTENT_TYPES = {"image/jpeg": ".jpg", "image/png": ".png"}
+MAX_FOTO_SIZE = 5 * 1024 * 1024  # 5MB
 
 
 @router.get("/estadisticas")
@@ -225,6 +231,44 @@ async def eliminar_avistamiento(
         raise
     except Exception as e:
         print(f"Error en eliminar_avistamiento: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/avistamientos/{avistamiento_id}/foto")
+async def subir_foto_avistamiento(
+    avistamiento_id: int,
+    foto: UploadFile = File(...),
+    current_user: dict = Depends(get_current_colaborador),
+    db: Session = Depends(get_db)
+):
+    try:
+        avistamiento = db.query(Avistamiento).filter(Avistamiento.id == avistamiento_id).first()
+        if not avistamiento:
+            raise HTTPException(status_code=404, detail="Avistamiento no encontrado")
+
+        extension = ALLOWED_FOTO_CONTENT_TYPES.get(foto.content_type)
+        if not extension:
+            raise HTTPException(status_code=400, detail="Formato de imagen no soportado (usa JPEG o PNG)")
+
+        contenido = await foto.read()
+        if len(contenido) > MAX_FOTO_SIZE:
+            raise HTTPException(status_code=413, detail="La imagen supera el límite de 5MB")
+
+        nombre_archivo = f"{uuid.uuid4().hex}{extension}"
+        os.makedirs(AVISTAMIENTOS_UPLOAD_DIR, exist_ok=True)
+        ruta_absoluta = os.path.join(AVISTAMIENTOS_UPLOAD_DIR, nombre_archivo)
+        with open(ruta_absoluta, "wb") as f:
+            f.write(contenido)
+
+        avistamiento.foto_url = f"/api/uploads/avistamientos/{nombre_archivo}"
+        db.commit()
+
+        return {"success": True, "foto_url": avistamiento.foto_url}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error en subir_foto_avistamiento: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

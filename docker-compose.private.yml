@@ -29,6 +29,9 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${DB_USER:-sway_app}:${DB_PASSWORD:-sway123}@postgres:5432/${DB_NAME:-sway}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5000,http://localhost:5173}
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads_data:/app/uploads
     ports:
       - "10.124.0.3:8001:8000"
     depends_on:
@@ -49,6 +52,9 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${DB_USER:-sway_app}:${DB_PASSWORD:-sway123}@postgres:5432/${DB_NAME:-sway}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5000,http://localhost:5173}
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads_data:/app/uploads
     ports:
       - "10.124.0.3:8002:8000"
     depends_on:
@@ -155,3 +161,4 @@ networks:
 volumes:
   postgres_data:
   prometheus_data:
+  uploads_data:

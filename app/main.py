@@ -11,6 +11,8 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from fastapi import Depends, Security
 from fastapi.openapi.utils import get_openapi
+from fastapi.staticfiles import StaticFiles
+from app.config import UPLOAD_DIR
 from app.routers import auth, colaboradores, especies, productos, pedidos, eventos, estadisticas, direcciones, catalogos
 from app.security.rate_limit import limiter
 from app.security.api_key import require_api_key
@@ -53,6 +55,8 @@ app.include_router(eventos.router, dependencies=_api_key_dep)
 app.include_router(estadisticas.router, dependencies=_api_key_dep)
 app.include_router(direcciones.router, dependencies=_api_key_dep)
 app.include_router(catalogos.router, dependencies=_api_key_dep)
+
+app.mount("/api/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 
 def custom_openapi():
