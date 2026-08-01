@@ -2,7 +2,7 @@
 
 Última actualización: 2026-08-01
 
-Este documento resume el trabajo hecho en los últimos días (fusión de seguridad de aplicación + migración a arquitectura de 2 droplets + SSL real) y da, para cada punto de la rúbrica, una forma rápida y objetiva de comprobarlo: `curl`, consultas SQL, `ping`, revisión en navegador, etc. Todos los comandos son copiar/pegar directos.
+Este documento resume el trabajo hecho en los últimos días (fusión de seguridad de aplicación + migración real a arquitectura de 2 droplets + SSL real de Let's Encrypt + dashboard de Grafana con 7 paneles + 3 bugs reales encontrados y corregidos durante la verificación en vivo) y da, para cada punto de la rúbrica: qué se hizo, dónde vive el código exacto (archivo:línea), y varias formas independientes de comprobarlo en vivo — `curl`, consultas SQL, `ping`, `openssl`, navegador real, capturas de pantalla. Todos los comandos son copiar/pegar directos, y cada afirmación de este documento fue efectivamente ejecutada y verificada contra la producción real (`https://proyecto-sway.site`), no es documentación aspiracional.
 
 **Datos de referencia (no sensibles):**
 
@@ -51,6 +51,27 @@ Esperado: `root` en ambos.
 
 ---
 
+## Mapa de código — dónde vive cada requisito
+
+Referencia rápida de archivo:línea para quien quiera leer el código fuente directo en vez de (o además de) correr los comandos de verificación. Todos los paths son relativos a la raíz del repo.
+
+| # | Requisito | Archivo(s) clave | Qué buscar ahí |
+|---|---|---|---|
+| 1 | Hasheo de contraseñas | `app/routers/colaboradores.py:3,39,124,411,414`<br>`app/routers/auth.py:6,72,117,132,235,266` | `generate_password_hash`/`check_password_hash` en cada register/login/cambio de password |
+| 2 | 2 servidores | `docker-compose.private.yml`<br>`docker-compose.public.yml` | Servicios del droplet privado (postgres, api1/api2, flask1/flask2, prometheus) vs público (haproxy, nginx-portal, grafana) |
+| 3 | Monitoreo | `prometheus/prometheus.yml`<br>`grafana/provisioning/datasources/prometheus.yml`<br>`grafana/provisioning/dashboards/sway-balanceo.json` | Targets de scrape, datasource, 7 paneles del dashboard |
+| 4 | Firewall | `scripts/ufw_private.sh`<br>`scripts/ufw_public.sh`<br>`docker-compose.private.yml` (bind a `10.124.0.3` en vez de `0.0.0.0`) | Reglas UFW por droplet, bind explícito de puertos Docker |
+| 5 | JWT + protección API | `app/security/auth.py:19,44,54` (`create_token`, `get_current_tienda_user`, `get_current_colaborador`)<br>`app/security/api_key.py:10` (`require_api_key`)<br>`app/security/rate_limit.py:5,12` (`get_real_client_ip`, `Limiter`) | Emisión/verificación de JWT, gate de API key global, rate limiting |
+| 6 | SSL | `haproxy/haproxy.cfg` (bind `*:443 ssl crt`)<br>`haproxy/generate_cert.sh`<br>`/etc/letsencrypt/renewal/proyecto-sway.site.conf` (en el droplet público, no en el repo) | Configuración TLS de HAProxy, script de cert autofirmado (ya no usado en prod), hooks de renovación real |
+| 7 | Balanceador | `haproxy/haproxy.cfg` (`backend api_back`, `backend flask_back`, `balance roundrobin`, `option httpchk`) | Definición de balanceo round-robin y healthcheck |
+| 8-10 | Mobile (utilidad, diseño, navegación) | `MockupsSwayMobile/src/screens/*`<br>`MockupsSwayMobile/src/navigation/AppNavigator.js`<br>`MockupsSwayMobile/src/api/client.js` | Pantallas nativas (biometría, cámara, GPS), estructura de navegación bottom-tabs+stack |
+| 11 | Formularios validados | `app/models/colaboradores.py:3,26,83` (`EmailStr`)<br>`app/routers/auth.py:2,24,51` (`EmailStr`)<br>`MockupsSwayMobile/src/utils/collaboratorValidation.js` | Validación Pydantic server-side + validadores JS client-side |
+| 12 | Datos compartidos mobile/Web | `app/routers/estadisticas.py` (`GET /api/avistamientos`)<br>`app/routers/colaboradores.py` (`GET /api/colaboradores/avistamientos`)<br>`web2/src/api/client.js`<br>`MockupsSwayMobile/src/api/client.js` | Mismos endpoints consumidos por las 3 plataformas |
+| 13 | Alojado en la nube | `docker-compose.private.yml`, `docker-compose.public.yml`<br>`docs/DEPLOYMENT_2_DROPLETS.md` | Todo el stack real corriendo en DigitalOcean, runbook de despliegue |
+| 14 | Mobile 100% funcional | `MockupsSwayMobile/src/api/client.js:10` (`API_HOST`) | Apunta a `https://proyecto-sway.site`, no a `localhost` |
+
+---
+
 ## 1. Hasheado y encriptado funcionando
 
 **Qué se hizo:** todos los endpoints que crean o cambian contraseñas (`/api/colaboradores/register`, `/api/colaboradores/perfil/password`, `/api/user/register`, `/api/auth/register`) usan `werkzeug.security.generate_password_hash` — hash salteado (`pbkdf2:sha256`, 600,000 iteraciones), nunca texto plano. Verificación (`check_password_hash`) en cada login.
@@ -76,6 +97,14 @@ Luego repetir la consulta SQL de arriba y mostrar que `password_hash` no contien
 ssh -i ~/.ssh/sway_droplet root@165.232.146.240 "docker exec sway_postgres psql -U sway_app -d sway -c \"SELECT count(*) FILTER (WHERE password_hash LIKE 'pbkdf2:%') as hasheadas_correctamente, count(*) FILTER (WHERE password_hash IS NULL OR password_hash = '') as vacias, count(*) FILTER (WHERE password_hash IS NOT NULL AND password_hash != '' AND password_hash NOT LIKE 'pbkdf2:%') as legacy_texto_plano FROM usuarios;\""
 ```
 Las cuentas `legacy_texto_plano` no se corrigen solas — requeriría un script de migración forzando reset de password, fuera del alcance de este trabajo. Toda cuenta **nueva**, o que cambie su password desde hoy en adelante, sí queda hasheada correctamente (demostrado arriba con el registro real `user_id:59`).
+
+**Hallazgo real durante esta verificación — las cuentas legacy no solo son inseguras, están rotas: no pueden iniciar sesión con ningún password.** `check_password_hash` (Werkzeug) espera el formato `metodo$salt$hash`; un valor guardado como texto plano (ej. `"12345678"`) no tiene ese formato, así que la comparación falla silenciosamente y el login devuelve `401` sin importar qué contraseña real se use — confirmado probando con la cuenta `id:35` (cuenta real del equipo) y su password conocido, que dio `401` hasta corregir el hash. Se corrigió esa cuenta puntual generando un hash real (`generate_password_hash` local) e insertándolo directo vía SQL — no se tocó el código, es una corrección de datos, no de lógica. El resto de las cuentas legacy (12 más) siguen igual, sin acceso, hasta que alguien las repare una por una o se escriba un script de migración.
+
+**Cómo confirmarlo:**
+```bash
+ssh -i ~/.ssh/sway_deploy root@165.232.146.240 "docker exec sway_postgres psql -U sway_app -d sway -c \"SELECT u.id, u.email FROM usuarios u JOIN colaboradores c ON c.id_usuario = u.id WHERE u.password_hash IS NOT NULL AND u.password_hash != '' AND u.password_hash NOT LIKE 'pbkdf2:%' AND c.estado_solicitud = 'aprobada';\""
+```
+Esperado: lista de colaboradores aprobados que actualmente no pueden iniciar sesión — evidencia de que el problema es real y medible, no teórico.
 
 ---
 
@@ -296,6 +325,20 @@ curl -s -X POST https://proyecto-sway.site/api/colaboradores/register \
 ```
 Esperado: `422` con detalle de los campos que fallan validación Pydantic (no un 500 ni un guardado silencioso).
 
+**Bug real encontrado y corregido durante esta verificación — el email no se validaba en formato, solo en longitud.** Al probar el comando de arriba con `"email":"no-es-email"` (11 caracteres, pasa el `min_length=5`), el servidor lo aceptaba como válido — el campo era `str` con `Field(min_length=..., max_length=...)`, sin ningún chequeo de formato real (sin `@`, sin dominio, nada). Esto significa que cualquiera que le pegara directo a la API (sin pasar por el formulario de la app, que sí valida en JS) podía meter emails basura a la base de datos.
+
+Corregido en 4 modelos que escriben usuarios nuevos — cambiados de `str` a `EmailStr` (Pydantic): `ColaboradorRegister`, `CheckEmail` (`app/models/colaboradores.py`), `UserRegister`, `AuthRegister` (`app/routers/auth.py`). Se agregó la dependencia `email-validator` a `requirements.txt` (necesaria para que `EmailStr` funcione). Verificado local antes de desplegar (pytest 7/7 sin romper nada, curl con email malformado → `422` con mensaje `"value is not a valid email address"`), desplegado a producción (`docker compose up --build -d api1 api2 flask1 flask2`), y reverificado en vivo contra `https://proyecto-sway.site` — mismo resultado. Commit `157fb15`.
+
+**Cómo confirmarlo en vivo ahora mismo:**
+```bash
+curl -s -X POST https://proyecto-sway.site/api/colaboradores/register \
+  -H "Content-Type: application/json" -H "x-api-key: f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b" \
+  -d '{"nombre":"Test","email":"no-es-email","password":"claveTest123","especialidad":"x","grado_academico":"x","institucion":"x","años_experiencia":"1","motivacion":"x"}'
+```
+Esperado: `422`, con `"msg":"value is not a valid email address: An email address must have an @-sign."` en el detalle.
+
+**Efecto secundario esperado (no un bug):** `EmailStr` también rechaza dominios reservados (`.test`, `.example`, `.invalid`, etc. — RFC 2606), así que emails de prueba tipo `demo@sway.test` ya no pasan. Los ejemplos de este documento usan `@demo-sway.com` por esa razón.
+
 ---
 
 ## 12. Info de la app móvil reflejada en su contraparte Web
@@ -403,6 +446,12 @@ R: Balance entre usabilidad (un usuario real rara vez falla el login 5 veces seg
 **P: ¿El límite de 100/minuto por defecto no es muy alto?**
 R: Es un piso de seguridad para endpoints públicos de lectura (catálogo de especies, estadísticas) que un usuario normal puede refrescar varias veces sin ser un atacante. Los endpoints realmente sensibles (login, registro, cambio de password) tienen límites explícitos más estrictos que anulan ese default.
 
+**P: ¿Por qué el rate limit no funcionaba la primera vez que lo probaron en producción?**
+R: `slowapi` identificaba al cliente por `request.client.host`, que detrás de un proxy inverso (HAProxy) es siempre la IP del proxy, no la del visitante real — todo internet compartía un solo cupo. Se corrigió leyendo `X-Forwarded-For` (que HAProxy ya manda). Ver sección 5 para el detalle completo y cómo se verificó.
+
+**P: ¿Por qué antes un email como `"no-es-email"` se aceptaba en el registro?**
+R: El campo estaba tipado como `str` con solo restricciones de longitud (`min_length`/`max_length`), sin ningún chequeo de formato. Se corrigió cambiando el tipo a `EmailStr` (Pydantic) en los 4 modelos que registran usuarios nuevos. Ver sección 11 para el detalle completo, incluyendo el efecto secundario de que dominios reservados como `.test` ahora también se rechazan (comportamiento correcto, no un bug).
+
 ### Monitoreo y Firewall
 
 **P: ¿Qué pasa si Prometheus se cae?**
@@ -416,6 +465,15 @@ R: Se puede probar en vivo — intentar `curl` directo a un puerto interno del d
 
 **P: ¿Qué es el bug de "Docker salta el firewall" que se menciona?**
 R: Docker, por defecto, cuando publica un puerto (`ports: - "8001:8000"`), lo hace vía reglas `iptables`/`DNAT` que se insertan **antes** de la cadena `INPUT` que UFW usa para filtrar — esto significa que aunque UFW diga "denegado", el tráfico ya fue redirigido al contenedor antes de que UFW lo evalúe. La única forma correcta de que UFW funcione con Docker es publicar el puerto atado a una IP específica (`10.124.0.3:8001:8000` en vez de `8001:8000`, que equivale a `0.0.0.0:8001`). Este proyecto lo corrigió explícitamente — verificable con `docker ps` mostrando la IP en el mapeo de puertos (sección 4).
+
+**P: ¿Por qué el panel "Backends activos" de Grafana estaba vacío al principio?**
+R: Usaba la métrica `haproxy_server_up`, que no existe en las métricas reales que expone el exporter de Prometheus integrado en HAProxy 3.2 (se puede confirmar corriendo `curl http://146.190.136.236:8405/metrics | grep haproxy_server_` y viendo que ese nombre no aparece). Se corrigió a `haproxy_server_active`, la métrica real equivalente. Lección: cualquier expresión PromQL en un dashboard debe verificarse contra las métricas reales del exporter en uso, no copiarse de documentación genérica — versiones distintas de exporters exponen nombres distintos.
+
+**P: ¿Por qué se ve `PasswordAuthentication yes` en el droplet privado — no es inseguro?**
+R: Sí es un vector de ataque adicional (permite intentar login por contraseña, no solo por llave SSH), pero es una decisión explícita del equipo mantenerlo así (para poder entrar por contraseña si se pierde la llave). No se tocó esta sesión a pedido directo — documentado aquí para que quede claro que es una decisión consciente, no un descuido.
+
+**P: ¿Para qué se instaló el agente de monitoreo de DigitalOcean si ya hay Prometheus/Grafana?**
+R: Son complementarios, no redundantes. Prometheus/Grafana dan métricas de aplicación (tráfico HTTP, balanceo, conexiones a BD) con dashboards personalizados. El agente de DO (`do-agent`) da métricas de infraestructura básica (CPU, RAM, disco, red) directo en el panel de DigitalOcean, sin necesitar abrir Grafana — útil como respaldo rápido si algo falla y Grafana mismo no está accesible.
 
 ### SSL y dominio
 
