@@ -124,8 +124,10 @@ Esperado: `prometheus up`, `node up`, `postgres up`, `haproxy-edge up` — los 4
 4. Click en la carpeta **SWAY**, luego en **SWAY — Balanceo y Monitoreo**.
 5. El dashboard tiene 3 paneles:
    - **"Peticiones por backend (HAProxy)"** (arriba, gráfica de líneas) — muestra cuánto tráfico recibe cada réplica (`api1`, `api2`, `flask1`, `flask2`) en tiempo real. Para generar tráfico visible en vivo durante la demo: abrir otra pestaña y refrescar `https://proyecto-sway.site/api/estadisticas` varias veces, o simplemente navegar la app — las líneas del gráfico deben moverse.
-   - **"Backends activos (up/down)"** (abajo-izquierda, 6 números) — cada uno debe decir `1` (activo). Si alguno cae a `0`, esa réplica/servicio está caído.
-   - **"Uso de CPU del host"** (abajo-derecha) — carga del droplet privado en tiempo real.
+   - **"Backends activos (up/down)"** — 6 números, cada uno debe decir `1` (activo). Si alguno cae a `0`, esa réplica/servicio está caído.
+   - **"Uso de CPU del host"** — carga del droplet privado en tiempo real.
+   - **"Distribución de tráfico entre réplicas (%)"** — pie chart, evidencia visual directa del balanceador: debe mostrar 4 porciones (`api1`, `api2`, `flask1`, `flask2`) de tamaño similar entre sí. Es el panel más claro para mostrar en la presentación del PI — una sola imagen que prueba el balanceo.
+   - **"Sesiones actuales por réplica"** — conexiones activas en tiempo real por backend. Al ser peticiones HTTP cortas (no conexiones persistentes), normalmente se ve en `0` con picos breves cuando llega tráfico — comportamiento esperado, no un error.
 6. Selector de rango de tiempo arriba a la derecha (por defecto "Last 6 hours") — se puede cambiar a "Last 15 minutes" para ver el tráfico de la demo en vivo más de cerca, o click en **Refresh** (o activar auto-refresh con la flechita junto al botón) para que los paneles se actualicen solos cada pocos segundos.
 
 **Cómo confirmarlo — Grafana accesible y con datos:**
