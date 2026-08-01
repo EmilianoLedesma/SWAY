@@ -351,9 +351,9 @@ Esperado: `export const API_HOST = 'https://proyecto-sway.site';`. Si dice otra 
 **Credenciales reales para probar sin registrar una cuenta nueva:**
 ```
 Email:    123046244@upq.edu.mx
-Password: SwayExpo2026
+Password: Emiliano1
 ```
-Cuenta real de colaborador (`colaborador_id:11`) con datos históricos reales (avistamientos ya cargados) — útil para probar que la app muestra datos reales desde el primer login, no una cuenta vacía. Password fue reseteado durante esta sesión de verificación porque la cuenta original tenía el password guardado en texto plano de antes de que existiera el hasheo (ver sección 1) y no podía iniciar sesión.
+Cuenta real de colaborador (`colaborador_id:11`) con datos históricos reales (avistamientos ya cargados) — útil para probar que la app muestra datos reales desde el primer login, no una cuenta vacía. Password fue reseteado durante esta sesión de verificación porque la cuenta original tenía el password guardado en texto plano de antes de que existiera el hasheo (ver sección 1) y no podía iniciar sesión; luego cambiado por el usuario a través de la propia app.
 
 **Qué probar una vez adentro (cubre las 4 secciones pendientes):**
 1. **Ítem 8 (utilidad real):** Perfil → Seguridad → activar biometría → cerrar sesión → reabrir la app → debe pedir huella/Face ID. Reportar avistamiento → debe pedir permiso de cámara y ubicación real.
