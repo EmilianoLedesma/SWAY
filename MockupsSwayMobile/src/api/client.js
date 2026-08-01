@@ -9,7 +9,7 @@ import * as Sharing from 'expo-sharing';
 // abajo) cuando se termine de probar.
 export const API_HOST = 'http://165.232.146.240';
 
-const SWAY_API_KEY = 'REEMPLAZAR_CON_API_KEY_PUBLICA';
+const SWAY_API_KEY = 'f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b';
 
 function apiFetch(url, opts = {}) {
   return fetch(url, { ...opts, headers: { ...(opts.headers || {}), 'x-api-key': SWAY_API_KEY } });

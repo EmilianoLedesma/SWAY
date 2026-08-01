@@ -5,7 +5,7 @@
 // que llama a la API (especies.js, eventos.js, tienda.js, mis-pedidos.js).
 // =============================================
 (function () {
-  const SWAY_API_KEY = 'REEMPLAZAR_CON_API_KEY_PUBLICA';
+  const SWAY_API_KEY = 'f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b';
   const originalFetch = window.fetch;
   window.fetch = function (input, init = {}) {
     const url = typeof input === 'string' ? input : (input && input.url) || '';

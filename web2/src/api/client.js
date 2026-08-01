@@ -1,5 +1,5 @@
 const BASE = '/api'
-const API_KEY = 'REEMPLAZAR_CON_API_KEY_PUBLICA'
+const API_KEY = 'f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b'
 
 function getToken() {
   return localStorage.getItem('colab_token')
