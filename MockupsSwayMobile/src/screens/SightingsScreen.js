@@ -678,6 +678,7 @@ export default function SightingsScreen() {
           <ShareCard
             icon="camera"
             title={shareTarget.species}
+            photoUrl={shareTarget.photoUrl}
             lines={[
               { icon: 'calendar-outline', text: shareTarget.date },
               { icon: 'location-outline', text: shareTarget.location },

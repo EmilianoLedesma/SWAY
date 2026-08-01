@@ -1,10 +1,10 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { radii } from '../theme/spacing';
 
-export default function ShareCard({ icon, title, subtitle, badge, badgeColor, badgeBg, lines }) {
+export default function ShareCard({ icon, title, subtitle, badge, badgeColor, badgeBg, lines, photoUrl }) {
   return (
     <View style={styles.card}>
       <View style={styles.header}>
@@ -13,7 +13,11 @@ export default function ShareCard({ icon, title, subtitle, badge, badgeColor, ba
       </View>
 
       <View style={styles.iconWrap}>
-        <Ionicons name={icon} size={44} color={colors.oceanDark} />
+        {photoUrl ? (
+          <Image source={{ uri: photoUrl }} style={styles.photoImage} onError={() => {}} />
+        ) : (
+          <Ionicons name={icon} size={44} color={colors.oceanDark} />
+        )}
       </View>
 
       {badge ? (
@@ -74,6 +78,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
+  },
+  photoImage: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
   },
   badge: {
     paddingVertical: 4,
