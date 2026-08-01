@@ -698,6 +698,7 @@ listen stats
     stats refresh 5s
     stats show-legends
     stats show-node
+    stats auth admin:REEMPLAZAR_CON_PASSWORD_STATS
 
 frontend prometheus_front
     bind *:8405
