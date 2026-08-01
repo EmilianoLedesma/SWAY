@@ -1,6 +1,6 @@
 # Para los modelos de validaciones el nombre debe reflejar la entidad que protege.
 # Se usa Field para agregar validaciones adicionales: longitud, rangos, descripción y ejemplos.
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 
 
 class ColaboradorLogin(BaseModel):
@@ -23,8 +23,8 @@ class ColaboradorRegister(BaseModel):
         description="Primer nombre del colaborador",
         example="Ana"
     )
-    email: str = Field(
-        ..., min_length=5, max_length=150,
+    email: EmailStr = Field(
+        ..., max_length=150,
         description="Correo electrónico institucional",
         example="ana.garcia@upq.edu.mx"
     )
@@ -80,8 +80,8 @@ class ColaboradorRegister(BaseModel):
 
 
 class CheckEmail(BaseModel):
-    email: str = Field(
-        ..., min_length=5, max_length=150,
+    email: EmailStr = Field(
+        ..., max_length=150,
         description="Correo electrónico a verificar disponibilidad",
         example="nuevo@upq.edu.mx"
     )

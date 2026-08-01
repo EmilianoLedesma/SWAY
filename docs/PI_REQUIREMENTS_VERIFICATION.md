@@ -67,7 +67,7 @@ Esperado: columna `password_hash` con formato `pbkdf2:sha256:600000$<salt>$<hash
 curl -s -X POST https://proyecto-sway.site/api/colaboradores/register \
   -H "Content-Type: application/json" \
   -H "x-api-key: f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b" \
-  -d '{"nombre":"Demo","email":"demo-pi@sway.test","password":"claveDemo123","especialidad":"Demo","grado_academico":"Licenciatura","institucion":"UPQ","años_experiencia":"1","motivacion":"Demo PI"}'
+  -d '{"nombre":"Demo","email":"demo-pi@demo-sway.com","password":"claveDemo123","especialidad":"Demo","grado_academico":"Licenciatura","institucion":"UPQ","años_experiencia":"1","motivacion":"Demo PI"}'
 ```
 Luego repetir la consulta SQL de arriba y mostrar que `password_hash` no contiene `claveDemo123` en ningún lado.
 
@@ -171,7 +171,7 @@ Esperado: `Permission denied (publickey,password)` — la conexión se rechaza d
 ```bash
 curl -s -X POST https://proyecto-sway.site/api/colaboradores/login \
   -H "Content-Type: application/json" -H "x-api-key: f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b" \
-  -d '{"email":"demo-pi@sway.test","password":"claveDemo123"}'
+  -d '{"email":"demo-pi@demo-sway.com","password":"claveDemo123"}'
 ```
 Copiar el `access_token` de la respuesta, luego:
 ```bash
@@ -182,7 +182,7 @@ Esperado: `401` sin token, `200` con token.
 
 **Cómo confirmarlo — rate limiting real (fuerza bruta bloqueada):**
 ```bash
-for i in 1 2 3 4 5 6; do curl -s -o /dev/null -w "intento $i: %{http_code}\n" -X POST https://proyecto-sway.site/api/colaboradores/login -H "Content-Type: application/json" -H "x-api-key: f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b" -d '{"email":"demo-pi@sway.test","password":"incorrecta"}'; done
+for i in 1 2 3 4 5 6; do curl -s -o /dev/null -w "intento $i: %{http_code}\n" -X POST https://proyecto-sway.site/api/colaboradores/login -H "Content-Type: application/json" -H "x-api-key: f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b" -d '{"email":"demo-pi@demo-sway.com","password":"incorrecta"}'; done
 ```
 Esperado: los primeros 5 dan `401`, el 6to da `429` con mensaje `Rate limit exceeded: 5 per 1 minute`.
 
@@ -190,7 +190,7 @@ Esperado: los primeros 5 dan `401`, el 6to da `429` con mensaje `Rate limit exce
 
 Verificación de este comportamiento — pegarle a una sola réplica directo (sin pasar por el balanceador) sí dispara el `429` exactamente en el intento 6, confirmando que la lógica de conteo por cliente es correcta y el problema es solo la falta de estado compartido entre réplicas:
 ```bash
-ssh -i ~/.ssh/sway_deploy root@146.190.136.236 "for i in 1 2 3 4 5 6; do curl -s -o /dev/null -w \"intento \$i: %{http_code}\n\" -X POST http://10.124.0.3:8001/api/colaboradores/login -H 'Content-Type: application/json' -H 'x-api-key: f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b' -d '{\"email\":\"demo-pi@sway.test\",\"password\":\"incorrecta\"}'; done"
+ssh -i ~/.ssh/sway_deploy root@146.190.136.236 "for i in 1 2 3 4 5 6; do curl -s -o /dev/null -w \"intento \$i: %{http_code}\n\" -X POST http://10.124.0.3:8001/api/colaboradores/login -H 'Content-Type: application/json' -H 'x-api-key: f6bed84d1b5bb4af3ff44231c8c8bae5c8efc3709ee1510b' -d '{\"email\":\"demo-pi@demo-sway.com\",\"password\":\"incorrecta\"}'; done"
 ```
 Esperado: intentos 1-5 → `401`, intento 6 → `429`.
 

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, EmailStr
 from typing import Optional
 from datetime import date
 from sqlalchemy.orm import Session
@@ -21,7 +21,7 @@ class UserRegister(BaseModel):
     nombre: str
     apellidoPaterno: str
     apellidoMaterno: Optional[str] = None
-    email: str
+    email: EmailStr
     password: str
     telefono: Optional[str] = None
     fecha_nacimiento: Optional[str] = None
@@ -48,7 +48,7 @@ class AuthLogin(BaseModel):
 
 class AuthRegister(BaseModel):
     nombre: str
-    email: str
+    email: EmailStr
     password: str
     telefono: str
     apellidoPaterno: Optional[str] = None
