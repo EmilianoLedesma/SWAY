@@ -18,6 +18,39 @@ Contraseñas reales (`JWT_SECRET_KEY`, `DB_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`, 
 
 ---
 
+## 0. Cómo generar tu propia llave SSH y obtener acceso
+
+Todos los comandos de verificación de este documento que empiezan con `ssh -i ...` requieren una llave SSH autorizada en los droplets. Así se genera una nueva y se agrega:
+
+**Paso 1 — Generar el par de llaves (en tu propia máquina):**
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/sway_deploy -N "" -C "tu-nombre"
+```
+Esto crea dos archivos: `~/.ssh/sway_deploy` (privada, **nunca compartir**) y `~/.ssh/sway_deploy.pub` (pública, la que se comparte). El flag `-N ""` deja la llave sin passphrase para simplificar los comandos de este documento — si prefieres una passphrase, omite ese flag y se te pedirá al usar la llave.
+
+**Paso 2 — Ver la llave pública generada:**
+```bash
+cat ~/.ssh/sway_deploy.pub
+```
+Copiar la línea completa (empieza con `ssh-ed25519 AAAA...`).
+
+**Paso 3 — Pedir que agreguen tu llave pública a los droplets.** Quien ya tenga acceso corre esto por cada droplet, pegando tu llave pública:
+```bash
+ssh -i ~/.ssh/<llave-existente> root@165.232.146.240 "echo 'ssh-ed25519 AAAA...tu-llave-aqui... tu-nombre' >> ~/.ssh/authorized_keys"
+ssh -i ~/.ssh/<llave-existente> root@146.190.136.236 "echo 'ssh-ed25519 AAAA...tu-llave-aqui... tu-nombre' >> ~/.ssh/authorized_keys"
+```
+
+**Paso 4 — Confirmar que tu llave nueva funciona:**
+```bash
+ssh -i ~/.ssh/sway_deploy root@165.232.146.240 "whoami"
+ssh -i ~/.ssh/sway_deploy root@146.190.136.236 "whoami"
+```
+Esperado: `root` en ambos.
+
+**Alternativa sin llave SSH — Web Console de DigitalOcean:** si no se quiere generar/gestionar una llave, el panel de DigitalOcean tiene un botón **Console** en cada droplet que abre una terminal root directo en el navegador, sin necesitar llave ni contraseña — ahí se pueden correr exactamente los mismos comandos de este documento.
+
+---
+
 ## 1. Hasheado y encriptado funcionando
 
 **Qué se hizo:** todos los endpoints que crean o cambian contraseñas (`/api/colaboradores/register`, `/api/colaboradores/perfil/password`, `/api/user/register`, `/api/auth/register`) usan `werkzeug.security.generate_password_hash` — hash salteado (`pbkdf2:sha256`, 600,000 iteraciones), nunca texto plano. Verificación (`check_password_hash`) en cada login.
@@ -37,6 +70,12 @@ curl -s -X POST https://proyecto-sway.site/api/colaboradores/register \
   -d '{"nombre":"Demo","email":"demo-pi@sway.test","password":"claveDemo123","especialidad":"Demo","grado_academico":"Licenciatura","institucion":"UPQ","años_experiencia":"1","motivacion":"Demo PI"}'
 ```
 Luego repetir la consulta SQL de arriba y mostrar que `password_hash` no contiene `claveDemo123` en ningún lado.
+
+**Nota sobre cuentas antiguas:** el hasheo solo aplica hacia adelante — cuentas creadas **antes** de que este trabajo de seguridad se mergeara a producción pueden tener `password_hash` en texto plano o vacío (registradas con código legacy que no hasheaba). Esto es esperado, no un hallazgo nuevo — se puede confirmar contando cuántas cuentas están en cada estado:
+```bash
+ssh -i ~/.ssh/sway_droplet root@165.232.146.240 "docker exec sway_postgres psql -U sway_app -d sway -c \"SELECT count(*) FILTER (WHERE password_hash LIKE 'pbkdf2:%') as hasheadas_correctamente, count(*) FILTER (WHERE password_hash IS NULL OR password_hash = '') as vacias, count(*) FILTER (WHERE password_hash IS NOT NULL AND password_hash != '' AND password_hash NOT LIKE 'pbkdf2:%') as legacy_texto_plano FROM usuarios;\""
+```
+Las cuentas `legacy_texto_plano` no se corrigen solas — requeriría un script de migración forzando reset de password, fuera del alcance de este trabajo. Toda cuenta **nueva**, o que cambie su password desde hoy en adelante, sí queda hasheada correctamente (demostrado arriba con el registro real `user_id:59`).
 
 ---
 
@@ -115,6 +154,12 @@ Esperado: `10.124.0.3:8001->8000/tcp` (con IP explícita), **no** `0.0.0.0:8001-
 ```bash
 curl -m 5 http://165.232.146.240:8001/health   # debe dar timeout, no 200
 ```
+
+**Cómo confirmarlo — SSH rechaza acceso sin la llave correcta (no es solo un candado decorativo):**
+```bash
+ssh -o PasswordAuthentication=no -o PubkeyAuthentication=no -o BatchMode=yes -o ConnectTimeout=8 root@165.232.146.240 "whoami"
+```
+Esperado: `Permission denied (publickey,password)` — la conexión se rechaza de verdad, no solo pide credenciales y las acepta.
 
 ---
 
