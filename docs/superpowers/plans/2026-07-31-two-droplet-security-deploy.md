@@ -4,9 +4,9 @@
 
 **Goal:** Traer la seguridad de la rama `seguridad_api` a `master` y producir todos los artefactos de infraestructura (docker-compose, HAProxy, nginx, Prometheus, Grafana, UFW) necesarios para separar el despliegue en 2 droplets DigitalOcean (privado con datos/lógica, público con borde/monitoreo) comunicados por VPC, cumpliendo la rúbrica completa de seguridad.
 
-**Architecture:** Ver `docs/superpowers/specs/2026-07-31-two-droplet-security-deploy-design.md`. Droplet privado (existente, 2GB, IP VPC `.101`): postgres + api1/api2 (FastAPI) + flask1/flask2 (web1) + prometheus/cadvisor/node_exporter/postgres_exporter. Droplet público (nuevo, IP VPC `.102`): HAProxy (SSL + balanceo + stats) + nginx (portal estático) + Grafana.
+**Architecture:** Ver `docs/superpowers/specs/2026-07-31-two-droplet-security-deploy-design.md`. Droplet privado (existente, `165.232.146.240`, 2GB, IP VPC real `10.124.0.3`): postgres + api1/api2 (FastAPI) + flask1/flask2 (web1) + prometheus/node_exporter/postgres_exporter. Droplet público (nuevo, IP VPC asignada por DigitalOcean en el mismo rango `10.124.0.0/20`): HAProxy (SSL + balanceo + stats) + nginx (portal estático) + Grafana.
 
-**Tech Stack:** FastAPI, Flask, PostgreSQL 15, Docker Compose, HAProxy 3.2, nginx:alpine, Prometheus, Grafana, cadvisor, node_exporter, postgres_exporter, UFW.
+**Tech Stack:** FastAPI, Flask, PostgreSQL 15, Docker Compose, HAProxy 3.2, nginx:alpine, Prometheus, Grafana, node_exporter, postgres_exporter, UFW.
 
 ## Global Constraints
 
@@ -110,9 +110,6 @@ git commit -m "chore: podar artefactos de despliegue VirtualBox tras merge de se
 
 ### Task 2: Endpoint `/health` para healthchecks de HAProxy
 
-**Files:**
-- Modify: `app/main.py`
-- Test: `test/test_health_endpoint.py` (crear)
 
 **Interfaces:**
 - Produces: `GET /health` → `{"status": "ok"}`, sin autenticación (no pasa por `require_api_key`, definido directo en `app`, igual que `/`).
@@ -342,7 +339,7 @@ git commit -m "fix(mobile): inyectar x-api-key vía wrapper apiFetch en todas la
 
 **Interfaces:**
 - Consumes: `Dockerfile` existente (build reusado para api1/api2/flask1/flask2), `SWAY_PostgreSQL.sql` existente (init de BD).
-- Produces: servicios `postgres`, `api1`, `api2`, `flask1`, `flask2`, `prometheus`, `cadvisor`, `node_exporter`, `postgres_exporter` — nombres de servicio consumidos por Tarea 8 (`haproxy.cfg`) y Tarea 10 (`prometheus.yml`).
+- Produces: servicios `postgres`, `api1`, `api2`, `flask1`, `flask2`, `prometheus`, `node_exporter`, `postgres_exporter` — nombres de servicio consumidos por Tarea 8 (`haproxy.cfg`) y Tarea 10 (`prometheus.yml`). `cadvisor` se descartó explícitamente (droplet con 241Mi libres al momento de planear, cadvisor es el exporter más pesado y el menos crítico para la rúbrica — node_exporter+postgres_exporter+prometheus ya cubren host+BD+balanceo).
 
 - [ ] **Step 1: Crear el archivo**
 
@@ -464,19 +461,6 @@ services:
         condition: service_healthy
     networks:
       - data_network
-      - monitoring_network
-
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
-    container_name: sway_cadvisor
-    restart: unless-stopped
-    privileged: true
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker:/var/lib/docker:ro
-    networks:
       - monitoring_network
 
   node_exporter:
@@ -645,7 +629,7 @@ git commit -m "feat: docker-compose.public.yml — HAProxy + nginx-portal + Graf
 - Create: `haproxy/haproxy.cfg`
 
 **Interfaces:**
-- Consumes: nombres de servicio `nginx-portal:80`, `grafana:3000` (Tarea 7, red `edge_network`); IPs privadas VPC de los backends del droplet privado (placeholders `IP_PRIVADA_VPC`, se rellenan en la Tarea 15 con la IP real).
+- Consumes: nombres de servicio `nginx-portal:80`, `grafana:3000` (Tarea 7, red `edge_network`); IP privada VPC real del droplet privado, `10.124.0.3` (confirmada por `ip -4 addr show` sobre el droplet real — ver Contexto técnico).
 - Produces: `:80`, `:443`, `:8404` (`/stats`), `:8405` (`/metrics`) — consumidos por Tarea 10 (`prometheus.yml` scrapea `:8405`) y por el runbook de despliegue (Tarea 15).
 
 - [ ] **Step 1: Crear el archivo**
@@ -690,15 +674,15 @@ backend api_back
     balance roundrobin
     option httpchk GET /health
     http-check expect status 200
-    server api1 IP_PRIVADA_VPC:8001 check
-    server api2 IP_PRIVADA_VPC:8002 check
+    server api1 10.124.0.3:8001 check
+    server api2 10.124.0.3:8002 check
 
 backend flask_back
     balance roundrobin
     option httpchk GET /
     http-check expect rstatus (2|3)[0-9][0-9]
-    server flask1 IP_PRIVADA_VPC:5001 check
-    server flask2 IP_PRIVADA_VPC:5002 check
+    server flask1 10.124.0.3:5001 check
+    server flask2 10.124.0.3:5002 check
 
 backend portal_back
     server portal nginx-portal:80 check
@@ -816,10 +800,6 @@ scrape_configs:
     static_configs:
       - targets: [prometheus:9090]
 
-  - job_name: cadvisor
-    static_configs:
-      - targets: [cadvisor:8080]
-
   - job_name: node
     static_configs:
       - targets: [node_exporter:9100]
@@ -846,7 +826,7 @@ Expected: `SUCCESS`.
 
 ```bash
 git add prometheus/prometheus.yml
-git commit -m "feat: prometheus.yml — scrape local (cadvisor/node/postgres) + remoto (haproxy /metrics)"
+git commit -m "feat: prometheus.yml — scrape local (node/postgres) + remoto (haproxy /metrics)"
 ```
 
 ---
@@ -859,7 +839,7 @@ git commit -m "feat: prometheus.yml — scrape local (cadvisor/node/postgres) + 
 - Create: `grafana/provisioning/dashboards/sway-balanceo.json`
 
 **Interfaces:**
-- Consumes: IP privada VPC del droplet privado puerto `9090` (placeholder `IP_PRIVADA_VPC`, se rellena en Tarea 15); montado por Tarea 7 en `/etc/grafana/provisioning`.
+- Consumes: IP privada VPC real del droplet privado, `10.124.0.3`, puerto `9090`; montado por Tarea 7 en `/etc/grafana/provisioning`.
 
 - [ ] **Step 1: Datasource**
 
@@ -870,7 +850,7 @@ datasources:
   - name: Prometheus
     type: prometheus
     access: proxy
-    url: http://IP_PRIVADA_VPC:9090
+    url: http://10.124.0.3:9090
     isDefault: true
 ```
 
@@ -918,11 +898,11 @@ providers:
     },
     {
       "id": 3,
-      "title": "Uso de CPU por contenedor",
+      "title": "Uso de CPU del host (droplet privado)",
       "type": "timeseries",
       "gridPos": { "h": 6, "w": 12, "x": 12, "y": 8 },
       "targets": [
-        { "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name!=\"\"}[1m]))" }
+        { "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m])) * 100)" }
       ]
     }
   ],
@@ -1003,13 +983,22 @@ git commit -m "feat: script de generación de certificado SSL autofirmado para H
 - Create: `scripts/ufw_public.sh`
 
 **Interfaces:**
-- Consumes: IPs privadas VPC de ambos droplets (placeholders, rellenados en Tarea 15).
+- Consumes: IP privada VPC del droplet público (placeholder `IP_PUBLICA_VPC`, se conoce recién al crear ese droplet — Tarea 15). El propio droplet privado ya tiene IP VPC real conocida, `10.124.0.3` (no hace falta placeholder para eso).
+
+**Hallazgo del diagnóstico real del droplet** (`ufw status verbose` sobre `165.232.146.240`): ya tiene activo `22/80/443 ALLOW IN Anywhere` (v4 y v6) de la instalación original de un solo droplet (`docs/DEPLOYMENT.md` fase 2.2). `ufw default deny incoming` **no revierte reglas `allow` ya existentes** — hay que borrarlas explícito antes de que el droplet quede aislado como se espera en la nueva arquitectura (nada debe escuchar 80/443 ahí una vez migrado a `docker-compose.private.yml`, que no corre nginx).
 
 - [ ] **Step 1: `scripts/ufw_private.sh`**
 
 ```bash
 #!/bin/bash
 set -euo pipefail
+
+# Limpiar reglas del despliegue de un solo droplet — ya no aplica, este droplet
+# deja de exponer 80/443 directo (eso ahora vive en el droplet público).
+ufw delete allow 80/tcp || true
+ufw delete allow 443/tcp || true
+ufw delete allow "80/tcp (v6)" || true
+ufw delete allow "443/tcp (v6)" || true
 
 ufw default deny incoming
 ufw default allow outgoing
@@ -1047,7 +1036,7 @@ ufw allow 443/tcp
 ufw allow 8404/tcp
 
 # Metrics de HAProxy (:8405) — solo el Prometheus del droplet privado lo scrapea
-ufw allow from IP_PRIVADA_VPC to any port 8405 proto tcp
+ufw allow from 10.124.0.3 to any port 8405 proto tcp
 
 ufw --force enable
 ufw status verbose
@@ -1133,8 +1122,8 @@ Esta tarea documenta los pasos que **el usuario ejecuta por SSH sobre los drople
 
 ## 0. Prerrequisitos
 - Droplet privado: el existente (`165.232.146.240`, `sway-server`, 2GB) — ya tiene el proyecto en `/home/sway/sway` con `master` actualizado (`git pull`).
-- Crear droplet público nuevo en DigitalOcean: Ubuntu 22.04, mismo datacenter que el privado (mismo VPC), 1GB/$6 alcanza (solo corre HAProxy+nginx+Grafana).
-- En el panel de DigitalOcean, habilitar VPC networking para ambos droplets si no la tienen (mismo datacenter → misma VPC por defecto). Anotar la IP privada de cada uno (`ip addr show eth1` o el panel de Networking de DO).
+- Crear droplet público nuevo en DigitalOcean: Ubuntu 22.04, **mismo datacenter que el privado** (San Francisco 3 / `sfo3`, confirmado — el privado es `s-1vcpu-2gb-sfo3-01`), 1GB/$6 alcanza (solo corre HAProxy+nginx+Grafana). Mismo datacenter → mismo VPC por defecto (`10.124.0.0/20`, ya confirmado activo en el privado vía `ip -4 addr show`, interfaz `eth1`, IP real `10.124.0.3`).
+- Al crear el droplet público, anotar su IP privada asignada (panel de DO → Networking, o `ip -4 addr show eth1` una vez creado) — es el valor real que reemplaza `IP_PUBLICA_VPC` en los pasos de abajo.
 
 ## 1. Droplet privado — actualizar y aplicar UFW
 ```bash
@@ -1143,13 +1132,13 @@ cd /home/sway/sway
 git pull
 docker compose -f docker-compose.prod.yml down   # baja el stack viejo de un solo droplet
 ```
-Reemplazar `IP_PUBLICA_VPC` en `scripts/ufw_private.sh` y `prometheus/prometheus.yml` (campo `haproxy-edge`) por la IP privada real del droplet público, luego:
+Reemplazar `IP_PUBLICA_VPC` en `scripts/ufw_private.sh` y `prometheus/prometheus.yml` (campo `haproxy-edge`) por la IP privada real del droplet público (recién creado en el paso anterior), luego:
 ```bash
 sudo bash scripts/ufw_private.sh
 docker compose -f docker-compose.private.yml up --build -d
 docker compose -f docker-compose.private.yml ps
 ```
-Verificar 9 contenedores `Up`: postgres, api1, api2, flask1, flask2, postgres_exporter, cadvisor, node_exporter, prometheus.
+Verificar 8 contenedores `Up`: postgres, api1, api2, flask1, flask2, postgres_exporter, node_exporter, prometheus (sin cadvisor — descartado por RAM ajustada, ver Tarea 6).
 
 ## 2. Droplet público — preparar y levantar
 ```bash
@@ -1164,7 +1153,7 @@ exit && ssh sway@<IP_PUBLICA>
 git clone https://github.com/TU_USUARIO/TU_REPO.git sway
 cd sway
 ```
-Reemplazar `IP_PRIVADA_VPC` en `haproxy/haproxy.cfg` (backends `api_back`/`flask_back`) y en `grafana/provisioning/datasources/prometheus.yml` por la IP privada real del droplet privado. Reemplazar `IP_PUBLICA_VPC` en `scripts/ufw_public.sh` por la IP privada real del droplet privado (para permitir que su Prometheus scrapee `:8405`).
+Reemplazar `10.124.0.3` en `haproxy/haproxy.cfg` (backends `api_back`/`flask_back`) y en `grafana/provisioning/datasources/prometheus.yml` si por algún motivo el droplet privado se recrea con otra IP (no debería — es el droplet existente, la IP ya está confirmada). Reemplazar `IP_PUBLICA_VPC` en `scripts/ufw_public.sh` — ojo, ese placeholder en realidad va con la IP privada de **este mismo droplet público** que se está por levantar, corregir a su propia IP VPC recién asignada, no la del privado (la del privado ya está hardcodeada como `10.124.0.3` directo en el script).
 
 ```bash
 ./haproxy/generate_cert.sh
@@ -1217,7 +1206,7 @@ git commit -m "docs: runbook de despliegue manual en 2 droplets DigitalOcean"
 **Cobertura del spec:**
 - Arquitectura 2 droplets → Tareas 6, 7, 15.
 - HAProxy balanceo + stats + metrics → Tareas 8, 12.
-- Prometheus + Grafana + cadvisor + node_exporter + postgres_exporter → Tareas 6, 10, 11.
+- Prometheus + Grafana + node_exporter + postgres_exporter → Tareas 6, 10, 11 (cadvisor descartado explícitamente por RAM real medida en el droplet — 241Mi libres al momento de planear, decisión confirmada con el usuario).
 - Firewall UFW → Tarea 13.
 - SSL autofirmado → Tarea 12.
 - JWT/API-key/bcrypt/rate-limit/BOLA-IDOR → Tarea 1 (merge, ya implementado en la rama).
@@ -1225,4 +1214,9 @@ git commit -m "docs: runbook de despliegue manual en 2 droplets DigitalOcean"
 - Consecuencia no cubierta por el spec pero bloqueante (API key global rompe clientes existentes) → Tareas 3, 4, 5.
 - Runbook real de despliegue (fuera del alcance de este entorno, sin SSH) → Tarea 15.
 
-**Placeholders intencionales (no son plan-failures):** `IP_PRIVADA_VPC`, `IP_PUBLICA_VPC`, `REEMPLAZAR_CON_API_KEY_PUBLICA`, `REEMPLAZAR_CON_CLAVE_HEX_*` — son valores que solo existen una vez se provisionan los droplets reales (IPs asignadas por DigitalOcean) y se generan las claves (Tarea 1, Step 2). Cada tarea que los usa indica explícitamente en qué paso posterior se rellenan (Tarea 15).
+**Placeholders intencionales (no son plan-failures):** `IP_PUBLICA_VPC`, `REEMPLAZAR_CON_API_KEY_PUBLICA`, `REEMPLAZAR_CON_CLAVE_HEX_*` — son valores que solo existen una vez se crea el droplet público real (IP asignada por DigitalOcean, Tarea 15) o se generan las claves (Tarea 1, Step 2). La IP privada del droplet privado **no** es placeholder — ya se confirmó real (`10.124.0.3`, `ip -4 addr show` sobre el droplet existente) y quedó hardcodeada directo en `haproxy.cfg`, `prometheus.yml` y `ufw_public.sh`.
+
+**Diagnóstico real aplicado al plan (no estaba en el spec, se descubrió corriendo comandos sobre el droplet real vía SSH):**
+- RAM: 1.9GB total, 241Mi libres con el stack de 4 contenedores actual — se descartó `cadvisor` (Tareas 6, 10, 11) para no arriesgar OOM al sumar 5 contenedores más.
+- UFW ya tenía `80/443 ALLOW Anywhere` de la instalación de un solo droplet — Tarea 13 ahora los borra explícito antes de aplicar las reglas nuevas (`ufw default deny` no revierte `allow` ya puesto).
+- VPC privada de DigitalOcean ya estaba activa (`eth1`, `10.124.0.3/16`, rango `10.124.0.0/20`) — se usó el valor real en vez de un esquema inventado.
