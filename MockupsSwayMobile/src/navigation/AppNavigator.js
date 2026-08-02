@@ -11,6 +11,7 @@ import SightingsScreen from '../screens/SightingsScreen';
 import EventsScreen from '../screens/EventsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
+import MisAsistenciasScreen from '../screens/MisAsistenciasScreen';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 
@@ -123,6 +124,7 @@ export default function AppNavigator() {
           <>
             <Stack.Screen name="MainTabs" component={MainTabs} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
+            <Stack.Screen name="MisAsistencias" component={MisAsistenciasScreen} />
           </>
         ) : (
           <>
