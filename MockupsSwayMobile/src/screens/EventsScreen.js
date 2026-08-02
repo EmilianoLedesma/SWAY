@@ -1,4 +1,5 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   StyleSheet,
   Text,
@@ -33,6 +34,21 @@ function todayLocalStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+function sortEventos(list) {
+  return [...list].sort((a, b) => {
+    if (a.status !== b.status) return a.status === 'UPCOMING' ? -1 : 1;
+    return a.status === 'UPCOMING'
+      ? a.date.localeCompare(b.date) // soonest first
+      : b.date.localeCompare(a.date); // most recent past first
+  });
+}
+
+// Module-level, not component state — survives screen remounts within the same
+// app session (resets on app reload). null = baseline not established yet, so
+// the very first fetch never celebrates (mirrors GamificationContext's badge
+// unlock detection, which also skips celebrating on its first computation).
+let seenEventIds = null;
 
 function mapEventoFromApi(e) {
   const fechaEvento = e.fecha_evento ? e.fecha_evento.slice(0, 10) : '';
@@ -78,7 +94,7 @@ function formatDate(dateStr) {
 
 export default function EventsScreen() {
   const insets = useSafeAreaInsets();
-  const { bumpStreak, incrementEventAttended } = useGamification();
+  const { bumpStreak, incrementEventAttended, celebrate } = useGamification();
   const { setIsLoggedIn } = useAuth();
   const [events, setEvents] = useState(eventsList);
   const [search, setSearch] = useState('');
@@ -94,21 +110,39 @@ export default function EventsScreen() {
   const [tiposEvento, setTiposEvento] = useState([]);
   const [modalidades, setModalidades] = useState([]);
 
-  useEffect(() => {
-    let active = true;
-    const fetchEvents = showMineOnly ? getEventosMine : getEventos;
-    fetchEvents().then((data) => {
-      if (!active) return;
-      if (data?.sessionExpired) {
-        setIsLoggedIn(false);
-        return;
-      }
-      setEvents(data?.eventos ? data.eventos.map(mapEventoFromApi) : []);
-    });
-    return () => {
-      active = false;
-    };
-  }, [showMineOnly]);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      const fetchEvents = showMineOnly ? getEventosMine : getEventos;
+      fetchEvents().then((data) => {
+        if (!active) return;
+        if (data?.sessionExpired) {
+          setIsLoggedIn(false);
+          return;
+        }
+        const mapped = sortEventos(data?.eventos ? data.eventos.map(mapEventoFromApi) : []);
+        setEvents(mapped);
+
+        const currentIds = new Set(mapped.map((e) => e.id));
+        if (seenEventIds === null) {
+          seenEventIds = currentIds;
+        } else {
+          const nuevos = mapped.filter((e) => e.status === 'UPCOMING' && !seenEventIds.has(e.id));
+          if (nuevos.length) {
+            celebrate({
+              icon: 'calendar',
+              title: 'Nuevo evento próximo',
+              message: nuevos[0].name,
+            });
+          }
+          seenEventIds = currentIds;
+        }
+      });
+      return () => {
+        active = false;
+      };
+    }, [showMineOnly, celebrate])
+  );
 
   useEffect(() => {
     let active = true;
@@ -221,7 +255,7 @@ export default function EventsScreen() {
     hapticSuccess();
     const refreshed = await (showMineOnly ? getEventosMine() : getEventos());
     if (refreshed?.eventos) {
-      setEvents(refreshed.eventos.map(mapEventoFromApi));
+      setEvents(sortEventos(refreshed.eventos.map(mapEventoFromApi)));
     }
     incrementEventAttended();
     bumpStreak();
@@ -269,7 +303,7 @@ export default function EventsScreen() {
             hapticWarning();
             const refreshed = await (showMineOnly ? getEventosMine() : getEventos());
             if (refreshed?.eventos) {
-              setEvents(refreshed.eventos.map(mapEventoFromApi));
+              setEvents(sortEventos(refreshed.eventos.map(mapEventoFromApi)));
             }
           },
         },
