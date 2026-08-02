@@ -369,3 +369,48 @@ Registrado tal cual lo reportó esa sesión (no verificado por esta sesión) —
 - **Lo que no funcionó:** FFmpeg/FFprobe faltaban en el entorno, bloqueando el render hasta instalar vía `winget install Gyan.FFmpeg` (el PATH no se propagó automático a la shell corriendo, necesitó export manual). El código literal del plan para `useTapTrigger.js` (mezclaba `export default` ESM con `module.exports.default` CommonJS) crasheaba bajo Node 24 — el implementador cambió a `require('react')` + `module.exports` puro, verificado por el reviewer como más seguro para el interop de Babel/Metro, no solo diferente.
 - **Sin verificar en dispositivo real** — ningún emulador disponible en el entorno de esa sesión. Solo verificado: test de lógica pura, archivo de video (ffprobe + frames), lectura estática del código. Falta el tap-through manual real (5 taps rápidos → video; 4 taps + espera 3s + 1 tap → no dispara).
 - Menú de `finishing-a-development-branch` presentado (merge local / PR / dejar como está) — sin respuesta del usuario todavía al cierre de esa sesión.
+
+---
+
+## Sesión 2026-08-01 (continuación) — Bugs reales de eventos, feed poblado, spec+plan de asistencia (RSVP) pendiente de ejecutar
+
+### A — Quitada la distinción verificado/pendiente en Avistamientos
+
+`status:'PENDING'` estaba hardcodeado en `mapAvistamientoFromApi`, nunca reflejaba nada real. El subtítulo del header comparaba contra `'VERIFIED'`, que nunca se seteaba — "0 verificados" siempre, bug real ya presente antes de esta sesión. Quitados: el campo `status`, el borde ámbar de "pendiente" en la tarjeta, el conteo roto. Subtítulo ahora muestra el total real como verificado (decisión explícita del usuario: "always assumes that is verified"). Commit `40df4b3`.
+
+### B — Bug real de zona horaria en fechas de evento, encontrado en vivo contra prod
+
+Usuario pidió crear un evento para "hoy" a las 19:10 hora de México para ver qué disparaba en la app. Antes de crear nada, se corrió la comparación real: `new Date('YYYY-MM-DD')` parsea como medianoche **UTC**, y en hora de México (UTC-6) pasadas las ~18:00 locales ya es "mañana" en UTC — cualquier evento de hoy se clasificaba como `PAST` y desaparecía de "próximos". Confirmado empíricamente creando un evento real en prod y replicando la lógica exacta de `EventsScreen.js`/`useNotifications.js` contra el timestamp real (`UTC now: 2026-08-02T01:05`, MX real `19:05` del 1/8). Corregido en los 2 lugares que hacían el mismo chequeo, comparación cambiada a string `'YYYY-MM-DD'` en zona horaria local del dispositivo. Commit `deabec7`.
+
+### C — Bug real en `crear_evento` (path anónimo), encontrado creando eventos de prueba
+
+Al crear varios eventos de prueba reusando el mismo email de `contacto`, el 2° request crasheaba con `500` — `crear_evento` insertaba un `Usuario` nuevo sin chequear si el email ya existía (a diferencia de `reportar_avistamiento`, que sí hace get-or-create). Reproducido y corregido localmente contra Postgres real antes de desplegar a prod. Commit `48a5bc9`.
+
+### D — Eventos en tiempo real + orden corregido + popup de evento nuevo
+
+- **Fetch convertido de `useEffect` (solo mount/toggle) a `useFocusEffect`** — se refresca cada vez que se vuelve a la pantalla, no solo al montar (mismo patrón que `useRecentActivity`).
+- **Orden corregido** — el backend ordena estrictamente por fecha ascendente, así que eventos 2025 (pasados) salían antes que los de 2026 (próximos). Ordenado client-side: upcoming primero (más cercano primero), pasados después (más reciente primero).
+- **Popup reusando el mecanismo de logros** — `celebrate()`/`CelebrationOverlay` (ya global, usado por badges) ahora también dispara cuando aparece un evento próximo nuevo desde el último focus. Tracking de ids vistos a nivel de módulo (no persistido, resetea con la app), con baseline en el primer fetch para no popear todo lo existente al abrir la app.
+- Commit `a391570`.
+
+### E — Tarjeta de evento completa abre el detalle
+
+Pedido del usuario: quitar el botón "Ver" y hacer que toda la tarjeta sea tocable para abrir el detalle. Card completo convertido a `TouchableOpacity`, botones "Compartir"/"Eliminar" siguen anidados independientes (comportamiento nativo de RN para touchables anidados). Commit `7340929`.
+
+### F — Prod poblado con eventos reales para pruebas
+
+Creados 5 eventos reales upcoming en prod (ids 9-13, fechas 3-14 agosto 2026), usando 4 cuentas de colaborador distintas registradas para simular interacción real (no todos "Equipo SWAY" anónimo) — pedido explícito del usuario ("Create eventos on different usuarios to simulate real interaction"). Verificado el bug C durante este proceso.
+
+### G — Spec + plan de asistencia a eventos (RSVP) — escritos, commiteados, **sin ejecutar**
+
+Ciclo `brainstorming` completo con varias preguntas de diseño resueltas explícitamente con el usuario:
+- Alcance: **RSVP únicamente** (intención de asistir), no confirmación de asistencia real post-evento. `asistio` queda `NULL` en cada fila que este feature crea.
+- **Capacidad (`capacidad_maxima`) se hace cumplir** — RSVP rechazado al llegar al cupo real.
+- Acción de RSVP vive en el modal de detalle ya existente; pantalla nueva es una lista personal de "a lo que voy a asistir".
+- **Nombre de la pantalla nueva: "Voy a asistir"** — deliberadamente NO "Mis Eventos", para no colisionar con el toggle "Míos" ya existente (que filtra eventos que organizaste, un concepto completamente distinto — el propio usuario detectó este riesgo de colisión antes de que se implementara nada).
+- **Los logros "Voluntario activo"/"Primer evento" vuelven a contar asistencia real** (antes de este feature estaban redefinidos a "eventos organizados" por no existir asistencia real — decisión explícita de revertir ahora que sí existe).
+
+**Spec:** `docs/superpowers/specs/2026-08-01-event-attendance-design.md` (commit `691b646`).
+**Plan:** `docs/superpowers/plans/2026-08-01-event-attendance.md` (commit `92357f6`) — 5 tasks: (1) backend, 3 endpoints nuevos sobre `RegistroEvento` (tabla que existía en el esquema sin usarse en ningún lado) + campo `registrados` en el listado existente, con tests pytest; (2) 3 funciones nuevas en `client.js`; (3) botón de asistencia en el modal de detalle de `EventsScreen.js` + conteo real de participantes + link a la pantalla nueva; (4) pantalla nueva `MisAsistenciasScreen.js` + registro en `AppNavigator.js`; (5) `GamificationContext.js` cambia la fuente de los badges de "organizados" a "asistencia real".
+
+**Estado: plan completo, commiteado, NO ejecutado.** Se presentó el menú subagent-driven-development vs inline execution — sesión cerrada antes de que el usuario eligiera.
