@@ -94,7 +94,7 @@ function formatDate(dateStr) {
 
 export default function EventsScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const { bumpStreak, incrementEventAttended, celebrate } = useGamification();
+  const { bumpStreak, setEventsAttended, celebrate } = useGamification();
   const { setIsLoggedIn } = useAuth();
   const [events, setEvents] = useState(eventsList);
   const [search, setSearch] = useState('');
@@ -117,7 +117,7 @@ export default function EventsScreen({ navigation }) {
       const fetchEvents = showMineOnly ? getEventosMine : getEventos;
       Promise.all([fetchEvents(), getMisEventosRegistrados()]).then(([data, misData]) => {
         if (!active) return;
-        if (data?.sessionExpired) {
+        if (data?.sessionExpired || misData?.sessionExpired) {
           setIsLoggedIn(false);
           return;
         }
@@ -330,18 +330,19 @@ export default function EventsScreen({ navigation }) {
       return;
     }
     hapticSuccess();
-    if (!isRegistered) {
-      incrementEventAttended();
-    }
     const [refreshed, misRegistradosData] = await Promise.all([
       showMineOnly ? getEventosMine() : getEventos(),
       getMisEventosRegistrados(),
     ]);
     if (refreshed?.eventos) {
-      setEvents(sortEventos(refreshed.eventos.map(mapEventoFromApi)));
+      const mapped = sortEventos(refreshed.eventos.map(mapEventoFromApi));
+      setEvents(mapped);
+      const updatedDetail = mapped.find((e) => e.id === detailEvent.id);
+      if (updatedDetail) setDetailEvent(updatedDetail);
     }
     if (misRegistradosData?.eventos) {
       setMisRegistros(new Set(misRegistradosData.eventos.map((e) => String(e.id))));
+      setEventsAttended(misRegistradosData.eventos.length);
     }
   };
 

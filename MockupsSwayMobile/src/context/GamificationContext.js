@@ -70,10 +70,11 @@ export function GamificationProvider({ children }) {
   const incrementSpecies = () =>
     setCounters((c) => ({ ...c, species: c.species + 1 }));
 
-  // Real RSVP feature now exists — this increments on a successful
-  // registrarAsistencia call (EventsScreen.js), not on organizing an event.
-  const incrementEventAttended = () =>
-    setCounters((c) => ({ ...c, eventsAttended: c.eventsAttended + 1 }));
+  // Real RSVP feature now exists — callers refetch getMisEventosRegistrados()
+  // after a successful registrarAsistencia/cancelarAsistencia and pass the
+  // real count here, so cancel decrements the counter correctly too.
+  const setEventsAttended = (n) =>
+    setCounters((c) => ({ ...c, eventsAttended: n }));
 
   const bumpStreak = () =>
     setStreakCount((s) => {
@@ -150,7 +151,7 @@ export function GamificationProvider({ children }) {
         dismissCelebration,
         incrementSightings,
         incrementSpecies,
-        incrementEventAttended,
+        setEventsAttended,
         setBiometricBadge,
         bumpStreak,
       }}

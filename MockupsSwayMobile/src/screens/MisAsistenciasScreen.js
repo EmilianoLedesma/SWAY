@@ -8,6 +8,7 @@ import { radii, shadows } from '../theme/spacing';
 import ScreenHeader from '../components/ScreenHeader';
 import { getMisEventosRegistrados, cancelarAsistencia } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useGamification } from '../context/GamificationContext';
 import { hapticError, hapticWarning } from '../utils/haptics';
 
 function todayLocalStr() {
@@ -35,6 +36,7 @@ function formatDate(dateStr) {
 
 export default function MisAsistenciasScreen() {
   const { setIsLoggedIn } = useAuth();
+  const { setEventsAttended } = useGamification();
   const [eventos, setEventos] = useState([]);
 
   useFocusEffect(
@@ -78,6 +80,7 @@ export default function MisAsistenciasScreen() {
             const refreshed = await getMisEventosRegistrados();
             if (refreshed?.eventos) {
               setEventos(refreshed.eventos.map(mapEvento));
+              setEventsAttended(refreshed.eventos.length);
             }
           },
         },
