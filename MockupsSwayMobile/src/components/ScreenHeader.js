@@ -41,7 +41,7 @@ export default function ScreenHeader({ title, subtitle, hideLogo, hideBell, show
           <Ionicons name="notifications-outline" size={22} color={colors.text2} />
         </TouchableOpacity>
       )}
-      <EasterEggVideo visible={eggVisible} onClose={() => setEggVisible(false)} />
+      {eggVisible && <EasterEggVideo visible onClose={() => setEggVisible(false)} />}
     </View>
   );
 }
