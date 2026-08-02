@@ -18,6 +18,7 @@ import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { hapticSuccess, hapticError, hapticWarning } from '../utils/haptics';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { radii, shadows } from '../theme/spacing';
@@ -209,9 +210,11 @@ export default function SightingsScreen() {
     });
     setSaving(false);
     if (!result.success) {
+      hapticError();
       Alert.alert('Error', result.message || 'No se pudo reportar el avistamiento.');
       return;
     }
+    hapticSuccess();
     let fotoSubida = false;
     if (sightingForm.fotoUri && result.id) {
       const fotoResult = await uploadAvistamientoFoto(result.id, sightingForm.fotoUri);
@@ -254,8 +257,10 @@ export default function SightingsScreen() {
           text: 'Eliminar',
           style: 'destructive',
           onPress: async () => {
+            hapticWarning();
             const result = await deleteAvistamiento(item.id);
             if (!result.success) {
+              hapticError();
               Alert.alert('Error', result.message || 'No se pudo eliminar el avistamiento.');
               return;
             }

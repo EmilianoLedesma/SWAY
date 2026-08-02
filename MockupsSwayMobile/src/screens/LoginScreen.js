@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { login as apiLogin, getProfile, hasStoredToken, isBiometricLoginEnabled, logout, registerColaborador, checkEmail, checkOrcid, checkCedula } from '../api/client';
 import { validateRegisterForm, formatOrcidInput } from '../utils/collaboratorValidation';
+import { hapticSuccess, hapticError } from '../utils/haptics';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { radii, shadows } from '../theme/spacing';
@@ -167,8 +168,10 @@ export default function LoginScreen({ onLogin, navigation }) {
       const result = await apiLogin(email, password);
       setLoading(false);
       if (result.success) {
+        hapticSuccess();
         if (onLogin) onLogin();
       } else {
+        hapticError();
         setError(result.message);
       }
       return;
@@ -186,6 +189,7 @@ export default function LoginScreen({ onLogin, navigation }) {
       (check) => check.exists && !check.can_register
     );
     if (duplicate) {
+      hapticError();
       notifyError(duplicate.message || 'Ya existe una solicitud con estos datos');
       setLoading(false);
       return;
@@ -207,10 +211,12 @@ export default function LoginScreen({ onLogin, navigation }) {
     });
 
     if (!registerResult.success) {
+      hapticError();
       notifyError(registerResult.message || 'No se pudo completar el registro');
       setLoading(false);
       return;
     }
+    hapticSuccess();
 
     const loginResult = await apiLogin(email, password);
     setLoading(false);
