@@ -176,6 +176,38 @@ async def crear_evento(
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
+@router.delete("/eventos/{evento_id}")
+async def eliminar_evento(
+    evento_id: int,
+    current_user: Optional[dict] = Depends(get_optional_organizador_user),
+    db: Session = Depends(get_db)
+):
+    # Sin chequeo de dueño: cualquier organizador/colaborador autenticado puede
+    # eliminar cualquier evento, mismo patrón que DELETE /api/avistamientos/{id}.
+    try:
+        if not current_user:
+            raise HTTPException(status_code=401, detail="Se requiere autenticación")
+
+        evento = db.query(Evento).filter(Evento.id == evento_id).first()
+        if not evento:
+            raise HTTPException(status_code=404, detail="Evento no encontrado")
+
+        estatus_cancelado = db.query(Estatus).filter(Estatus.nombre == "Cancelado").first()
+        if not estatus_cancelado:
+            raise HTTPException(status_code=500, detail="Estatus 'Cancelado' no configurado")
+
+        evento.id_estatus = estatus_cancelado.id
+        db.commit()
+
+        return {"success": True, "message": "Evento eliminado exitosamente"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error en eliminar_evento: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/tipos-evento")
 async def get_tipos_evento(db: Session = Depends(get_db)):
     try:

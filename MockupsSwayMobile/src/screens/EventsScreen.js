@@ -21,7 +21,7 @@ import ScreenHeader from '../components/ScreenHeader';
 import ShareCard from '../components/ShareCard';
 import DateField from '../components/DateField';
 import { eventsList } from '../data/events';
-import { getEventos, getEventosMine, getTiposEvento, getModalidades, crearEvento } from '../api/client';
+import { getEventos, getEventosMine, getTiposEvento, getModalidades, crearEvento, deleteEvento } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
 import { useAuth } from '../context/AuthContext';
 import { hapticSuccess, hapticError, hapticWarning } from '../utils/haptics';
@@ -246,9 +246,22 @@ export default function EventsScreen() {
         {
           text: 'Eliminar',
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
+            const result = await deleteEvento(item.id);
+            if (result?.sessionExpired) {
+              setIsLoggedIn(false);
+              return;
+            }
+            if (!result.success) {
+              hapticError();
+              Alert.alert('Error', result.message || 'No se pudo eliminar el evento.');
+              return;
+            }
             hapticWarning();
-            setEvents((prev) => prev.filter((e) => e.id !== item.id));
+            const refreshed = await (showMineOnly ? getEventosMine() : getEventos());
+            if (refreshed?.eventos) {
+              setEvents(refreshed.eventos.map(mapEventoFromApi));
+            }
           },
         },
       ],

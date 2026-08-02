@@ -356,6 +356,21 @@ export async function crearEvento(payload) {
   }
 }
 
+export async function deleteEvento(id) {
+  try {
+    const res = await apiFetch(`${API_HOST}/api/eventos/${id}`, {
+      method: 'DELETE',
+      headers: await authHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) return buildErrorResult(res, data, 'Error al eliminar el evento');
+    return data;
+  } catch (error) {
+    console.error('Error en deleteEvento:', error);
+    return { success: false, message: 'No se pudo conectar con el servidor' };
+  }
+}
+
 export async function getTiposEvento() {
   try {
     const res = await apiFetch(`${API_HOST}/api/tipos-evento`);
