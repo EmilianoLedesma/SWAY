@@ -295,4 +295,77 @@ Registrado tal cual lo reportó esa sesión (no verificado por esta sesión), do
 
 **Easter egg (worktree `sway-poo-easter-egg`, branch `easter-egg-version-tap`):** diseño acordado verbalmente (5 taps en el logo de `ScreenHeader.js` → modal fullscreen con `expo-video` reproduciendo `assets/easter-egg.mp4`, auto-close al terminar o al tap) pero **sin spec escrita** (el `Write` fue rechazado por el usuario a mitad del brainstorming) y **sin código**. Video se genera aparte (el usuario lo va a proveer), integración queda pendiente. Se investigó `nexu-io/open-design` como posible herramienta para generarlo — confirmado que no es instalable vía npm (paquete `open-design` no existe en el registro, un resumen de WebFetch alucinó ese comando), requiere clonar y compilar el monorepo completo (Node 24 + pnpm 10.33.x). Usuario canceló esa instalación explícitamente, va a proveer el mp4 por separado.
 
+---
+
+## Sesión 2026-08-01 (continuación) — Eliminar evento real, prueba local sistemática, Logros/Actividad reciente wireados a datos reales
+
+### A — `DELETE /api/eventos/{id}` conectado a la API real
+
+Encontrado el mismo patrón de gap que ya se había arreglado antes para avistamientos: `handleDelete` en `EventsScreen.js` solo mutaba estado local (`setEvents(prev => prev.filter(...))`), sin llamada al backend, y el backend **no tenía endpoint de borrado en absoluto** (confirmado en vivo contra prod: `DELETE /api/eventos/1` → `404`).
+
+- **Soft delete, no hard delete** — decisión tomada al ver que `RegistroEvento` referencia `eventos.id` por FK. Un hard delete hubiera arriesgado violar esa constraint si algún evento tuviera registros (la tabla existe en el esquema aunque nada la usa activamente todavía). En vez de eso, `eliminar_evento` mueve `id_estatus` al id de `"Cancelado"` (ya existe en el catálogo `Estatus` sembrado, junto a Activo/Inactivo/Pendiente/Completado) — mismo patrón de ciclo de vida que ya usa `crear_evento` (arranca en `id_estatus=1` "Activo") y que ya filtra `get_eventos` (`WHERE Estatus.nombre == "Activo"`).
+- Sin chequeo de dueño — mismo patrón ya establecido (y documentado como intencional) en `DELETE /api/avistamientos/{id}`.
+- `deleteEvento(id)` agregado a `client.js`, wireado en `EventsScreen.js` con refresco de lista respetando el toggle Míos, igual que el patrón ya usado para avistamientos.
+- Commit `03f39c6`.
+
+### B — Metodología de prueba local, sin necesidad de droplet, establecida y usada para 2 features
+
+A pedido del usuario ("¿hay forma de probar local antes de deploy?"), se confirmó y demostró que `docker-compose.yml` (marcado como "solo archivo de referencia" en su propio comentario) sirve perfectamente para correr Postgres local — ya estaba corriendo de una sesión anterior (`sway_postgres`, puerto `5433`). Patrón usado dos veces esta sesión:
+1. Levantar `uvicorn app.main:app` apuntando a `postgresql+psycopg://sway_app:sway123@localhost:5433/sway` (sin Docker para la API, solo para Postgres).
+2. Registrar una cuenta de prueba real vía `/api/colaboradores/register` (con el payload en archivo temporal, nunca inline, por el problema conocido de `ñ` en Git Bash).
+3. Ejercer el flujo real completo (crear evento/avistamiento, subir foto, borrar, verificar respuesta y estado en DB vía `psql`).
+4. Revertir todo — borrar filas de prueba, revertir columnas/estatus tocados, matar el proceso `uvicorn` (con PowerShell `Get-NetTCPConnection`/`Stop-Process`, ya que `pkill` no existe en Git Bash de Windows).
+
+Usado para validar **eliminar evento** (soft delete real, verificado con `psql` que la fila sobrevive con estatus Cancelado) y **foto de avistamiento** (columna `foto_url` aplicada localmente, upload real de un JPEG válido vía multipart, servido de vuelta sin `x-api-key`, rechazo de content-type/tamaño/auth verificados con códigos reales 400/401/413).
+
+### C — Despliegue real a producción de ambas features (foto + delete de eventos)
+
+Pedido explícito del usuario para poder probar desde su propio Expo Go. Pasos reales ejecutados (no simulados):
+1. `git push origin master` (local estaba 15 commits adelante de `origin`, incluía también la rama `haptics-key-actions` que el propio usuario había mergeado).
+2. SSH al droplet privado (`165.232.146.240`, repo en `/root/sway`), `git pull`.
+3. Migración manual `ALTER TABLE avistamientos ADD COLUMN foto_url TEXT;` contra `sway_postgres` en el droplet.
+4. `docker compose -f docker-compose.private.yml up -d --build api1 api2` — rebuild real, confirmado con `docker inspect` que ambos contenedores comparten el mismo volumen nombrado `sway_uploads_data` montado en `/app/uploads` (el fix de split-brain es real en prod, no solo en el archivo compose).
+5. Verificado en vivo vía HAProxy/dominio real: ambos endpoints nuevos responden `401` (existen, no `404`), `foto_url` aparece en el listado real de avistamientos.
+
+### D — Verificación en vivo del toggle "Míos" de Eventos (pregunta directa del usuario, no solo lectura de código)
+
+Registrada cuenta de prueba real contra prod, confirmado `mine=true` devuelve `0` eventos antes de crear ninguno, exactamente `1` (el recién creado) después, y la lista global sin filtrar sube de 4 a 5 — aislamiento real por `Organizador.id_usuario`, no solo un filtro de fachada. Limpieza completa después (evento borrado con el propio endpoint nuevo de delete, cuenta de prueba eliminada de la DB de prod vía SSH).
+
+### E — Aclarado qué NO hace nada en el app (2 preguntas directas del usuario)
+
+- **Crear un evento para "hoy"** no dispara ninguna alerta — `NotificationsScreen.js` es 100% mock hardcodeado, sin `useEffect` ni fetch real, desconectado de cualquier evento/avistamiento real. Lo único real que reacciona a fechas es `mapEventoFromApi` en `EventsScreen.js`, y solo compara la fecha (no la hora), así que un evento más tarde el mismo día sigue mostrando `UPCOMING` todo el día.
+- **El toggle "Eventos" bajo "Preferencias de notificaciones" en Perfil** es decoración pura — `notifPrefs` es `useState` local en `ProfileScreen.js`, nunca persistido (ni AsyncStorage ni backend), y nunca leído en ningún otro lugar del código (`NotificationsScreen.js` no lo consulta). Se resetea a los valores por defecto en cada carga de la app. Mismo patrón de toggle-muerto ya visto antes en la app.
+
+### F — Logros (badges) y Actividad reciente wireados a datos reales
+
+Confirmado por lectura de código que ambos eran mock:
+- **"Actividad reciente" en Perfil** (`ProfileScreen.js`) era una constante a nivel de módulo derivada de `sightingsList`/`eventsList` (mocks), calculada una sola vez al cargar el archivo — nunca reflejaba datos reales, a diferencia de la versión de Home (wireada en sesión 2026-07-30).
+- **"Logros"** (`GamificationContext.js`) se sembraban desde los mismos archivos mock y solo se incrementaban en memoria por acciones locales de la sesión — nunca perdurable, nunca reflejaba conteos reales.
+
+Trabajo hecho:
+- Extraída la lógica de fetch de Home (avistamientos + eventos combinados, ordenados, top N) a un hook compartido nuevo `src/hooks/useRecentActivity.js`, reusado por Home y Perfil (pedido explícito del usuario, "usa ponytail para reusar").
+- `GamificationContext` reescrito para sembrar contadores reales vía `getAvistamientosMine`, `getEventosMine`, `getEspecies`.
+- **Dos logros no tenían equivalente real honesto en el backend** — "Guardián del océano" dependía de un estado "verificado" que no existe en la tabla `avistamientos` (columna no existe, `mapAvistamientoFromApi` siempre pone `status:'PENDING'`), y "Voluntario activo" dependía de asistencia/RSVP a eventos, feature que no existe en ningún lado de la app pese a que la tabla `RegistroEvento` existe en el esquema (nunca se escribe en ella). Redefinidos en vez de dejarlos permanentemente inalcanzables: "Guardián del océano" ahora cuenta el total real de avistamientos reportados, "Voluntario activo" cuenta eventos organizados por el usuario (`getEventosMine`).
+- **Agregados 4 logros nuevos, rápidos de lograr, wireados a funciones ya existentes del proyecto** (sin backend nuevo): "Colaborador aprobado" (`getProfile().colaborador.estado_solicitud`), "Seguridad activada" (`isBiometricLoginEnabled()`, con actualización en vivo al togglear biometría sin necesitar relogin), "Primera foto" y "Primer evento" (mismos contadores reales, umbral 1).
+- **Bug real encontrado antes de desplegar, no después:** `GamificationProvider` envolvía a `AuthProvider` en `App.js`, montado una sola vez para toda la vida de la app, antes del login. Un `useEffect(..., [])` hubiera corrido sin token, fallado con 401, y nunca vuelto a intentar tras loguearse — logros/puntos congelados en cero toda la sesión real. Corregido invirtiendo el anidado de providers (`AuthProvider` ahora envuelve a `GamificationProvider`) y hacendo el fetch dependiente de `isLoggedIn`, reseteando a cero en logout.
+- **Fix de texto cortándose a nivel de carácter en las tarjetas de Logros** (reportado con captura por el usuario: "Colecc/ionista/de esp/ecies") — layout de una sola fila (ícono + label + progreso apretados) dejaba muy poco ancho para el label. Reestructurado a ícono+progreso arriba, label completo abajo con `numberOfLines={2}`.
+- Commit `08db172`.
+
 **Haptics (worktree `sway-poo-haptics`, branch `haptics-key-actions`):** `expo-haptics` instalado, `src/utils/haptics.js` nuevo (3 helpers: success/error/warning) wireado en 6 pantallas (Sightings, Events, Login, Profile, Catalog — submits/errores/confirmaciones destructivas). Alcance decidido explícitamente con el usuario: **no** en validación de campo (~25 alerts de "datos incompletos" quedan sin tocar, para no generar ruido). Cambios completos pero **sin commitear** — pendiente probar en dispositivo/Expo Go real antes de commitear (nunca se llegó a verificar en runtime). Un proceso Metro quedó zombie en el puerto 8081 (arrancado sin `run_in_background: true`) — pendiente matarlo antes de poder levantar el dev server correctamente contra ese worktree. El usuario dijo que va a mergear él mismo una vez esté conforme con la prueba en dispositivo.
+
+**Actualización — haptics ya mergeado.** Confirmado en esta sesión (`git log` en `master`): el usuario probó y mergeó `haptics-key-actions` él mismo (`198e5a1`), como había dicho que haría. `expo-haptics` apareció en `package.json` de `master` sin `node_modules` actualizado localmente en este checkout — causó `CommandError` al correr `npx expo start` (mencionado como pendiente en la sección anterior). Resuelto con `npm install` simple en `MockupsSwayMobile/`.
+
+---
+
+## Sesión 2026-08-01 (continuación) — Easter egg de versión: video real generado e implementado (trabajo en paralelo, otra sesión concurrente)
+
+Registrado tal cual lo reportó esa sesión (no verificado por esta sesión) — continuación directa del easter egg mencionado arriba como "sin spec, sin código". Esta vez sí se completó: ciclo `writing-plans` → `subagent-driven-development` (3 tasks + review final de rama), en el worktree `sway-poo-easter-egg` (branch `easter-egg-version-tap`), **sin mergear a master** (pedido explícito del usuario).
+
+- **Video generado con el toolchain real de HyperFrames** (`npx hyperframes --version` → `0.7.88`, ya instalado) — no el `open-design` fake investigado y descartado en la sesión anterior. Skill `motion-graphics` instalada vía `npx hyperframes skills update` (marcó un Snyk Critical Risk, investigado: vive en 2 archivos de categoría "maps" que la composición de logo nunca toca, sin exposición real).
+- `MockupsSwayMobile/assets/easter-egg.mp4` generado y verificado independientemente por el reviewer (no solo reportado) — `ffprobe` propio confirmó 1080x1920 portrait, 3.0s, sin audio; frames extraídos confirmaron paleta on-brand. Commit `dc45562`.
+- `EasterEggVideo.js` (componente `expo-video`, fullscreen) y `useTapTrigger.js` (hook de lógica pura, TDD real con test `node assert`) — wireados en `ScreenHeader.js` sin romper sus 3 branches existentes (`showBack`/`hideLogo`/normal). Commits `ea49ce0`, `d9e2ea6`.
+- **Bug real encontrado por el review final de rama completa (opus), no por los reviews por tarea:** `EasterEggVideo` se montaba sin condición en `ScreenHeader.js` — hasta 6 reproductores de video nativos vivos en memoria simultáneamente (uno por tab del bottom-nav), incluso en pantallas `hideLogo` que nunca pueden disparar el easter egg. Causa raíz real: `useVideoPlayer` crea el player nativo al montar el componente, no al volverse visible. Fix de una línea (montaje condicional `{eggVisible && <EasterEggVideo .../>}`), cierra gratis también un Minor diferido de Task 2. Commit `61dfcff`.
+- **Gap de `app.json` encontrado y corregido:** `npx expo install expo-video` (Task 2) había modificado `app.json` (config de plugin) pero el commit de Task 2 nunca lo incluyó — detectado por el reviewer de Task 3 como observación fuera de su alcance, commiteado directo por el controller (`dfae27d`) al ser output mecánico de una herramienta, no una decisión de código.
+- **Lo que no funcionó:** FFmpeg/FFprobe faltaban en el entorno, bloqueando el render hasta instalar vía `winget install Gyan.FFmpeg` (el PATH no se propagó automático a la shell corriendo, necesitó export manual). El código literal del plan para `useTapTrigger.js` (mezclaba `export default` ESM con `module.exports.default` CommonJS) crasheaba bajo Node 24 — el implementador cambió a `require('react')` + `module.exports` puro, verificado por el reviewer como más seguro para el interop de Babel/Metro, no solo diferente.
+- **Sin verificar en dispositivo real** — ningún emulador disponible en el entorno de esa sesión. Solo verificado: test de lógica pura, archivo de video (ffprobe + frames), lectura estática del código. Falta el tap-through manual real (5 taps rápidos → video; 4 taps + espera 3s + 1 tap → no dispara).
+- Menú de `finishing-a-development-branch` presentado (merge local / PR / dejar como está) — sin respuesta del usuario todavía al cierre de esa sesión.
