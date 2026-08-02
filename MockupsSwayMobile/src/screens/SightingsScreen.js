@@ -44,7 +44,6 @@ function mapAvistamientoFromApi(a) {
     reporter: a.reportado_por || a.email_usuario,
     date: a.fecha ? a.fecha.slice(0, 10) : '',
     location: a.latitud != null && a.longitud != null ? `${a.latitud}, ${a.longitud}` : 'Sin coordenadas',
-    status: 'PENDING',
     notes: a.notas || '',
     hasPhoto: !!a.foto_url,
     photoUrl: a.foto_url ? `${API_HOST}${a.foto_url}` : null,
@@ -275,17 +274,10 @@ export default function SightingsScreen() {
   };
 
   const renderTimelineItem = (item) => {
-    const isPending = item.status === 'PENDING';
-
     return (
       <View key={item.id} style={styles.timelineItem}>
         <View style={[styles.timelineDot, { backgroundColor: colors.ocean }]} />
-        <View
-          style={[
-            styles.timelineCard,
-            isPending && { borderColor: colors.amber, borderWidth: 1.5 },
-          ]}
-        >
+        <View style={styles.timelineCard}>
           <View style={styles.cardHeader}>
             <View style={styles.cardHeaderLeft}>
               <View style={styles.cardIcon}>
@@ -373,7 +365,7 @@ export default function SightingsScreen() {
       >
         <ScreenHeader
           title="Avistamientos"
-          subtitle={`${sightings.length} registros • ${sightings.filter(s => s.status === 'VERIFIED').length} verificados`}
+          subtitle={`${sightings.length} avistamientos verificados`}
           hideLogo
         />
 
