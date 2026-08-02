@@ -433,3 +433,39 @@ Ciclo `subagent-driven-development` iniciado sobre el plan de arriba, en worktre
 El subagente reviewer de la Task 1 tardó ~7 minutos en relayar su reporte completo por el mailbox de teammates, mostrando solo `idle_notification` mientras tanto. El controlador, sin ver contenido tras 3 intentos de pedirlo, asumió que el relay estaba roto y revisó el diff por su cuenta (dando por buena la Task 1 sin el hallazgo Activo). El reporte real llegó minutos después, ya con la sesión "cerrada" — se reabrió Task 1, se aplicó el fix, se re-verificó. **Lección para la próxima vez:** esperar más tiempo antes de asumir que un reviewer subagente falló — en este caso el reviewer sí encontró algo real que la revisión apresurada del controlador se había perdido.
 
 **Estado al cierre:** Task 1 completa (`9ad6bcb..55d7430`, 1 Important corregido, 2 Minor diferidos). Tasks 2 (client.js), 3 (EventsScreen.js), 4 (MisAsistenciasScreen.js + nav), 5 (GamificationContext.js) del mismo plan, sin empezar. Ledger de la ejecución en `.superpowers/sdd/2026-08-01-event-attendance/progress.md` dentro del worktree — próxima sesión debe resumir ahí, no re-despachar Task 1.
+
+---
+
+## Sesión 2026-08-02 — Asistencia/RSVP: Tasks 2-5 completadas, merge, deploy real, datos de prueba
+
+Continuación directa de la sesión anterior sobre el mismo worktree (`.claude/worktrees/event-attendance`). Confirmado que Task 1 seguía completa (ledger + `git log` verificados) antes de continuar — sin re-despachar nada ya hecho.
+
+### Tasks 2-5 — `subagent-driven-development`, todas transcripción casi verbatim del plan
+
+- **Task 2** (haiku): 3 funciones nuevas en `client.js` (`registrarAsistencia`, `cancelarAsistencia`, `getMisEventosRegistrados`), mismo patrón de error que `deleteEvento`. Commit `1c7c61e`. Review limpio.
+- **Task 3** (sonnet, por tener más juicio de integración): botón de asistencia en el modal de detalle de `EventsScreen.js`, conteo real de participantes (`registrados` de Task 1), `useFocusEffect` combinado con `getMisEventosRegistrados`, link nuevo a "Voy a asistir". Commit `6fbbdcc`. Review limpio.
+- **Task 4** (haiku): pantalla nueva `MisAsistenciasScreen.js` + registro en `AppNavigator.js` con el nombre de ruta exacto `'MisAsistencias'` (verificado carácter por carácter contra el link de Task 3, un typo aquí falla en silencio). Commit `b63af98`. Review limpio.
+- **Task 5** (haiku): `GamificationContext.js` cambia `eventsOrganized` → `eventsAttended` en 5 puntos del plan + 1 línea extra no listada en el brief (`points = ... + counters.eventsOrganized * 15` también necesitaba el rename, o el cálculo de puntos hubiera dado `NaN`). Reviewer lo flageó explícitamente para que el controlador adjudicara — aprobado como corrección necesaria, no scope creep. Commit `0e32f09`.
+
+### Review final de rama completa (opus) — 2 Important reales de integración cruzada, ninguno visible por task individual
+
+1. **`eventsAttended` solo subía, nunca bajaba al cancelar una asistencia** — el modelo de contador (incrementos ciegos, heredado de cuando "asistencia" era un proxy irreversible de "eventos organizados") nunca contempló que Task 5 introdujo una acción reversible (cancelar RSVP). Corregido reemplazando el incremento ciego por un setter (`setEventsAttended(n)`) alimentado por el conteo real del refetch, en los 2 call-sites (toggle en `EventsScreen.js`, cancelar en `MisAsistenciasScreen.js`) — la función vieja `incrementEventAttended` se eliminó por quedar sin usos.
+2. **El modal de detalle de evento mostraba el conteo de participantes desactualizado** justo después de tocar "Asistiré" — `handleToggleAsistencia` refrescaba la lista de eventos pero nunca re-apuntaba el snapshot `detailEvent` al dato fresco. Corregido re-buscando el evento actualizado por id y llamando `setDetailEvent(...)`.
+3. **(Minor, plegado al mismo fix)** el chequeo de `sessionExpired` del `Promise.all` combinado solo miraba el primer fetch, no el segundo (`getMisEventosRegistrados`) — una sesión expirada borraba el token silenciosamente sin disparar logout. Una línea más en el mismo fix.
+
+Fix wave único (sonnet) + re-review acotado (sonnet): los 3 hallazgos verificados `ADDRESSED`, sin regresiones nuevas. Commit `33be680`.
+
+**Hallazgos Minor diferidos al ledger** (no bloquean, decisión explícita de no arreglarlos ahora): `GET /api/eventos/mis-registros` sigue sin filtrar por `Activo` y ahora alimenta también los logros y la pantalla nueva (mayor alcance que cuando se diferido en Task 1, queda como decisión de producto pendiente); código muerto (`status`/`todayLocalStr`) en `MisAsistenciasScreen.js` transcrito tal cual venía en el plan; tests sin aserción explícita de `asistio IS NULL` ni cobertura de `capacidad_maxima=NULL`; bug preexistente de "0/0 completo" en eventos sin cupo máximo (no introducido por este feature, solo señalado); condición de carrera TOCTOU y `datetime.utcnow()` deprecado (ya diferidos desde Task 1).
+
+### Merge, deploy y verificación en vivo
+
+- Suite completa corrida en el worktree antes de mergear: **19/19 tests pasan** (excluyendo 2 archivos de test rotos preexistentes en `master`, confirmado que ya fallaban antes de este feature — `test_home.py`/`test_integration_create_especie.py`, `ImportError` al importar `app` desde `app`, sin relación a este trabajo).
+- Merge fast-forward a `master` (`9ad6bcb..33be680`), re-verificado con la suite completa contra el merge real (**20/20 pass**), worktree y rama `worktree-event-attendance` eliminados.
+- `git push origin master`, SSH al droplet privado, `git pull`, `docker compose -f docker-compose.private.yml up -d --build api1 api2` — rebuild real, contenedores recreados.
+- Verificado en vivo contra `https://proyecto-sway.site` (con `x-api-key`, la clave global sigue siendo obligatoria): `GET /api/eventos` devuelve `registrados` real, `POST`/`GET /api/eventos/{id}/registrar` y `GET /api/eventos/mis-registros` responden `401` sin token de usuario (existen, no `404`) — confirmando que el despliegue realmente corre el código nuevo.
+
+### Datos de prueba: conteo real de asistencia poblado para los 11 eventos de prod
+
+A pedido del usuario ("ninguno debe quedar en 0"), se sembraron filas reales en `registrosevento` para los 6 eventos que tenían `registrados=0` (ids 5, 6, 9, 11, 12, 13), usando cuentas de colaborador reales ya existentes en prod (excluidas explícitamente las cuentas de prueba obvias `ProdTest`/`SuiteTest`/`Pentest`, y excluido en cada caso el propio organizador del evento para no auto-registrarse). 20 filas insertadas vía SQL directo (archivo temporal + `scp` + `psql -f`, mismo patrón ya establecido para evitar el problema de escape de shell anidado). Verificado después: los 11 eventos de prod muestran `registrados` entre 1 y 4, ninguno en 0, todos muy por debajo de su `capacidad_maxima`.
+
+**Estado del feature:** completo, mergeado, desplegado, verificado en vivo, con datos de demostración poblados. Sin pendientes abiertos de esta sesión salvo los Minor diferidos ya listados arriba.
