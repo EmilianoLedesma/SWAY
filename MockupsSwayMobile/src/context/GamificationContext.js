@@ -1,39 +1,80 @@
 import { createContext, useContext, useState, useMemo, useEffect, useRef } from 'react';
-import { sightingsList } from '../data/sightings';
-import { speciesList } from '../data/species';
-import { eventsList } from '../data/events';
+import { getAvistamientosMine, getEventosMine, getEspecies, getProfile, isBiometricLoginEnabled } from '../api/client';
+import { useAuth } from './AuthContext';
 
 const LEVEL_THRESHOLDS = [0, 50, 150, 300];
 
 const GamificationContext = createContext(null);
 
 const seed = {
-  verifiedSightings: sightingsList.filter((s) => s.status === 'VERIFIED').length,
-  pendingSightings: sightingsList.filter((s) => s.status === 'PENDING').length,
-  photoSightings: sightingsList.filter((s) => s.hasPhoto).length,
-  species: speciesList.length,
-  eventsAttended: eventsList.filter((e) => e.status === 'PAST').length,
+  sightings: 0,
+  photoSightings: 0,
+  species: 0,
+  eventsOrganized: 0,
+  approved: false,
+  biometricEnabled: false,
 };
 
 export function GamificationProvider({ children }) {
+  const { isLoggedIn } = useAuth();
   const [counters, setCounters] = useState(seed);
   const [streakCount, setStreakCount] = useState(1);
   const [bestStreak, setBestStreak] = useState(1);
   const [celebration, setCelebration] = useState(null);
 
-  const incrementSightings = (verified, hasPhoto = false) =>
+  // Provider sits above the login screen, so the real counts can only be
+  // fetched once a session exists — refetch whenever isLoggedIn flips true,
+  // and drop back to zero on logout instead of showing the previous user's data.
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setCounters(seed);
+      return;
+    }
+    let active = true;
+    Promise.all([
+      getAvistamientosMine(),
+      getEventosMine(),
+      getEspecies(),
+      getProfile(),
+      isBiometricLoginEnabled(),
+    ]).then(([avistamientosData, eventosData, especiesData, profileData, biometricEnabled]) => {
+      if (!active) return;
+      const avistamientos = avistamientosData?.success ? avistamientosData.avistamientos || [] : [];
+      setCounters({
+        sightings: avistamientos.length,
+        photoSightings: avistamientos.filter((a) => a.foto_url).length,
+        species: especiesData?.success ? (especiesData.especies || []).length : 0,
+        eventsOrganized: eventosData?.success ? (eventosData.eventos || []).length : 0,
+        approved: profileData?.colaborador?.estado_solicitud === 'aprobada',
+        biometricEnabled: !!biometricEnabled,
+      });
+    });
+    return () => {
+      active = false;
+    };
+  }, [isLoggedIn]);
+
+  // verified/pending sighting status doesn't exist in the backend — every real
+  // sighting counts toward "sightings" once. hasPhoto reflects the real
+  // foto_url from the upload endpoint, not an attempt.
+  const incrementSightings = (_verified, hasPhoto = false) =>
     setCounters((c) => ({
       ...c,
-      verifiedSightings: c.verifiedSightings + (verified ? 1 : 0),
-      pendingSightings: c.pendingSightings + (verified ? 0 : 1),
+      sightings: c.sightings + 1,
       photoSightings: c.photoSightings + (hasPhoto ? 1 : 0),
     }));
+
+  const setBiometricBadge = (enabled) =>
+    setCounters((c) => ({ ...c, biometricEnabled: enabled }));
 
   const incrementSpecies = () =>
     setCounters((c) => ({ ...c, species: c.species + 1 }));
 
+  // no attendance/RSVP feature exists anywhere in the app — "eventsAttended"
+  // is redefined as events the user organized (the only real per-user event
+  // count available), bumped after a successful crearEvento.
   const incrementEventAttended = () =>
-    setCounters((c) => ({ ...c, eventsAttended: c.eventsAttended + 1 }));
+    setCounters((c) => ({ ...c, eventsOrganized: c.eventsOrganized + 1 }));
 
   const bumpStreak = () =>
     setStreakCount((s) => {
@@ -42,13 +83,12 @@ export function GamificationProvider({ children }) {
       return next;
     });
 
-  const totalSightings = counters.verifiedSightings + counters.pendingSightings;
+  const totalSightings = counters.sightings;
 
   const points =
-    counters.verifiedSightings * 15 +
-    counters.pendingSightings * 5 +
+    counters.sightings * 10 +
     counters.species * 5 +
-    counters.eventsAttended * 15;
+    counters.eventsOrganized * 15;
 
   const level = LEVEL_THRESHOLDS.filter((t) => points >= t).length;
   const levelFloor = LEVEL_THRESHOLDS[level - 1];
@@ -60,11 +100,15 @@ export function GamificationProvider({ children }) {
   const badges = useMemo(
     () =>
       [
+        { label: 'Colaborador aprobado', icon: 'checkmark-circle-outline', current: counters.approved ? 1 : 0, goal: 1 },
+        { label: 'Seguridad activada', icon: 'finger-print-outline', current: counters.biometricEnabled ? 1 : 0, goal: 1 },
         { label: 'Explorador inicial', icon: 'compass-outline', current: totalSightings, goal: 1 },
-        { label: 'Guardián del océano', icon: 'water-outline', current: counters.verifiedSightings, goal: 5 },
+        { label: 'Primera foto', icon: 'image-outline', current: counters.photoSightings, goal: 1 },
+        { label: 'Primer evento', icon: 'megaphone-outline', current: counters.eventsOrganized, goal: 1 },
+        { label: 'Guardián del océano', icon: 'water-outline', current: totalSightings, goal: 5 },
         { label: 'Coleccionista de especies', icon: 'flower-outline', current: counters.species, goal: 20 },
         { label: 'Fotógrafo marino', icon: 'camera-outline', current: counters.photoSightings, goal: 8 },
-        { label: 'Voluntario activo', icon: 'people-outline', current: counters.eventsAttended, goal: 3 },
+        { label: 'Voluntario activo', icon: 'people-outline', current: counters.eventsOrganized, goal: 3 },
       ].map((b) => ({ ...b, unlocked: b.current >= b.goal })),
     [totalSightings, counters]
   );
@@ -108,6 +152,7 @@ export function GamificationProvider({ children }) {
         incrementSightings,
         incrementSpecies,
         incrementEventAttended,
+        setBiometricBadge,
         bumpStreak,
       }}
     >

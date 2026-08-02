@@ -32,8 +32,7 @@ import {
   validateOrcid,
   validateMotivacion,
 } from '../utils/collaboratorValidation';
-import { sightingsList } from '../data/sightings';
-import { eventsList } from '../data/events';
+import useRecentActivity from '../hooks/useRecentActivity';
 import {
   getProfile,
   logout,
@@ -87,8 +86,6 @@ const ESTADO_SOLICITUD_CFG = {
   rechazada: { label: 'Rechazada', color: colors.red, bg: colors.redBg },
 };
 
-const pastEvents = eventsList.filter((e) => e.status === 'PAST');
-
 const daysAgo = (date) =>
   Math.max(0, Math.round((Date.now() - new Date(date).getTime()) / 86400000));
 
@@ -100,19 +97,6 @@ const relativeDate = (date) => {
   return `hace ${w} ${w === 1 ? 'semana' : 'semanas'}`;
 };
 
-const recentActivity = [
-  ...sightingsList
-    .slice()
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 3)
-    .map((s) => ({ text: `Avistamiento de ${s.species} en ${s.location}`, date: s.date })),
-  ...pastEvents
-    .slice()
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 1)
-    .map((e) => ({ text: `Asistió a ${e.name}`, date: e.date })),
-].sort((a, b) => b.date.localeCompare(a.date));
-
 export default function ProfileScreen() {
   const { setIsLoggedIn } = useAuth();
   const {
@@ -123,7 +107,9 @@ export default function ProfileScreen() {
     badges,
     streakCount,
     bestStreak,
+    setBiometricBadge,
   } = useGamification();
+  const recentActivity = useRecentActivity(5);
   const [activeTab, setActiveTab] = useState('personal');
   const [editingPersonal, setEditingPersonal] = useState(false);
   const [editingProfesional, setEditingProfesional] = useState(false);
@@ -209,6 +195,7 @@ export default function ProfileScreen() {
       }
       await setBiometricLoginEnabled(value);
       setBiometricEnabled(value);
+      setBiometricBadge(value);
     } catch (e) {
       Alert.alert('Error', 'No se pudo actualizar la preferencia de biometría.');
     }
@@ -1197,24 +1184,27 @@ export default function ProfileScreen() {
                   key={b.label}
                   style={[styles.badgeCard, !b.unlocked && styles.badgeLocked]}
                 >
-                  <Ionicons
-                    name={b.icon}
-                    size={22}
-                    color={b.unlocked ? colors.blue : colors.text3}
-                  />
+                  <View style={styles.badgeCardTop}>
+                    <Ionicons
+                      name={b.icon}
+                      size={22}
+                      color={b.unlocked ? colors.blue : colors.text3}
+                    />
+                    {!b.unlocked && (
+                      <Text style={styles.badgeProgress}>
+                        {b.current}/{b.goal}
+                      </Text>
+                    )}
+                  </View>
                   <Text
                     style={[
                       styles.badgeLabel,
                       !b.unlocked && { color: colors.text3 },
                     ]}
+                    numberOfLines={2}
                   >
                     {b.label}
                   </Text>
-                  {!b.unlocked && (
-                    <Text style={styles.badgeProgress}>
-                      {b.current}/{b.goal}
-                    </Text>
-                  )}
                 </View>
               ))}
             </View>
@@ -1223,7 +1213,7 @@ export default function ProfileScreen() {
               Actividad reciente
             </Text>
             {recentActivity.map((act) => (
-              <View key={act.text} style={styles.activityRow}>
+              <View key={act.key} style={styles.activityRow}>
                 <View style={styles.activityDot} />
                 <View style={styles.activityContent}>
                   <Text style={styles.activityText}>{act.text}</Text>
@@ -1746,9 +1736,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     borderRadius: radii.r12,
     padding: 14,
-    alignItems: 'center',
-    gap: 6,
+    gap: 8,
+  },
+  badgeCardTop: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   badgeLocked: {
     opacity: 0.5,
@@ -1758,7 +1751,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: typography.weight.medium,
     color: colors.text,
-    flex: 1,
   },
   activityRow: {
     flexDirection: 'row',

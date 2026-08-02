@@ -1,15 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { radii, shadows } from '../theme/spacing';
 import ScreenHeader from '../components/ScreenHeader';
 import { useGamification } from '../context/GamificationContext';
 import useBreathe from '../hooks/useBreathe';
+import useRecentActivity from '../hooks/useRecentActivity';
 import { eventsList } from '../data/events';
-import { getProfile, getAvistamientosMine, getEventos } from '../api/client';
+import { getProfile } from '../api/client';
 
 const nextEvent = eventsList
   .filter((e) => e.status === 'UPCOMING')
@@ -29,7 +29,7 @@ export default function HomeScreen({ navigation }) {
   const pressScales = useRef({}).current;
   const entryAnims = useRef({}).current;
   const [firstName, setFirstName] = useState('colaborador');
-  const [recentActivity, setRecentActivity] = useState([]);
+  const recentActivity = useRecentActivity(5);
 
   useEffect(() => {
     let active = true;
@@ -40,38 +40,6 @@ export default function HomeScreen({ navigation }) {
       active = false;
     };
   }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      Promise.all([getAvistamientosMine(), getEventos()]).then(([avistamientosData, eventosData]) => {
-        if (!active) return;
-        const avistamientos = avistamientosData?.success
-          ? (avistamientosData.avistamientos || []).map((a) => ({
-              key: `avistamiento-${a.id}`,
-              text: `Avistamiento de ${a.especie_nombre}${a.notas ? ` — ${a.notas}` : ''}`,
-              date: a.fecha,
-            }))
-          : [];
-        const eventos = eventosData?.success
-          ? (eventosData.eventos || []).map((e) => ({
-              key: `evento-${e.id}`,
-              text: `Evento: ${e.titulo}`,
-              date: e.fecha_evento,
-            }))
-          : [];
-        setRecentActivity(
-          [...avistamientos, ...eventos]
-            .filter((item) => item.date)
-            .sort((a, b) => new Date(b.date) - new Date(a.date))
-            .slice(0, 5)
-        );
-      });
-      return () => {
-        active = false;
-      };
-    }, [])
-  );
 
   const quickActions = [
     { key: 'sighting', label: 'Reportar avistamiento', icon: 'binoculars-outline', color: colors.blue, route: 'Sightings' },

@@ -70,7 +70,7 @@ function formatDate(dateStr) {
 
 export default function EventsScreen() {
   const insets = useSafeAreaInsets();
-  const { bumpStreak } = useGamification();
+  const { bumpStreak, incrementEventAttended } = useGamification();
   const { setIsLoggedIn } = useAuth();
   const [events, setEvents] = useState(eventsList);
   const [search, setSearch] = useState('');
@@ -215,6 +215,7 @@ export default function EventsScreen() {
     if (refreshed?.eventos) {
       setEvents(refreshed.eventos.map(mapEventoFromApi));
     }
+    incrementEventAttended();
     bumpStreak();
     setEventForm(initialEventForm);
     setNewModal(false);

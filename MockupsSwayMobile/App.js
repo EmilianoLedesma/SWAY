@@ -8,13 +8,13 @@ import AppNavigator from './src/navigation/AppNavigator';
 export default function App() {
   return (
     <SafeAreaProvider>
-      <GamificationProvider>
-        <AuthProvider>
+      <AuthProvider>
+        <GamificationProvider>
           <StatusBar style="dark" />
           <AppNavigator />
           <CelebrationOverlay />
-        </AuthProvider>
-      </GamificationProvider>
+        </GamificationProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }
