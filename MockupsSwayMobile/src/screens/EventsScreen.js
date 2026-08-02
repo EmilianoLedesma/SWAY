@@ -26,6 +26,14 @@ import { useGamification } from '../context/GamificationContext';
 import { useAuth } from '../context/AuthContext';
 import { hapticSuccess, hapticError, hapticWarning } from '../utils/haptics';
 
+// 'YYYY-MM-DD' string comparison instead of Date objects — new Date('YYYY-MM-DD')
+// parses as UTC midnight, which in MX time (UTC-6) already reads as "yesterday"
+// past ~18:00 local, misclassifying same-day events as PAST.
+function todayLocalStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function mapEventoFromApi(e) {
   const fechaEvento = e.fecha_evento ? e.fecha_evento.slice(0, 10) : '';
   return {
@@ -36,7 +44,7 @@ function mapEventoFromApi(e) {
     date: fechaEvento,
     participants: 0,
     maxParticipants: e.capacidad_maxima || 0,
-    status: fechaEvento && new Date(fechaEvento) < new Date() ? 'PAST' : 'UPCOMING',
+    status: fechaEvento && fechaEvento < todayLocalStr() ? 'PAST' : 'UPCOMING',
     organizer: e.organizador || 'SWAY',
     description: e.descripcion || '',
   };

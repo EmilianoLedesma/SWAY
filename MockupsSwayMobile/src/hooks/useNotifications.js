@@ -10,6 +10,14 @@ const relativeDate = (date) => {
   return `hace ${w} ${w === 1 ? 'semana' : 'semanas'}`;
 };
 
+// 'YYYY-MM-DD' string comparison instead of Date objects — new Date('YYYY-MM-DD')
+// parses as UTC midnight, which in MX time (UTC-6) already reads as "yesterday"
+// past ~18:00 local, dropping same-day events out of "upcoming".
+function todayLocalStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export default function useNotifications() {
   const { badges } = useGamification();
   const [activityNotifs, setActivityNotifs] = useState([]);
@@ -36,7 +44,7 @@ export default function useNotifications() {
 
       const eventos = eventosData?.success
         ? (eventosData.eventos || [])
-            .filter((e) => e.fecha_evento && new Date(e.fecha_evento) >= new Date())
+            .filter((e) => e.fecha_evento && e.fecha_evento.slice(0, 10) >= todayLocalStr())
             .slice(0, 5)
             .map((e) => ({
               id: `evento-${e.id}`,
