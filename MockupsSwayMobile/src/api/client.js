@@ -371,6 +371,48 @@ export async function deleteEvento(id) {
   }
 }
 
+export async function registrarAsistencia(eventoId) {
+  try {
+    const res = await apiFetch(`${API_HOST}/api/eventos/${eventoId}/registrar`, {
+      method: 'POST',
+      headers: await authHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) return buildErrorResult(res, data, 'Error al confirmar tu asistencia');
+    return data;
+  } catch (error) {
+    console.error('Error en registrarAsistencia:', error);
+    return { success: false, message: 'No se pudo conectar con el servidor' };
+  }
+}
+
+export async function cancelarAsistencia(eventoId) {
+  try {
+    const res = await apiFetch(`${API_HOST}/api/eventos/${eventoId}/registrar`, {
+      method: 'DELETE',
+      headers: await authHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) return buildErrorResult(res, data, 'Error al cancelar tu asistencia');
+    return data;
+  } catch (error) {
+    console.error('Error en cancelarAsistencia:', error);
+    return { success: false, message: 'No se pudo conectar con el servidor' };
+  }
+}
+
+export async function getMisEventosRegistrados() {
+  try {
+    const res = await apiFetch(`${API_HOST}/api/eventos/mis-registros`, { headers: await authHeaders() });
+    const data = await res.json();
+    if (!res.ok) return buildErrorResult(res, data, 'Error al obtener tus eventos registrados');
+    return data;
+  } catch (error) {
+    console.error('Error en getMisEventosRegistrados:', error);
+    return { success: false, eventos: [] };
+  }
+}
+
 export async function getTiposEvento() {
   try {
     const res = await apiFetch(`${API_HOST}/api/tipos-evento`);
