@@ -22,7 +22,7 @@ import ScreenHeader from '../components/ScreenHeader';
 import ShareCard from '../components/ShareCard';
 import DateField from '../components/DateField';
 import { eventsList } from '../data/events';
-import { getEventos, getEventosMine, getTiposEvento, getModalidades, crearEvento, deleteEvento } from '../api/client';
+import { getEventos, getEventosMine, getTiposEvento, getModalidades, crearEvento, deleteEvento, registrarAsistencia, cancelarAsistencia, getMisEventosRegistrados } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
 import { useAuth } from '../context/AuthContext';
 import { hapticSuccess, hapticError, hapticWarning } from '../utils/haptics';
@@ -58,7 +58,7 @@ function mapEventoFromApi(e) {
     location: e.direccion || e.url_evento || e.modalidad || 'Por confirmar',
     time: e.hora_inicio && e.hora_fin ? `${e.hora_inicio.slice(0, 5)} - ${e.hora_fin.slice(0, 5)}` : '',
     date: fechaEvento,
-    participants: 0,
+    participants: e.registrados || 0,
     maxParticipants: e.capacidad_maxima || 0,
     status: fechaEvento && fechaEvento < todayLocalStr() ? 'PAST' : 'UPCOMING',
     organizer: e.organizador || 'SWAY',
@@ -92,7 +92,7 @@ function formatDate(dateStr) {
   return { day: d.getDate(), month: months[d.getMonth()] };
 }
 
-export default function EventsScreen() {
+export default function EventsScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { bumpStreak, incrementEventAttended, celebrate } = useGamification();
   const { setIsLoggedIn } = useAuth();
@@ -109,12 +109,13 @@ export default function EventsScreen() {
 
   const [tiposEvento, setTiposEvento] = useState([]);
   const [modalidades, setModalidades] = useState([]);
+  const [misRegistros, setMisRegistros] = useState(new Set());
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
       const fetchEvents = showMineOnly ? getEventosMine : getEventos;
-      fetchEvents().then((data) => {
+      Promise.all([fetchEvents(), getMisEventosRegistrados()]).then(([data, misData]) => {
         if (!active) return;
         if (data?.sessionExpired) {
           setIsLoggedIn(false);
@@ -122,6 +123,9 @@ export default function EventsScreen() {
         }
         const mapped = sortEventos(data?.eventos ? data.eventos.map(mapEventoFromApi) : []);
         setEvents(mapped);
+        if (misData?.eventos) {
+          setMisRegistros(new Set(misData.eventos.map((e) => String(e.id))));
+        }
 
         const currentIds = new Set(mapped.map((e) => e.id));
         if (seenEventIds === null) {
@@ -257,7 +261,6 @@ export default function EventsScreen() {
     if (refreshed?.eventos) {
       setEvents(sortEventos(refreshed.eventos.map(mapEventoFromApi)));
     }
-    incrementEventAttended();
     bumpStreak();
     setEventForm(initialEventForm);
     setNewModal(false);
@@ -309,6 +312,37 @@ export default function EventsScreen() {
         },
       ],
     );
+  };
+
+  const handleToggleAsistencia = async () => {
+    if (!detailEvent) return;
+    const isRegistered = misRegistros.has(detailEvent.id);
+    const result = isRegistered
+      ? await cancelarAsistencia(detailEvent.id)
+      : await registrarAsistencia(detailEvent.id);
+    if (result?.sessionExpired) {
+      setIsLoggedIn(false);
+      return;
+    }
+    if (!result.success) {
+      hapticError();
+      Alert.alert('Error', result.message || 'No se pudo actualizar tu asistencia.');
+      return;
+    }
+    hapticSuccess();
+    if (!isRegistered) {
+      incrementEventAttended();
+    }
+    const [refreshed, misRegistradosData] = await Promise.all([
+      showMineOnly ? getEventosMine() : getEventos(),
+      getMisEventosRegistrados(),
+    ]);
+    if (refreshed?.eventos) {
+      setEvents(sortEventos(refreshed.eventos.map(mapEventoFromApi)));
+    }
+    if (misRegistradosData?.eventos) {
+      setMisRegistros(new Set(misRegistradosData.eventos.map((e) => String(e.id))));
+    }
   };
 
   const renderCard = (item) => {
@@ -454,6 +488,14 @@ export default function EventsScreen() {
           </TouchableOpacity>
         </ScrollView>
 
+        <TouchableOpacity
+          style={styles.misAsistenciasLink}
+          onPress={() => navigation.navigate('MisAsistencias')}
+        >
+          <Ionicons name="checkmark-done-outline" size={14} color={colors.blue} />
+          <Text style={styles.misAsistenciasLinkText}>Voy a asistir</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.newBtn} onPress={() => setNewModal(true)}>
           <Ionicons name="add-circle-outline" size={20} color={colors.blue} />
           <Text style={styles.newBtnText}>Crear evento</Text>
@@ -526,6 +568,29 @@ export default function EventsScreen() {
                     <Text style={styles.detailValue}>{detailEvent.organizer}</Text>
                   </View>
                 </View>
+                {detailEvent.status === 'UPCOMING' && (
+                  <TouchableOpacity
+                    style={[
+                      styles.asistenciaBtn,
+                      misRegistros.has(detailEvent.id) && styles.asistenciaBtnActive,
+                    ]}
+                    onPress={handleToggleAsistencia}
+                  >
+                    <Ionicons
+                      name={misRegistros.has(detailEvent.id) ? 'checkmark-circle' : 'checkmark-circle-outline'}
+                      size={18}
+                      color={misRegistros.has(detailEvent.id) ? colors.red : '#fff'}
+                    />
+                    <Text
+                      style={[
+                        styles.asistenciaBtnText,
+                        misRegistros.has(detailEvent.id) && styles.asistenciaBtnTextActive,
+                      ]}
+                    >
+                      {misRegistros.has(detailEvent.id) ? 'Cancelar asistencia' : 'Asistiré'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
                 <Text style={styles.detailSection}>Descripción</Text>
                 <Text style={styles.detailDesc}>{detailEvent.description}</Text>
               </ScrollView>
@@ -866,6 +931,20 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.semibold,
     color: colors.blue,
   },
+  misAsistenciasLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    marginBottom: 10,
+  },
+  misAsistenciasLinkText: {
+    fontFamily: typography.display,
+    fontSize: 12,
+    fontWeight: typography.weight.semibold,
+    color: colors.blue,
+  },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radii.r16,
@@ -1088,6 +1167,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.text,
     fontWeight: typography.weight.medium,
+  },
+  asistenciaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 46,
+    backgroundColor: colors.blue,
+    borderRadius: radii.r12,
+    marginBottom: 16,
+  },
+  asistenciaBtnActive: {
+    backgroundColor: colors.redBg,
+  },
+  asistenciaBtnText: {
+    fontFamily: typography.display,
+    fontSize: 14,
+    fontWeight: typography.weight.semibold,
+    color: '#fff',
+  },
+  asistenciaBtnTextActive: {
+    color: colors.red,
   },
   detailSection: {
     fontFamily: typography.display,
