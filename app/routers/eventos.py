@@ -239,7 +239,12 @@ async def registrar_asistencia(
             raise HTTPException(status_code=401, detail="Se requiere autenticación")
         user_id = int(current_user["sub"])
 
-        evento = db.query(Evento).filter(Evento.id == evento_id).first()
+        evento = (
+            db.query(Evento)
+            .outerjoin(Estatus, Evento.id_estatus == Estatus.id)
+            .filter(Evento.id == evento_id, Estatus.nombre == "Activo")
+            .first()
+        )
         if not evento:
             raise HTTPException(status_code=404, detail="Evento no encontrado")
 

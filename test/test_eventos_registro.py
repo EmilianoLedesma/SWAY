@@ -124,3 +124,37 @@ def test_get_eventos_incluye_conteo_registrados():
     listado = client.get("/api/eventos")
     evento = next(e for e in listado.json()["eventos"] if e["id"] == evento_id)
     assert evento["registrados"] >= 1
+
+
+def test_registrar_evento_cancelado_404():
+    db = TestSession()
+    tipo = TipoEvento(nombre="Conferencia")
+    modalidad = Modalidad(nombre="Presencial")
+    estatus_cancelado = Estatus(nombre="Cancelado")
+    usuario_organizador = Usuario(nombre="Org", apellido_paterno="Test", email="org.registro.cancelado@demo-sway.com", activo=True)
+    db.add_all([tipo, modalidad, estatus_cancelado, usuario_organizador])
+    db.commit()
+    organizador = Organizador(id_usuario=usuario_organizador.id, experiencia_eventos=0, certificado=False)
+    db.add(organizador)
+    db.commit()
+    evento = Evento(
+        titulo="Evento cancelado",
+        descripcion="Prueba de evento cancelado",
+        fecha_evento=date(2026, 12, 1),
+        hora_inicio=time(10, 0),
+        hora_fin=time(12, 0),
+        id_tipo_evento=tipo.id,
+        id_modalidad=modalidad.id,
+        capacidad_maxima=2,
+        costo=0,
+        id_organizador=organizador.id,
+        id_estatus=estatus_cancelado.id,
+    )
+    db.add(evento)
+    db.commit()
+    evento_id = evento.id
+    db.close()
+
+    _override_user(108)
+    resp = client.post(f"/api/eventos/{evento_id}/registrar")
+    assert resp.status_code == 404
