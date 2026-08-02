@@ -414,3 +414,22 @@ Ciclo `brainstorming` completo con varias preguntas de diseño resueltas explíc
 **Plan:** `docs/superpowers/plans/2026-08-01-event-attendance.md` (commit `92357f6`) — 5 tasks: (1) backend, 3 endpoints nuevos sobre `RegistroEvento` (tabla que existía en el esquema sin usarse en ningún lado) + campo `registrados` en el listado existente, con tests pytest; (2) 3 funciones nuevas en `client.js`; (3) botón de asistencia en el modal de detalle de `EventsScreen.js` + conteo real de participantes + link a la pantalla nueva; (4) pantalla nueva `MisAsistenciasScreen.js` + registro en `AppNavigator.js`; (5) `GamificationContext.js` cambia la fuente de los badges de "organizados" a "asistencia real".
 
 **Estado: plan completo, commiteado, NO ejecutado.** Se presentó el menú subagent-driven-development vs inline execution — sesión cerrada antes de que el usuario eligiera.
+
+---
+
+## Sesión 2026-08-01 (continuación) — Ejecución de asistencia/RSVP vía subagent-driven-development, Task 1/5
+
+Ciclo `subagent-driven-development` iniciado sobre el plan de arriba, en worktree aislado (`.claude/worktrees/event-attendance`, rama `worktree-event-attendance`). Sesión cerrada a pedido explícito del usuario ("cuando termine task 1, para y guarda") apenas se cerró la Task 1 — **Tasks 2-5 sin empezar.**
+
+### Task 1 — Backend: 3 endpoints de RSVP + conteo `registrados` — completa
+
+- `_base_eventos_query`/`_serializar_eventos` extraídos de `get_eventos` (refactor sin cambio de comportamiento) + 3 endpoints nuevos (`POST`/`DELETE /api/eventos/{id}/registrar`, `GET /api/eventos/mis-registros`) en `app/routers/eventos.py`. Implementado por subagente (modelo haiku) transcribiendo el código casi verbatim del plan. Commit `351266c`.
+- **Bug real encontrado por el reviewer (sonnet) y corregido en una ronda de fix:** `registrar_asistencia` no filtraba `Estatus.nombre == "Activo"` en el lookup del evento — un colaborador podía confirmar asistencia a un evento `Cancelado` (soft-delete existente desde la sesión de `DELETE /api/eventos/{id}`), violando la Global Constraint del plan ("cualquier evento Activo"). Corregido con el mismo join que ya usa `GET /api/eventos`, test nuevo agregado (`test_registrar_evento_cancelado_404`). Commit `55d7430`.
+- Verificado por el controlador de forma independiente (no solo confiado del reporte del subagente): `python -m pytest test/test_eventos_registro.py test/test_avistamiento_foto_url.py test/test_subir_foto_avistamiento.py test/test_health_endpoint.py -q` → **15/15 pass** después del fix.
+- 2 hallazgos Minor del review quedaron diferidos (no bloquean, documentados en el ledger de la ejecución): condición de carrera TOCTOU en el chequeo de capacidad/duplicado (SELECT luego INSERT sin lock ni constraint única en `(id_evento, id_usuario)` — impacto bajo a esta escala); `GET /api/eventos/mis-registros` no filtra por estatus `Activo` como sí hace `GET /api/eventos`, así que el historial de un usuario puede incluir eventos ya cancelados (ambiguo si es lo esperado, no estaba definido en el brief).
+
+### Incidente de proceso — reporte del reviewer llegó tarde, no perdido
+
+El subagente reviewer de la Task 1 tardó ~7 minutos en relayar su reporte completo por el mailbox de teammates, mostrando solo `idle_notification` mientras tanto. El controlador, sin ver contenido tras 3 intentos de pedirlo, asumió que el relay estaba roto y revisó el diff por su cuenta (dando por buena la Task 1 sin el hallazgo Activo). El reporte real llegó minutos después, ya con la sesión "cerrada" — se reabrió Task 1, se aplicó el fix, se re-verificó. **Lección para la próxima vez:** esperar más tiempo antes de asumir que un reviewer subagente falló — en este caso el reviewer sí encontró algo real que la revisión apresurada del controlador se había perdido.
+
+**Estado al cierre:** Task 1 completa (`9ad6bcb..55d7430`, 1 Important corregido, 2 Minor diferidos). Tasks 2 (client.js), 3 (EventsScreen.js), 4 (MisAsistenciasScreen.js + nav), 5 (GamificationContext.js) del mismo plan, sin empezar. Ledger de la ejecución en `.superpowers/sdd/2026-08-01-event-attendance/progress.md` dentro del worktree — próxima sesión debe resumir ahí, no re-despachar Task 1.
