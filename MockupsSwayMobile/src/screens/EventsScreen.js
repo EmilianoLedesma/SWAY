@@ -24,6 +24,7 @@ import { eventsList } from '../data/events';
 import { getEventos, getEventosMine, getTiposEvento, getModalidades, crearEvento } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
 import { useAuth } from '../context/AuthContext';
+import { hapticSuccess, hapticError, hapticWarning } from '../utils/haptics';
 
 function mapEventoFromApi(e) {
   const fechaEvento = e.fecha_evento ? e.fecha_evento.slice(0, 10) : '';
@@ -205,9 +206,11 @@ export default function EventsScreen() {
         setIsLoggedIn(false);
         return;
       }
+      hapticError();
       Alert.alert('Error', result.message || 'No se pudo enviar la propuesta de evento.');
       return;
     }
+    hapticSuccess();
     const refreshed = await (showMineOnly ? getEventosMine() : getEventos());
     if (refreshed?.eventos) {
       setEvents(refreshed.eventos.map(mapEventoFromApi));
@@ -243,7 +246,10 @@ export default function EventsScreen() {
         {
           text: 'Eliminar',
           style: 'destructive',
-          onPress: () => setEvents((prev) => prev.filter((e) => e.id !== item.id)),
+          onPress: () => {
+            hapticWarning();
+            setEvents((prev) => prev.filter((e) => e.id !== item.id));
+          },
         },
       ],
     );

@@ -18,6 +18,7 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { radii, shadows } from '../theme/spacing';
 import ScreenHeader from '../components/ScreenHeader';
+import { hapticSuccess, hapticError, hapticWarning } from '../utils/haptics';
 import {
   speciesList,
   conservationStatus,
@@ -212,10 +213,12 @@ export default function CatalogScreen() {
       : await createEspecie(payload);
     setSaving(false);
     if (!result.success) {
+      hapticError();
       Alert.alert('Error', result.message || 'No se pudo guardar la especie.');
       if (result.sessionExpired) setIsLoggedIn(false);
       return;
     }
+    hapticSuccess();
     const estadoNombre = estadosCatalog.find(
       (e) => e.id === form.idEstadoConservacion,
     )?.nombre;
@@ -252,8 +255,10 @@ export default function CatalogScreen() {
           text: 'Eliminar',
           style: 'destructive',
           onPress: async () => {
+            hapticWarning();
             const result = await deleteEspecie(item.id);
             if (!result.success) {
+              hapticError();
               Alert.alert('Error', result.message || 'No se pudo eliminar la especie.');
               if (result.sessionExpired) setIsLoggedIn(false);
               return;

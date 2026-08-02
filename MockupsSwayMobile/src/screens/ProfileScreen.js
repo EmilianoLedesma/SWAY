@@ -23,6 +23,7 @@ import { radii, shadows } from '../theme/spacing';
 import ScreenHeader from '../components/ScreenHeader';
 import DateField from '../components/DateField';
 import useBreathe from '../hooks/useBreathe';
+import { hapticSuccess, hapticError, hapticWarning } from '../utils/haptics';
 import {
   validateNombre,
   validateApellidoMaterno,
@@ -371,10 +372,12 @@ export default function ProfileScreen() {
     });
     setSaving(false);
     if (!result.success) {
+      hapticError();
       Alert.alert('Error', result.message || 'No se pudo actualizar el perfil.');
       if (result.sessionExpired) setIsLoggedIn(false);
       return;
     }
+    hapticSuccess();
     setEditingPersonal(false);
   };
 
@@ -415,10 +418,12 @@ export default function ProfileScreen() {
     });
     setSaving(false);
     if (!result.success) {
+      hapticError();
       Alert.alert('Error', result.message || 'No se pudo actualizar el perfil.');
       if (result.sessionExpired) setIsLoggedIn(false);
       return;
     }
+    hapticSuccess();
     setEditingProfesional(false);
   };
 
@@ -442,10 +447,12 @@ export default function ProfileScreen() {
     });
     setSaving(false);
     if (!result.success) {
+      hapticError();
       Alert.alert('Error', result.message || 'No se pudo actualizar la contraseña.');
       if (result.sessionExpired) setIsLoggedIn(false);
       return;
     }
+    hapticSuccess();
     setPwForm({ actual: '', nueva: '', confirmar: '' });
     await logout();
     Alert.alert('Contraseña actualizada', 'Vuelve a iniciar sesión.');
@@ -457,22 +464,27 @@ export default function ProfileScreen() {
     const result = await downloadReportePDF(filtros);
     setReporteLoading(false);
     if (!result.success) {
+      hapticError();
       Alert.alert('Error', result.message || 'No se pudo generar el reporte.');
       return;
     }
+    hapticSuccess();
     Alert.alert('Reporte generado', 'El reporte PDF se descargó correctamente.');
   };
 
   const handleDeactivate = async () => {
+    hapticWarning();
     setSaving(true);
     const result = await deletePerfil();
     setSaving(false);
     if (!result.success) {
+      hapticError();
       Alert.alert('Error', result.message || 'No se pudo desactivar la cuenta.');
       setConfirmDeactivate(false);
       if (result.sessionExpired) setIsLoggedIn(false);
       return;
     }
+    hapticSuccess();
     setConfirmDeactivate(false);
     await logout();
     Alert.alert('Cuenta desactivada', 'Tu cuenta de colaborador fue desactivada.');
@@ -486,6 +498,7 @@ export default function ProfileScreen() {
         text: 'Cerrar sesión',
         style: 'destructive',
         onPress: async () => {
+          hapticWarning();
           await logout();
           setIsLoggedIn(false);
         },
