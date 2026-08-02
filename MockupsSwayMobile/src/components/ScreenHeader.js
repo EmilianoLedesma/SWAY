@@ -1,11 +1,17 @@
+import { useState, useCallback } from 'react';
 import { StyleSheet, Text, View, Image, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
+import useTapTrigger from '../hooks/useTapTrigger';
+import EasterEggVideo from './EasterEggVideo';
 
 export default function ScreenHeader({ title, subtitle, hideLogo, hideBell, showBack }) {
   const navigation = useNavigation();
+  const [eggVisible, setEggVisible] = useState(false);
+  const showEgg = useCallback(() => setEggVisible(true), []);
+  const { registerTap } = useTapTrigger(5, 2000, showEgg);
 
   return (
     <View style={styles.header}>
@@ -14,11 +20,13 @@ export default function ScreenHeader({ title, subtitle, hideLogo, hideBell, show
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </TouchableOpacity>
       ) : !hideLogo ? (
-        <Image
-          source={require('../../assets/SwayLogo.jpeg')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
+        <TouchableOpacity onPress={registerTap} activeOpacity={0.8}>
+          <Image
+            source={require('../../assets/SwayLogo.jpeg')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </TouchableOpacity>
       ) : null}
       <View style={styles.textBlock}>
         <Text style={styles.title}>{title}</Text>
@@ -33,6 +41,7 @@ export default function ScreenHeader({ title, subtitle, hideLogo, hideBell, show
           <Ionicons name="notifications-outline" size={22} color={colors.text2} />
         </TouchableOpacity>
       )}
+      {eggVisible && <EasterEggVideo visible onClose={() => setEggVisible(false)} />}
     </View>
   );
 }
