@@ -318,7 +318,12 @@ export default function EventsScreen() {
     const isFull = item.participants >= item.maxParticipants;
 
     return (
-      <View key={item.id} style={[styles.card, !isUpcoming && styles.cardPast]}>
+      <TouchableOpacity
+        key={item.id}
+        style={[styles.card, !isUpcoming && styles.cardPast]}
+        onPress={() => setDetailEvent(item)}
+        activeOpacity={0.7}
+      >
         <View style={styles.cardRow}>
           <View style={styles.dateBlock}>
             <Text style={styles.dateMonth}>{month}</Text>
@@ -358,13 +363,6 @@ export default function EventsScreen() {
         </View>
 
         <View style={styles.cardActions}>
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => setDetailEvent(item)}
-          >
-            <Ionicons name="eye-outline" size={14} color={colors.blue} />
-            <Text style={[styles.actionLabel, { color: colors.blue }]}>Ver</Text>
-          </TouchableOpacity>
           {isUpcoming ? (
             <TouchableOpacity style={styles.actionBtn} onPress={() => handleShare(item)}>
               <Ionicons name="share-outline" size={14} color={colors.text2} />
@@ -379,7 +377,7 @@ export default function EventsScreen() {
             <Text style={[styles.actionLabel, { color: colors.red }]}>Eliminar</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
