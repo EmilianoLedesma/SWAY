@@ -115,24 +115,28 @@ async def crear_evento(
         if current_user:
             user_id = int(current_user["sub"])
         else:
-            nombre_completo = data.nombre_organizador or "Organizador Sin Apellido"
-            partes = nombre_completo.split()
-            primer_nombre = partes[0] if partes else "Organizador"
-            apellido_paterno = partes[1] if len(partes) > 1 else "Sin Apellido"
-            apellido_materno = partes[2] if len(partes) > 2 else None
+            usuario_existente = db.query(Usuario).filter(Usuario.email == data.contacto).first() if data.contacto else None
+            if usuario_existente:
+                user_id = usuario_existente.id
+            else:
+                nombre_completo = data.nombre_organizador or "Organizador Sin Apellido"
+                partes = nombre_completo.split()
+                primer_nombre = partes[0] if partes else "Organizador"
+                apellido_paterno = partes[1] if len(partes) > 1 else "Sin Apellido"
+                apellido_materno = partes[2] if len(partes) > 2 else None
 
-            nuevo_usuario = Usuario(
-                nombre=primer_nombre,
-                apellido_paterno=apellido_paterno,
-                apellido_materno=apellido_materno,
-                email=data.contacto,
-                suscrito_newsletter=False,
-                activo=True
-            )
-            db.add(nuevo_usuario)
-            db.commit()
-            db.refresh(nuevo_usuario)
-            user_id = nuevo_usuario.id
+                nuevo_usuario = Usuario(
+                    nombre=primer_nombre,
+                    apellido_paterno=apellido_paterno,
+                    apellido_materno=apellido_materno,
+                    email=data.contacto,
+                    suscrito_newsletter=False,
+                    activo=True
+                )
+                db.add(nuevo_usuario)
+                db.commit()
+                db.refresh(nuevo_usuario)
+                user_id = nuevo_usuario.id
 
         organizador = db.query(Organizador).filter(Organizador.id_usuario == user_id).first()
         if not organizador:
