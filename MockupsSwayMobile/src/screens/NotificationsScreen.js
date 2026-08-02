@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -11,6 +11,7 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { radii, shadows } from '../theme/spacing';
 import ScreenHeader from '../components/ScreenHeader';
+import useNotifications from '../hooks/useNotifications';
 
 const notifications = [
   {
@@ -86,7 +87,18 @@ const TYPE_ICONS = {
 };
 
 export default function NotificationsScreen() {
+  const liveNotifications = useNotifications();
   const [list, setList] = useState(notifications);
+
+  useEffect(() => {
+    if (!liveNotifications.length) return;
+    setList((prev) => {
+      const existingIds = new Set(prev.map((n) => n.id));
+      const fresh = liveNotifications.filter((n) => !existingIds.has(n.id));
+      return fresh.length ? [...fresh, ...prev] : prev;
+    });
+  }, [liveNotifications]);
+
   const unread = list.filter((n) => !n.read).length;
 
   const markAllRead = () => {
