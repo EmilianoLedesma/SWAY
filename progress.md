@@ -251,3 +251,48 @@ Continuación directa de la sesión anterior (PR #3 mergeado a `master`). Se eje
 - **Suite automatizada de verificación creada** (`scripts/verify_pi_requirements.sh`, commit `119abc3`, referenciada en el doc en `ba0c849`) — script bash que corre contra producción real (no localhost), cubre los 14 puntos de la rúbrica con métodos independientes (SQL vía SSH, curl, ping VPC, openssl, ufw status, docker ps, conteo de tablas). Encontrados y corregidos 2 bugs reales del script mismo durante las primeras corridas: password de HAProxy stats confundido con el de Grafana (son distintos), y un payload de prueba con `ñ` que el shell de Git Bash mangla igual que en toda la sesión (mismo patrón de siempre: escribir a archivo temporal y usar `--data-binary @archivo`). Corrida final limpia: **25 pass, 0 fail, 2 skip** (mobile UX necesita dispositivo real; rate limiting 429 se skipea por defecto para no gastar el cupo real del endpoint de login en cada corrida).
 - **Comparación contra el proyecto de referencia** (`Downloads/demo-files/demo - Copy`, usado como base del plan original): arquitectura base coincide (2 droplets, HAProxy+SSL+balanceo, Prometheus+Grafana+node_exporter). Diferencias reales: referencia tiene Redis+redis_exporter (SWAY no — coincide exactamente con la limitación de rate limiting compartido ya documentada), referencia tiene cadvisor (SWAY lo omitió a propósito por RAM), referencia usa 3 réplicas de API vs 2 en SWAY (cosmético). SWAY mejora sobre la referencia en 3 puntos: SSL real de Let's Encrypt vs CA propia autofirmada de la referencia, stats de HAProxy con auth (la referencia no tiene), y desplegado en VPC/dominio real de internet vs las IPs de LAN fija (`192.168.10.x`) de la referencia, que era solo un patrón de laboratorio.
 - **Discusión sobre punto único de falla del droplet público** (pregunta del usuario sobre el FAQ existente) — recomendación dada pero no implementada: DigitalOcean Load Balancer administrado + 2do droplet público (~$12/mes extra) es la forma correcta de eliminar el SPOF sin tener que armar `keepalived`/VRRP a mano. Alternativa más barata: snapshots regulares + runbook de recreación rápida, aceptando minutos de downtime en vez de eliminar el punto de falla. Sin decisión tomada — queda para la próxima sesión si se quiere implementar.
+
+---
+
+## Sesión 2026-08-01 (continuación) — Feature: foto de avistamiento (upload/persist/share) + trabajo paralelo (easter egg + haptics)
+
+### A — Foto de avistamiento: ciclo completo `brainstorming → writing-plans → subagent-driven-development`, mergeado a `master`
+
+Motivado por el pendiente "explorar almacenamiento local de fotos de avistamiento" registrado en sesiones anteriores (2026-07-30). Ciclo completo en worktree aislado (`worktree-sighting-photo-upload`), 5 tareas + review final de rama completa, cada tarea con implementador + reviewer independiente.
+
+**Diseño (spec en `docs/superpowers/specs/2026-08-01-sighting-photo-upload-design.md`):**
+- Persistencia a backend (no solo local-device) — decisión explícita del usuario.
+- Storage: disco local en el droplet privado, **no** DigitalOcean Spaces (sin costo extra).
+- Upload en dos pasos: `POST /api/reportar-avistamiento` (JSON) sin tocar + nuevo `POST /api/avistamientos/{id}/foto` (multipart) separado — la foto nunca bloquea ni revierte el guardado del avistamiento.
+- Binario directo (cámara → `FormData` → `UploadFile` → bytes a disco), sin base64 en ningún punto.
+- Thumbnail en lista/detalle, no solo en el share card.
+
+**Hallazgo real durante el diseño (antes de escribir código):** `api1`/`api2` son 2 contenedores separados balanceados round-robin por HAProxy — guardar fotos en disco local de cada contenedor hubiera causado 404 en ~50% de los intentos de verlas. Corregido con un volumen Docker compartido (`uploads_data`) montado en ambos.
+
+**Implementación (5 tareas, `subagent-driven-development`):**
+1. Columna `foto_url` (nullable) en `avistamientos` + wireado en los 2 endpoints GET de listado + `reportar-avistamiento` ahora devuelve `id`.
+2. Endpoint `POST /api/avistamientos/{id}/foto` (auth requerida, allowlist `image/jpeg`/`image/png`, cap 5MB, filename generado server-side) + `app/config.py` nuevo + volumen compartido en `docker-compose.private.yml` + `python-multipart` agregado a `requirements.txt`.
+3. Cliente mobile (`uploadAvistamientoFoto` en `client.js`) wireado al flujo de submit — sube la foto después de crear el avistamiento, no bloqueante.
+4. Thumbnail real en la tarjeta de lista y en el modal de detalle (`SightingsScreen.js`), fallback a ícono de cámara si no hay foto.
+5. Foto integrada en `ShareCard.js` — el mecanismo de captura (`captureRef`) ya existente la incluye automáticamente en el PNG compartido, sin tocar `handleShare`.
+
+**Review final de rama completa (opus) encontró 2 Critical + 2 Important reales** que ningún review por tarea podía ver solo:
+- Los 2 tests pytest nuevos (de tareas 1 y 2) se rompían entre sí al correr juntos — ambos seteaban `app.dependency_overrides[get_db]` a nivel de import contra motores SQLite en memoria separados, así que el que se importaba último "ganaba" el override global y el otro archivo quedaba probando contra datos que nadie consultaba. Corregido con `test/conftest.py` compartido.
+- Un test de auth solo restauraba su override en el camino de éxito — un fallo de assertion hubiera dejado toda la sesión de test sin auth. Corregido con `try/finally`.
+- Sin chequeo de dueño en el endpoint de foto (cualquier colaborador autenticado puede pisar la foto de cualquier avistamiento) — mismo patrón ya existente en el `DELETE` del mismo archivo, no es regresión nueva. Se agregó un comentario explícito en el código (no un fix de comportamiento, estaba fuera de alcance).
+- Cap de 5MB se aplicaba después de leer el body completo — se agregó un pre-check por header `Content-Length` antes de leer, quedando el check post-lectura como respaldo.
+- Hallazgos Minor también corregidos: `docker-compose.yml`/`.prod.yml` también recibieron el volumen compartido (sus servicios `api` también corren `app.main:app`), comentario aclaratorio sobre el hardcode de `image/jpeg` en mobile, y la gamificación (`incrementSightings`) ahora premia foto solo si el upload realmente tuvo éxito, no solo si se intentó.
+
+**Incidente de proceso:** el agente del fix wave final se quedó sin cupo de su propia cuenta a mitad de tarea (límite de sesión ajeno, no de esta sesión), dejando cambios sin commitear en el worktree. Redespachado un agente fresco que retomó el trabajo ya en curso (sin descartarlo), completó los 2 hallazgos que faltaban y commiteó todo — re-review con foco (scoped) confirmó los 7 hallazgos atendidos, sin breakage nuevo.
+
+**Mergeado a `master`** (`fe3cd06`), worktree y rama limpiados. Tests del feature (6) pasando en `master` post-merge.
+
+**Pendiente real antes de producción:** migración manual `ALTER TABLE avistamientos ADD COLUMN foto_url TEXT;` (documentada, no ejecutada) + redeploy real de `api1`/`api2` en el droplet privado con `docker compose -f docker-compose.private.yml up -d --build api1 api2` (recoge el volumen nuevo y `UPLOAD_DIR`). Ninguno de los dos se hizo esta sesión — el trabajo quedó completo y mergeado a nivel de código, no desplegado.
+
+### B — Trabajo en paralelo (otra sesión concurrente, mismo repo) — easter egg de versión + haptics
+
+Registrado tal cual lo reportó esa sesión (no verificado por esta sesión), dos worktrees separados de `MockupsSwayMobile`:
+
+**Easter egg (worktree `sway-poo-easter-egg`, branch `easter-egg-version-tap`):** diseño acordado verbalmente (5 taps en el logo de `ScreenHeader.js` → modal fullscreen con `expo-video` reproduciendo `assets/easter-egg.mp4`, auto-close al terminar o al tap) pero **sin spec escrita** (el `Write` fue rechazado por el usuario a mitad del brainstorming) y **sin código**. Video se genera aparte (el usuario lo va a proveer), integración queda pendiente. Se investigó `nexu-io/open-design` como posible herramienta para generarlo — confirmado que no es instalable vía npm (paquete `open-design` no existe en el registro, un resumen de WebFetch alucinó ese comando), requiere clonar y compilar el monorepo completo (Node 24 + pnpm 10.33.x). Usuario canceló esa instalación explícitamente, va a proveer el mp4 por separado.
+
+**Haptics (worktree `sway-poo-haptics`, branch `haptics-key-actions`):** `expo-haptics` instalado, `src/utils/haptics.js` nuevo (3 helpers: success/error/warning) wireado en 6 pantallas (Sightings, Events, Login, Profile, Catalog — submits/errores/confirmaciones destructivas). Alcance decidido explícitamente con el usuario: **no** en validación de campo (~25 alerts de "datos incompletos" quedan sin tocar, para no generar ruido). Cambios completos pero **sin commitear** — pendiente probar en dispositivo/Expo Go real antes de commitear (nunca se llegó a verificar en runtime). Un proceso Metro quedó zombie en el puerto 8081 (arrancado sin `run_in_background: true`) — pendiente matarlo antes de poder levantar el dev server correctamente contra ese worktree. El usuario dijo que va a mergear él mismo una vez esté conforme con la prueba en dispositivo.
