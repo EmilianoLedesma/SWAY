@@ -105,7 +105,8 @@ REAL_KEY_CODE=$(curl_dom -o /dev/null -w "%{http_code}" -H "x-api-key: wrong-key
 VALID_CODE=$(curl_dom -o /dev/null -w "%{http_code}" -H "x-api-key: $API_KEY" "https://$DOMAIN/api/estadisticas")
 [[ "$VALID_CODE" == "200" ]] && pass "x-api-key valida: 200 correcto" || fail "x-api-key valida dio $VALID_CODE"
 
-skip "rate limiting (429) no se prueba por defecto — consume el cupo real del endpoint de login; correr manualmente si hace falta (ver doc seccion 5)"
+RL_RESULT=$(ssh_priv "for i in 1 2 3 4 5 6; do curl -s -o /dev/null -w '%{http_code} ' -X POST http://$PRIVATE_VPC:8001/api/colaboradores/login -H 'Content-Type: application/json' -H 'x-api-key: $API_KEY' -d '{\"email\":\"rate-limit-check@demo-sway.com\",\"password\":\"incorrecta\"}'; done" 2>/dev/null)
+echo "$RL_RESULT" | grep -q "429" && pass "rate limiting real: intento 6 dio 429 ($RL_RESULT)" || fail "rate limiting no disparo 429: $RL_RESULT"
 
 # ---------------------------------------------------------------
 section "6. Certificado SSL"
