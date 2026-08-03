@@ -1,6 +1,6 @@
 # Verificación de requisitos del PI — SWAY
 
-Última actualización: 2026-08-01
+Última actualización: 2026-08-02
 
 Este documento resume el trabajo hecho en los últimos días (fusión de seguridad de aplicación + migración real a arquitectura de 2 droplets + SSL real de Let's Encrypt + dashboard de Grafana con 7 paneles + 3 bugs reales encontrados y corregidos durante la verificación en vivo) y da, para cada punto de la rúbrica: qué se hizo, dónde vive el código exacto (archivo:línea), y varias formas independientes de comprobarlo en vivo — `curl`, consultas SQL, `ping`, `openssl`, navegador real, capturas de pantalla. Todos los comandos son copiar/pegar directos, y cada afirmación de este documento fue efectivamente ejecutada y verificada contra la producción real (`https://proyecto-sway.site`), no es documentación aspiracional.
 
@@ -40,20 +40,45 @@ cat ~/.ssh/sway_deploy.pub
 ```
 Copiar la línea completa (empieza con `ssh-ed25519 AAAA...`).
 
-**Paso 3 — Pedir que agreguen tu llave pública a los droplets.** Quien ya tenga acceso corre esto por cada droplet, pegando tu llave pública:
+**Paso 3 — Pedir que agreguen tu llave pública a los droplets.** Quien ya tenga acceso corre esto por cada droplet, pegando tu llave pública. Para el privado hace falta saltar primero al público (ver "Acceso al droplet privado" más abajo):
 ```bash
-ssh -i ~/.ssh/<llave-existente> root@165.232.146.240 "echo 'ssh-ed25519 AAAA...tu-llave-aqui... tu-nombre' >> ~/.ssh/authorized_keys"
+ssh -i ~/.ssh/<llave-existente> -A root@146.190.136.236 "ssh root@10.124.0.3 \"echo 'ssh-ed25519 AAAA...tu-llave-aqui... tu-nombre' >> ~/.ssh/authorized_keys\""
 ssh -i ~/.ssh/<llave-existente> root@146.190.136.236 "echo 'ssh-ed25519 AAAA...tu-llave-aqui... tu-nombre' >> ~/.ssh/authorized_keys"
 ```
 
 **Paso 4 — Confirmar que tu llave nueva funciona:**
 ```bash
-ssh -i ~/.ssh/sway_deploy root@165.232.146.240 "whoami"
+ssh sway-privado "whoami"
 ssh -i ~/.ssh/sway_deploy root@146.190.136.236 "whoami"
 ```
 Esperado: `root` en ambos.
 
-**Alternativa sin llave SSH — Web Console de DigitalOcean:** si no se quiere generar/gestionar una llave, el panel de DigitalOcean tiene un botón **Console** en cada droplet que abre una terminal root directo en el navegador, sin necesitar llave ni contraseña — ahí se pueden correr exactamente los mismos comandos de este documento.
+**Alternativa sin llave SSH — Web Console de DigitalOcean:** si no se quiere generar/gestionar una llave, el panel de DigitalOcean tiene un botón **Console** en cada droplet que abre una terminal root directo en el navegador, sin necesitar llave ni contraseña — ahí se pueden correr exactamente los mismos comandos de este documento. Esto también sirve como **fallback de emergencia** si el acceso SSH normal se rompe (login local `root` + contraseña vía panel DO, independiente por completo de la red/firewall/sshd) — así se recuperó el acceso una vez durante el desarrollo de este proyecto tras un error de configuración de firewall.
+
+---
+
+## 0.1 Acceso SSH al droplet privado — patrón de salto (bastion)
+
+**Por qué:** el droplet privado (`165.232.146.240` / VPC `10.124.0.3`) tiene UFW configurado para aceptar SSH (puerto 22) **solo desde la IP VPC del droplet público** (`10.124.0.2`), y además `PasswordAuthentication no` en `sshd` — no acepta login directo desde internet bajo ninguna circunstancia, ni con llave ni con contraseña. Todo acceso real pasa primero por el droplet público.
+
+**Opción recomendada — `ProxyJump` en `~/.ssh/config` (una sola vez), luego los comandos de este documento funcionan tal cual:**
+```
+Host sway-privado
+    HostName 10.124.0.3
+    User root
+    IdentityFile ~/.ssh/sway_deploy
+    ProxyJump root@146.190.136.236
+```
+Con esto, `ssh sway-privado "comando"` (la forma usada en el resto de este documento) salta automáticamente por el público.
+
+**Opción manual — sin tocar `~/.ssh/config`, agent forwarding en el momento:**
+```bash
+eval "$(ssh-agent -s)" && ssh-add ~/.ssh/sway_deploy
+ssh -A root@146.190.136.236
+# ya adentro del público:
+ssh root@10.124.0.3
+```
+Nota técnica: si se corre esto en un entorno donde cada comando de shell es un proceso nuevo (sin variables de entorno persistentes entre invocaciones, como algunos runners de CI/agentes), el `ssh-agent` y el `ssh-add` deben ir en el **mismo bloque de comando** que el `ssh -A` — si se separan, el agente no sobrevive a la siguiente invocación y el salto falla con `Permission denied`.
 
 ---
 
@@ -90,7 +115,7 @@ El string guardado (`pbkdf2:sha256:600000$<salt>$<hash>`) codifica el algoritmo 
 
 **Cómo confirmarlo — SQL directo contra la base real:**
 ```bash
-ssh -i ~/.ssh/sway_deploy root@165.232.146.240
+ssh sway-privado
 docker exec sway_postgres psql -U sway_app -d sway -c "SELECT id, email, password_hash FROM usuarios ORDER BY id DESC LIMIT 5;"
 ```
 Esperado: columna `password_hash` con formato `pbkdf2:sha256:600000$<salt>$<hash>`, nunca la contraseña real. Dos usuarios distintos deben tener salts distintos aunque usen la misma contraseña.
@@ -106,7 +131,7 @@ Luego repetir la consulta SQL de arriba y mostrar que `password_hash` no contien
 
 **Nota sobre cuentas antiguas:** el hasheo solo aplica hacia adelante — cuentas creadas **antes** de que este trabajo de seguridad se mergeara a producción pueden tener `password_hash` en texto plano o vacío (registradas con código legacy que no hasheaba). Esto es esperado, no un hallazgo nuevo — se puede confirmar contando cuántas cuentas están en cada estado:
 ```bash
-ssh -i ~/.ssh/sway_deploy root@165.232.146.240 "docker exec sway_postgres psql -U sway_app -d sway -c \"SELECT count(*) FILTER (WHERE password_hash LIKE 'pbkdf2:%') as hasheadas_correctamente, count(*) FILTER (WHERE password_hash IS NULL OR password_hash = '') as vacias, count(*) FILTER (WHERE password_hash IS NOT NULL AND password_hash != '' AND password_hash NOT LIKE 'pbkdf2:%') as legacy_texto_plano FROM usuarios;\""
+ssh sway-privado "docker exec sway_postgres psql -U sway_app -d sway -c \"SELECT count(*) FILTER (WHERE password_hash LIKE 'pbkdf2:%') as hasheadas_correctamente, count(*) FILTER (WHERE password_hash IS NULL OR password_hash = '') as vacias, count(*) FILTER (WHERE password_hash IS NOT NULL AND password_hash != '' AND password_hash NOT LIKE 'pbkdf2:%') as legacy_texto_plano FROM usuarios;\""
 ```
 Las cuentas `legacy_texto_plano` no se corrigen solas — requeriría un script de migración forzando reset de password, fuera del alcance de este trabajo. Toda cuenta **nueva**, o que cambie su password desde hoy en adelante, sí queda hasheada correctamente (demostrado arriba con el registro real `user_id:59`).
 
@@ -114,7 +139,7 @@ Las cuentas `legacy_texto_plano` no se corrigen solas — requeriría un script 
 
 **Cómo confirmarlo:**
 ```bash
-ssh -i ~/.ssh/sway_deploy root@165.232.146.240 "docker exec sway_postgres psql -U sway_app -d sway -c \"SELECT u.id, u.email FROM usuarios u JOIN colaboradores c ON c.id_usuario = u.id WHERE u.password_hash IS NOT NULL AND u.password_hash != '' AND u.password_hash NOT LIKE 'pbkdf2:%' AND c.estado_solicitud = 'aprobada';\""
+ssh sway-privado "docker exec sway_postgres psql -U sway_app -d sway -c \"SELECT u.id, u.email FROM usuarios u JOIN colaboradores c ON c.id_usuario = u.id WHERE u.password_hash IS NOT NULL AND u.password_hash != '' AND u.password_hash NOT LIKE 'pbkdf2:%' AND c.estado_solicitud = 'aprobada';\""
 ```
 Esperado: lista de colaboradores aprobados que actualmente no pueden iniciar sesión — evidencia de que el problema es real y medible, no teórico.
 
@@ -142,7 +167,7 @@ curl -m 5 http://165.232.146.240:8001/     # debe fallar, UFW solo permite la IP
 
 **Cómo confirmarlo — contenedores corriendo en cada droplet:**
 ```bash
-ssh -i ~/.ssh/sway_deploy root@165.232.146.240 "docker ps --format '{{.Names}}: {{.Status}}'"
+ssh sway-privado "docker ps --format '{{.Names}}: {{.Status}}'"
 ssh -i ~/.ssh/sway_deploy root@146.190.136.236 "docker ps --format '{{.Names}}: {{.Status}}'"
 ```
 Esperado privado: `sway_postgres`, `sway_api1`, `sway_api2`, `sway_flask1`, `sway_flask2`, `sway_prometheus`, `sway_node_exporter`, `sway_postgres_exporter` — 8 contenedores.
@@ -164,7 +189,7 @@ Grafana no almacena datos propios — cuando se abre un panel, Grafana traduce l
 
 **Cómo confirmarlo — targets de Prometheus saludables:**
 ```bash
-ssh -i ~/.ssh/sway_deploy root@165.232.146.240 "curl -s http://10.124.0.3:9090/api/v1/targets | python3 -c \"import json,sys; d=json.load(sys.stdin); [print(t['labels']['job'], t['health']) for t in d['data']['activeTargets']]\""
+ssh sway-privado "curl -s http://10.124.0.3:9090/api/v1/targets | python3 -c \"import json,sys; d=json.load(sys.stdin); [print(t['labels']['job'], t['health']) for t in d['data']['activeTargets']]\""
 ```
 Esperado: `prometheus up`, `node up`, `postgres up`, `haproxy-edge up` — los 4 en `up`.
 
@@ -200,7 +225,7 @@ Login con `admin` / contraseña real en `.env` del droplet público. Abrir dashb
 
 **Cómo confirmarlo — agente nativo de DigitalOcean activo:**
 ```bash
-ssh -i ~/.ssh/sway_deploy root@165.232.146.240 "systemctl is-active do-agent"
+ssh sway-privado "systemctl is-active do-agent"
 ssh -i ~/.ssh/sway_deploy root@146.190.136.236 "systemctl is-active do-agent"
 ```
 Esperado: `active` en ambos. También visible en el panel de DigitalOcean → cada Droplet → pestaña **Insights**.
@@ -217,7 +242,7 @@ El detalle técnico del bug de Docker (explicado también en el FAQ) es específ
 
 **Cómo confirmarlo — estado real del firewall:**
 ```bash
-ssh -i ~/.ssh/sway_deploy root@165.232.146.240 "ufw status verbose"
+ssh sway-privado "ufw status verbose"
 ssh -i ~/.ssh/sway_deploy root@146.190.136.236 "ufw status verbose"
 ```
 Esperado privado: `Status: active`, reglas `8001/8002/5001/5002/9090` con `ALLOW IN` solo desde `10.124.0.2`, sin reglas abiertas a `Anywhere` en 80/443.
@@ -225,7 +250,7 @@ Esperado público: `Status: active`, `22/80/443/8404` abiertos a `Anywhere`, `84
 
 **Cómo confirmarlo — el bug de bind a 0.0.0.0 está corregido:**
 ```bash
-ssh -i ~/.ssh/sway_deploy root@165.232.146.240 "docker ps --format '{{.Names}}: {{.Ports}}' | grep api"
+ssh sway-privado "docker ps --format '{{.Names}}: {{.Ports}}' | grep api"
 ```
 Esperado: `10.124.0.3:8001->8000/tcp` (con IP explícita), **no** `0.0.0.0:8001->8000/tcp`.
 
@@ -238,7 +263,7 @@ curl -m 5 http://165.232.146.240:8001/health   # debe dar timeout, no 200
 ```bash
 ssh -o PasswordAuthentication=no -o PubkeyAuthentication=no -o BatchMode=yes -o ConnectTimeout=8 root@165.232.146.240 "whoami"
 ```
-Esperado: `Permission denied (publickey,password)` — la conexión se rechaza de verdad, no solo pide credenciales y las acepta.
+Esperado: la conexión ni siquiera llega a `sshd` — UFW en el privado solo acepta el puerto 22 desde la IP VPC del público (`10.124.0.2`), así que desde fuera de la VPC esto da timeout de red, no un rechazo de credenciales. Corriendo el mismo comando **desde dentro del droplet público** (`ssh -A root@146.190.136.236`, luego el comando de arriba contra `10.124.0.3`) sí llega a `sshd` y confirma el rechazo de credenciales: `Permission denied (publickey)` — password login está deshabilitado (`PasswordAuthentication no`) desde esta sesión, así que ni siquiera se ofrece la opción de contraseña.
 
 ---
 
@@ -365,7 +390,7 @@ Cuenta real de colaborador (`colaborador_id:11`) con datos históricos reales (a
 1. **Ítem 8 (utilidad real):** Perfil → Seguridad → activar biometría → cerrar sesión → reabrir la app → debe pedir huella/Face ID. Reportar avistamiento → debe pedir permiso de cámara y ubicación real.
 2. **Ítem 9 (diseño):** recorrer Home, Especies, Avistamientos, Eventos, Perfil — confirmar consistencia visual.
 3. **Ítem 10 (navegación):** desde Home, llegar a "Mis avistamientos" y "Editar perfil" en menos de 3 toques.
-4. **Ítem 14 (100% funcional):** mientras se usa la app, correr en paralelo `ssh -i ~/.ssh/sway_deploy root@165.232.146.240 "docker logs sway_api1 --tail 20 -f"` — debe verse cada acción de la app aparecer como una línea de log real en el droplet, en tiempo real.
+4. **Ítem 14 (100% funcional):** mientras se usa la app, correr en paralelo `ssh sway-privado "docker logs sway_api1 --tail 20 -f"` — debe verse cada acción de la app aparecer como una línea de log real en el droplet, en tiempo real.
 
 ---
 
@@ -454,7 +479,7 @@ Esto es distinto de arquitecturas con múltiples bases de datos que se sincroniz
 2. Abrir `https://proyecto-sway.site/portal/` (Web2), ir a Reportes → debe aparecer el avistamiento recién creado.
 3. Confirmar en SQL directo:
 ```bash
-ssh -i ~/.ssh/sway_deploy root@165.232.146.240 "docker exec sway_postgres psql -U sway_app -d sway -c \"SELECT id, fecha, notas FROM avistamientos ORDER BY id DESC LIMIT 3;\""
+ssh sway-privado "docker exec sway_postgres psql -U sway_app -d sway -c \"SELECT id, fecha, notas FROM avistamientos ORDER BY id DESC LIMIT 3;\""
 ```
 
 ---
@@ -480,7 +505,7 @@ Esperado: los 4, `200`.
 
 **Cómo confirmarlo — la BD es real y persistente, no un mock:**
 ```bash
-ssh -i ~/.ssh/sway_deploy root@165.232.146.240 "docker exec sway_postgres psql -U sway_app -d sway -c '\dt' | wc -l"
+ssh sway-privado "docker exec sway_postgres psql -U sway_app -d sway -c '\dt' | wc -l"
 ```
 Esperado: 25+ tablas (esquema completo).
 
@@ -494,7 +519,7 @@ Esperado: 25+ tablas (esquema completo).
 
 **Cómo confirmarlo:** abrir la app en un dispositivo real vía Expo Go, hacer login, verificar en el certificado del navegador o en los logs del droplet que las peticiones llegan de verdad:
 ```bash
-ssh -i ~/.ssh/sway_deploy root@165.232.146.240 "docker logs sway_api1 --tail 20"
+ssh sway-privado "docker logs sway_api1 --tail 20"
 ```
 Esperado: líneas de log con peticiones reales (`GET /api/especies`, `POST /api/colaboradores/login`, etc.) apareciendo en tiempo real mientras se usa la app.
 

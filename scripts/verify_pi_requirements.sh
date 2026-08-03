@@ -30,7 +30,7 @@ fail() { echo "  FAIL: $1"; FAIL=$((FAIL+1)); }
 skip() { echo "  SKIP: $1"; SKIP=$((SKIP+1)); }
 section() { echo ""; echo "== $1 =="; }
 
-ssh_priv() { ssh -i "$SSH_KEY" -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new "root@$PRIVATE_IP" "$@"; }
+ssh_priv() { ssh -i "$SSH_KEY" -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new -o ProxyCommand="ssh -i \"$SSH_KEY\" -o StrictHostKeyChecking=accept-new -W %h:%p root@$PUBLIC_IP" "root@$PRIVATE_VPC" "$@"; }
 ssh_pub()  { ssh -i "$SSH_KEY" -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new "root@$PUBLIC_IP" "$@"; }
 curl_dom() { curl -s --resolve "$DOMAIN:443:$PUBLIC_IP" --max-time 8 "$@"; }
 
@@ -91,8 +91,11 @@ BIND_CHECK=$(ssh_priv "docker ps --format '{{.Ports}}' | grep -c '$PRIVATE_VPC:8
 
 if ! curl -m 5 -s "http://$PRIVATE_IP:8001/health" > /dev/null 2>&1; then pass "puerto interno 8001 inalcanzable desde fuera de VPC"; else fail "puerto interno 8001 respondio desde fuera"; fi
 
+# UFW en el privado solo acepta 22/tcp desde la IP VPC del publico ($PUBLIC_VPC), asi que desde
+# fuera de la VPC esto ahora da timeout de red (no llega a sshd) — igual de valido como rechazo
+# que un "Permission denied" explicito, asi que se acepta cualquiera de los dos resultados.
 SSH_REJECT=$(ssh -o PasswordAuthentication=no -o PubkeyAuthentication=no -o BatchMode=yes -o ConnectTimeout=5 "root@$PRIVATE_IP" "whoami" 2>&1)
-echo "$SSH_REJECT" | grep -q "Permission denied" && pass "SSH rechaza conexion sin llave valida" || fail "SSH no rechazo correctamente: $SSH_REJECT"
+echo "$SSH_REJECT" | grep -qE "Permission denied|timed out|Connection timed out|Operation timed out" && pass "SSH rechaza conexion sin llave valida (o bloqueado por UFW antes de llegar a sshd)" || fail "SSH no rechazo correctamente: $SSH_REJECT"
 
 # ---------------------------------------------------------------
 section "5. Proteccion de API con JWT"
