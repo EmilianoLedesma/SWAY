@@ -39,9 +39,11 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.close(code=1013)  # 1013 = "Try Again Later" (RFC 6455)
         return
 
+    await websocket.send_json({"type": "auth_ok"})
+
     try:
         while True:
-            await websocket.receive_text()  # client pings to keep the tunnel alive; ignored
+            await websocket.receive_text()  # no client heartbeat; connection relies on HAProxy's timeout tunnel 1h
     except WebSocketDisconnect:
         pass
     finally:

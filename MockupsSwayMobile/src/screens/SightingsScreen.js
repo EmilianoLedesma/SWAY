@@ -116,14 +116,17 @@ export default function SightingsScreen() {
         return;
       }
       if (message.type === 'avistamiento_created') {
+        if (showMineOnly && message.payload.email_usuario !== colaboradorProfile?.email) {
+          return;
+        }
         setSightings((prev) => mergeAvistamientoCreated(prev, mapAvistamientoFromApi(message.payload)));
       }
       if (message.type === 'avistamiento_deleted') {
-        setSightings((prev) => removeById(prev, message.payload.id));
+        setSightings((prev) => removeById(prev, String(message.payload.id)));
       }
     });
     return unsubscribe;
-  }, [showMineOnly]);
+  }, [showMineOnly, colaboradorProfile]);
 
   useEffect(() => {
     let active = true;

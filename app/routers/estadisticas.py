@@ -211,6 +211,9 @@ async def reportar_avistamiento(data: AvistamientoCreate, db: Session = Depends(
             "especie_nombre": especie.nombre_comun,
             "especie_cientifica": especie.nombre_cientifico,
             "email_usuario": user.email,
+            "latitud": float(nuevo_avistamiento.latitud) if nuevo_avistamiento.latitud else None,
+            "longitud": float(nuevo_avistamiento.longitud) if nuevo_avistamiento.longitud else None,
+            "foto_url": nuevo_avistamiento.foto_url,
         })
 
         return {"success": True, "message": "Avistamiento reportado exitosamente", "id": nuevo_avistamiento.id}

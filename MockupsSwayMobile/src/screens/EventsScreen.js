@@ -154,13 +154,14 @@ export default function EventsScreen({ navigation }) {
   useEffect(() => {
     const unsubscribe = subscribe((message) => {
       if (message.type === 'resync' || message.type === 'evento_created' || message.type === 'evento_deleted') {
-        getEventos().then((data) => {
+        const fetchEvents = showMineOnly ? getEventosMine : getEventos;
+        fetchEvents().then((data) => {
           if (data?.success) setEvents(sortEventos(data.eventos.map(mapEventoFromApi)));
         });
       }
     });
     return unsubscribe;
-  }, []);
+  }, [showMineOnly]);
 
   useEffect(() => {
     let active = true;

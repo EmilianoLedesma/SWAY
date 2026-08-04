@@ -45,16 +45,20 @@ export function RealtimeProvider({ children }) {
 
       socket.onopen = () => {
         socket.send(JSON.stringify({ type: 'auth', token }));
-        retryDelayRef.current = 1000;
-        if (hasConnectedBeforeRef.current) {
-          notify({ type: 'resync' });
-        }
-        hasConnectedBeforeRef.current = true;
       };
 
       socket.onmessage = (event) => {
         try {
-          notify(JSON.parse(event.data));
+          const parsed = JSON.parse(event.data);
+          if (parsed.type === 'auth_ok') {
+            retryDelayRef.current = 1000;
+            if (hasConnectedBeforeRef.current) {
+              notify({ type: 'resync' });
+            }
+            hasConnectedBeforeRef.current = true;
+            return;
+          }
+          notify(parsed);
         } catch {
           // ignore malformed message
         }

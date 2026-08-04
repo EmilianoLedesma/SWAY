@@ -12,7 +12,7 @@ _client = None
 def _get_client():
     global _client
     if _client is None:
-        _client = redis.from_url(REDIS_URL)
+        _client = redis.from_url(REDIS_URL, socket_connect_timeout=2, socket_timeout=2)
     return _client
 
 

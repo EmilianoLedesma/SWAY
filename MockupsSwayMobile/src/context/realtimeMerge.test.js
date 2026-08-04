@@ -30,4 +30,11 @@ const { mergeAvistamientoCreated, removeById } = require('./realtimeMerge');
   assert.deepStrictEqual(result, [{ id: 1 }]);
 }
 
+// removeById: works with string ids (matches SightingsScreen's String(a.id) normalization)
+{
+  const prev = [{ id: '1' }, { id: '2' }];
+  const result = removeById(prev, '1');
+  assert.deepStrictEqual(result, [{ id: '2' }]);
+}
+
 console.log('realtimeMerge.test.js: all assertions passed');
