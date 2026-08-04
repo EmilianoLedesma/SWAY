@@ -28,6 +28,12 @@ services:
       retries: 5
       timeout: 5s
 
+  redis:
+    image: redis:alpine
+    container_name: sway_redis
+    restart: unless-stopped
+    mem_limit: 64m
+
   api_1:
     build: .
     container_name: sway_api_1
@@ -36,11 +42,14 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://sway_app:sway123@postgres:5432/sway
       UPLOAD_DIR: /app/uploads
+      REDIS_URL: redis://redis:6379
     volumes:
       - uploads_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
 
   api_2:
     build: .
@@ -50,11 +59,14 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://sway_app:sway123@postgres:5432/sway
       UPLOAD_DIR: /app/uploads
+      REDIS_URL: redis://redis:6379
     volumes:
       - uploads_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
 
   nginx:
     image: nginx:alpine
@@ -82,3 +94,4 @@ services:
 volumes:
   postgres_data:
   uptime_kuma_data:
+  uploads_data:
