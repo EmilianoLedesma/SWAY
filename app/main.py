@@ -62,7 +62,11 @@ app.include_router(realtime.router)
 
 @app.on_event("startup")
 async def _start_realtime_subscriber():
-    asyncio.create_task(start_subscriber())
+    # store the reference on app.state — the event loop only holds a weak
+    # reference to tasks, so an unreferenced task can be garbage-collected
+    # before it ever runs its first await (confirmed live: without this,
+    # the subscriber never reaches pubsub.listen() on either replica).
+    app.state.realtime_subscriber_task = asyncio.create_task(start_subscriber())
 
 app.mount("/api/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
