@@ -29,6 +29,8 @@ import { sightingsList } from '../data/sightings';
 import { speciesList } from '../data/species';
 import { API_HOST, getAvistamientosAll, getAvistamientosMine, getProfile, crearAvistamiento, uploadAvistamientoFoto, deleteAvistamiento, getEspecies } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
+import { useRealtime } from '../context/RealtimeContext';
+import { mergeAvistamientoCreated, removeById } from '../context/realtimeMerge';
 
 function mapEspecieFromApi(e) {
   return {
@@ -100,6 +102,27 @@ export default function SightingsScreen() {
     return () => {
       active = false;
     };
+  }, [showMineOnly]);
+
+  const { subscribe } = useRealtime();
+
+  useEffect(() => {
+    const unsubscribe = subscribe((message) => {
+      if (message.type === 'resync') {
+        const fetchSightings = showMineOnly ? getAvistamientosMine : getAvistamientosAll;
+        fetchSightings().then((data) => {
+          setSightings(data?.avistamientos ? data.avistamientos.map(mapAvistamientoFromApi) : []);
+        });
+        return;
+      }
+      if (message.type === 'avistamiento_created') {
+        setSightings((prev) => mergeAvistamientoCreated(prev, mapAvistamientoFromApi(message.payload)));
+      }
+      if (message.type === 'avistamiento_deleted') {
+        setSightings((prev) => removeById(prev, message.payload.id));
+      }
+    });
+    return unsubscribe;
   }, [showMineOnly]);
 
   useEffect(() => {

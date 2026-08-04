@@ -26,6 +26,7 @@ import { getEventos, getEventosMine, getTiposEvento, getModalidades, crearEvento
 import { useGamification } from '../context/GamificationContext';
 import { useAuth } from '../context/AuthContext';
 import { hapticSuccess, hapticError, hapticWarning } from '../utils/haptics';
+import { useRealtime } from '../context/RealtimeContext';
 
 // 'YYYY-MM-DD' string comparison instead of Date objects — new Date('YYYY-MM-DD')
 // parses as UTC midnight, which in MX time (UTC-6) already reads as "yesterday"
@@ -147,6 +148,19 @@ export default function EventsScreen({ navigation }) {
       };
     }, [showMineOnly, celebrate])
   );
+
+  const { subscribe } = useRealtime();
+
+  useEffect(() => {
+    const unsubscribe = subscribe((message) => {
+      if (message.type === 'resync' || message.type === 'evento_created' || message.type === 'evento_deleted') {
+        getEventos().then((data) => {
+          if (data?.success) setEvents(sortEventos(data.eventos.map(mapEventoFromApi)));
+        });
+      }
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     let active = true;
