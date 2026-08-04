@@ -121,13 +121,19 @@ def test_create_especie_publishes_especie_created():
 def test_update_especie_publishes_especie_updated():
     from app.security.auth import get_current_colaborador
     especie_id = _seed_especie()
+    db = TestSession()
+    estado = EstadoConservacion(nombre="Vulnerado")
+    db.add(estado)
+    db.commit()
+    estado_id = estado.id
+    db.close()
     app.dependency_overrides[get_current_colaborador] = lambda: {"colaborador_id": 1, "token_type": "colaborador"}
     try:
         with patch("app.routers.especies.publish_event") as mock_publish:
             resp = client.put(f"/api/especies/{especie_id}", json={
                 "nombre_comun": "Delfin Actualizado",
                 "nombre_cientifico": "Delphinus delphis",
-                "id_estado_conservacion": None,
+                "id_estado_conservacion": estado_id,
             })
         assert resp.status_code == 200
         mock_publish.assert_called_once_with("especie_updated", {"id": especie_id, "nombre_comun": "Delfin Actualizado"})

@@ -75,8 +75,8 @@ class EspecieUpdate(BaseModel):
         None, ge=0,
         description="Número estimado de individuos en la naturaleza (None = no especificado)"
     )
-    id_estado_conservacion: Optional[int] = Field(
-        None, ge=1,
+    id_estado_conservacion: int = Field(
+        ..., ge=1,
         description="ID del estado de conservación según catálogo IUCN"
     )
     imagen_url: str = Field(
