@@ -1,7 +1,7 @@
 # Push Notifications + Realtime Sync — Design
 
 **Date:** 2026-08-04
-**Status:** Approved by user, pending plan
+**Status:** Phase 2 (realtime sync) approved, plan written and reviewed, ready for execution. Phase 1 (push notifications) DROPPED 2026-08-04 — see note under "Phase 1 — Push Notifications" below.
 
 ## Motivation
 
@@ -10,11 +10,9 @@ Two gaps found this session while auditing "real-time" claims in the mobile app:
 1. **No push infrastructure exists.** `NotificationsScreen.js` derives its list client-side from the logged-in user's own `GET` calls (`useNotifications.js`), computed once on mount. There are no stored notification rows, no device push tokens, no way to reach a user who isn't looking at the app.
 2. **"Real-time" today means "fresh on next screen focus."** Every list (`SightingsScreen`, `EventsScreen`, `CatalogScreen`) uses `useFocusEffect` to refetch on navigation focus. Two devices sitting on the same screen at the same time never see each other's changes until one of them navigates away and back.
 
-This spec covers both, as one design with two independent implementation phases:
-- **Phase 1 — Push notifications:** device token registration + a one-off manual broadcast script (no auto-triggers, no admin endpoint — confirmed explicitly with the user, single use).
-- **Phase 2 — Realtime sync:** WebSocket channel + Redis pub/sub so avistamientos, eventos, and especies changes propagate live to other connected devices.
-
-Phase 1 ships and is verified before Phase 2 starts (user's explicit ordering call — push is smaller and has no new infra container, realtime sync is bigger and benefits from push's auth pattern already being proven).
+This spec originally covered both as one design with two independent implementation phases:
+- **Phase 1 — Push notifications:** device token registration + a one-off manual broadcast script (no auto-triggers, no admin endpoint — confirmed explicitly with the user, single use). **Dropped 2026-08-04** — see the note under its section below; Expo Go (this project's only test environment) can't verify remote push, and adding development-build tooling was explicitly ruled out.
+- **Phase 2 — Realtime sync:** WebSocket channel + Redis pub/sub so avistamientos, eventos, and especies changes propagate live to other connected devices. This is the only phase being implemented; see `docs/superpowers/plans/2026-08-04-realtime-sync.md`.
 
 ## Infra constraint driving this design
 
@@ -24,7 +22,9 @@ Phase 1 ships and is verified before Phase 2 starts (user's explicit ordering ca
 
 ## Phase 1 — Push Notifications
 
-### Architecture
+**DROPPED (2026-08-04), after the implementation plan was written and reviewed but before execution.** Root cause: this project's only test environment is Expo Go via `npx expo start` (no EAS project, no development-build tooling, and none is being added). Expo's own documentation confirms remote push notifications have been unavailable in Expo Go on Android since SDK 53; this project pins Expo SDK `~54.0.34`. A development build (`eas build --profile development` or a local `expo run:android`/`run:ios`) would be required to verify push delivery at all, and the user explicitly ruled that out — running only via Expo Go's dev server is a hard project constraint, not a preference. Rather than ship push-notification code that can never be verified in this project's actual environment, the feature was cut entirely: the implementation plan (`docs/superpowers/plans/2026-08-04-push-notifications.md`) was deleted, and Phase 2 (below) no longer depends on it. The architecture/design content below is kept for the record, not as something to implement.
+
+### Architecture (historical — not being implemented)
 
 - New table `push_tokens`: `id` (PK), `id_usuario` (FK → `usuarios.id`), `expo_push_token` (text), `platform` (text: `ios`/`android`), `created_at`, `updated_at`. Unique constraint on `expo_push_token` (upsert on conflict) — one physical device token maps to at most one row, reassigned to whichever user last logged in from it.
 - Mobile: `expo-notifications` added. On successful login (not on app boot — avoids prompting before the user has a session), request notification permission → get Expo push token → `POST /api/push-tokens` with the token, authenticated with the existing JWT.

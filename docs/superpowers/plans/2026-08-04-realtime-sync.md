@@ -8,11 +8,11 @@
 
 **Tech Stack:** FastAPI, `redis-py` (sync + `redis.asyncio`), Expo/React Native (native `WebSocket`), HAProxy.
 
-**Prerequisite:** the push-notifications plan (`docs/superpowers/plans/2026-08-04-push-notifications.md`) must be fully shipped and verified in production before starting Task 1 here — not a code dependency, but a project-priority gate: server health takes priority over speed, and this plan's own scope (a new shared-infra container, a new unauthenticated-by-api-key endpoint) is enough new surface area on its own without also being the first time Phase 1 gets proven in prod.
+**Note:** the push-notifications half of the original spec/plan was dropped entirely — Expo Go (this project's only test environment; no EAS/dev-build setup exists and none is being added) stopped supporting remote push notifications on Android as of SDK 53, confirmed against Expo's own docs, and this project pins Expo SDK `~54.0.34`. Remote push simply cannot be verified in this project's actual dev environment, so the feature was cut rather than shipped unverified. This plan (realtime sync via `WS`/Redis) is unaffected — native `WebSocket` has no such Expo Go restriction — and now has no cross-plan prerequisite.
 
 ## Global Constraints
 
-- Spec: `docs/superpowers/specs/2026-08-04-push-notifications-and-realtime-sync-design.md` (Phase 2 section).
+- Spec: `docs/superpowers/specs/2026-08-04-push-notifications-and-realtime-sync-design.md` (Phase 2 section only — Phase 1/push notifications was dropped, see Note above).
 - WS auth is **first-message JWT**, never a `?token=` query string (HAProxy logs full request lines).
 - Every mutating endpoint touching avistamientos/eventos/especies must publish its typed event, including `DELETE /api/especies/{especie_id}` (`especie_deleted`) and `DELETE /api/avistamientos/{avistamiento_id}` (`avistamiento_deleted`) — both easy to forget, both explicitly in scope, both must have their own test (see Task 5).
 - Realtime is best-effort: a Redis/publish/subscribe failure must never fail or roll back the underlying REST mutation.
@@ -24,7 +24,7 @@
   ssh -i ~/.ssh/sway_deploy -o ProxyCommand="ssh -i ~/.ssh/sway_deploy -W %h:%p root@146.190.136.236" root@10.124.0.3
   ```
   (`-J`/ProxyJump on the command line does not inherit `-i` for the intermediate hop — use `ProxyCommand` as above, not `-J`.) UFW on the private droplet only accepts port 22 from the public droplet's VPC IP (`10.124.0.2`); password auth is disabled there.
-- **Rollback for this phase**: Task 8's deploy adds zero DB schema changes (unlike the push-notifications plan, this one adds no tables). Reverting `api1`/`api2` to the pre-Redis commit and re-running `docker compose up -d --build api1 api2` is safe either direction — old code doesn't know about Redis/`/api/ws` either way. Cleanup beyond that (optional, not required for safety): stop/remove the `redis` container; leaving `timeout tunnel` in `haproxy.cfg` is harmless if reverted code no longer uses websockets.
+- **Rollback for this phase**: Task 8's deploy adds zero DB schema changes. Reverting `api1`/`api2` to the pre-Redis commit and re-running `docker compose up -d --build api1 api2` is safe either direction — old code doesn't know about Redis/`/api/ws` either way. Cleanup beyond that (optional, not required for safety): stop/remove the `redis` container; leaving `timeout tunnel` in `haproxy.cfg` is harmless if reverted code no longer uses websockets.
 
 ---
 
@@ -487,7 +487,7 @@ from app.security.auth import decode_token
 router = APIRouter(prefix="/api", tags=["realtime"])
 
 AUTH_TIMEOUT_SECONDS = 10
-ALLOWED_TOKEN_TYPES = ("colaborador", "tienda")
+ALLOWED_TOKEN_TYPES = ("colaborador",)
 
 
 @router.websocket("/ws")
@@ -527,7 +527,7 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 ```
 
-Two things added here beyond the base auth flow, both tracing to security review findings: (1) `payload.get("token_type") not in ALLOWED_TOKEN_TYPES` — without this, `decode_token` alone doesn't distinguish which kind of account authenticated the socket, unlike every REST endpoint in this codebase (`get_current_colaborador`/`get_current_tienda_user` both filter by type); leaving it unchecked would mean any valid JWT of any type gets the realtime feed, which is more permissive than the rest of the API and cheapens the cost of the connection-flood risk in Task 3; (2) `manager.connect(websocket)` returning `False` past the cap closes with code `1013` (RFC 6455's "try again later") rather than silently accepting an unbounded number of sockets.
+Two things added here beyond the base auth flow, both tracing to security review findings: (1) `payload.get("token_type") not in ALLOWED_TOKEN_TYPES` — without this, `decode_token` alone doesn't distinguish which kind of account authenticated the socket, unlike every REST endpoint in this codebase (`get_current_colaborador`/`get_current_tienda_user` both filter by type); leaving it unchecked would mean any valid JWT of any type gets the realtime feed, which is more permissive than the rest of the API and cheapens the cost of the connection-flood risk in Task 3. `ALLOWED_TOKEN_TYPES` is `("colaborador",)` only, not `("colaborador", "tienda")` — the realtime feed carries avistamiento/evento/especie events, which is colaborador-space data; tienda (shop) accounts have no product reason to receive it, and including `"tienda"` here would leave no token type left to exercise as "genuinely rejected" in Task 4's own auth-failure test below. (2) `manager.connect(websocket)` returning `False` past the cap closes with code `1013` (RFC 6455's "try again later") rather than silently accepting an unbounded number of sockets.
 
 Auth is validated once at connect time via first-message JWT (never a `?token=` query string, per the spec's HAProxy-log finding). `decode_token` raising `HTTPException` on an invalid/expired token is caught here as a generic `Exception` and treated as an auth failure close — the websocket protocol can't return an HTTP status code mid-handshake, so a close code (`4001`) is the equivalent signal.
 
@@ -1068,15 +1068,21 @@ git commit -m "feat: RealtimeProvider con reconexion exponencial y resync en rec
 Create `MockupsSwayMobile/src/context/realtimeMerge.js`:
 
 ```javascript
-export function mergeAvistamientoCreated(prev, mapped) {
+function mergeAvistamientoCreated(prev, mapped) {
   if (prev.some((s) => s.id === mapped.id)) return prev;
   return [mapped, ...prev];
 }
 
-export function removeById(prev, id) {
+function removeById(prev, id) {
   return prev.filter((s) => s.id !== id);
 }
+
+module.exports = { mergeAvistamientoCreated, removeById };
 ```
+
+**Written as CommonJS (`module.exports`), not `export function`.** `MockupsSwayMobile/package.json` has no `"type": "module"`, so Node treats every `.js` file here as CommonJS by default — an ESM `export function` would make the test's `require('./realtimeMerge')` below throw `SyntaxError: Unexpected token 'export'` on Node versions before 22.12/23 (where `require(esm)` support landed), which isn't a guaranteed baseline for this project. CommonJS on both sides removes the Node-version dependency entirely rather than gambling on whichever engineer's `PATH` happens to have a newer Node.
+
+Then, in `MockupsSwayMobile/src/screens/SightingsScreen.js`'s import (Step 3 below), import via named destructure the same way (`import { mergeAvistamientoCreated, removeById } from '../context/realtimeMerge';` still works fine against a CommonJS `module.exports` object under Metro's bundler — Metro's own transform layer handles the interop; this only matters for the plain `node` invocation in Step 2 below, which has no bundler in front of it).
 
 Create `MockupsSwayMobile/src/context/realtimeMerge.test.js` (plain Node script, run with `node`, not a test framework):
 
@@ -1235,7 +1241,27 @@ git commit -m "feat: pantallas de avistamientos/eventos/especies se actualizan e
 
 **Files:** none (infra/ops task, no code changes)
 
+- [ ] **Step 0: Local dry run of the cross-replica relay and idle-timeout checks — before touching the droplets**
+
+Steps 4 and 5 below (cross-replica delivery, idle-timeout) are written against production because that's the only place the real 2-droplet/HAProxy topology exists — but the same relay path (2 API replicas + shared Redis) is fully reproducible locally first, and should be exercised there before ever deploying, not for the first time in prod. Using this project's local `docker-compose.yml` (which Task 1 Step 3 already extended with the `redis` service, and which already defines local `api_1`/`api_2`):
+
+```bash
+docker compose up -d
+```
+
+Then repeat Step 4's recipe locally: connect one WS client to `ws://localhost:<api_1's local port>/api/ws` and another to `ws://localhost:<api_2's local port>/api/ws` (check `docker-compose.yml` for the actual published ports), both authenticated, then `curl localhost:<api_1 or api_2's port>/api/reportar-avistamiento` with a real local `especie_id` (`docker exec` into the local Postgres to look one up, same as Step 4 below) and confirm both local clients receive the message within the same 10s window. Also repeat Step 5's idle-timeout check against `ws://localhost:<port>/api/ws` for 45+ seconds.
+
+If either check fails locally, do not proceed to Step 1 — fix it against the local stack first, where a bad config or a bug in `redis_bridge.py` costs nothing to iterate on, instead of debugging it live against production.
+
 - [ ] **Step 1: Deploy Redis + updated HAProxy config**
+
+Before deploying, check the private droplet actually has room for a 9th container — this droplet is documented elsewhere in this project (`docs/PI_REQUIREMENTS_VERIFICATION.md`) as RAM-tight (~1.9GB total, only 241MB free when it was running a much smaller 4-container stack):
+
+```bash
+ssh sway-privado "free -h"
+```
+
+If available memory is under ~150MB, stop and free up room (or reconsider `redis`'s `mem_limit`) before continuing — don't deploy a new container into a host that's already close to its ceiling.
 
 On the private droplet: `git pull && docker compose -f docker-compose.private.yml up -d redis api1 api2`.
 
@@ -1296,12 +1322,19 @@ This is new functionality beyond the original 14-point rubric — add a short ne
 
 ## Self-Review Notes
 
-- **Spec coverage:** every Phase 2 architecture bullet from the spec maps to a task above — Redis container + `timeout tunnel` (Task 1), publish helper (Task 2), connection manager with a connection cap (Task 3), first-message-auth WS endpoint with token-type validation + subscriber reconnect loop (Task 4), all 7 message types including `especie_deleted`/`avistamiento_deleted` wired into every mutating endpoint with test coverage for all 7 (Task 5), mobile provider with reconnect + resync-on-reconnect (Task 6), per-screen merge with the merge-vs-refetch rule codified and pure-function test coverage (Task 7), cross-replica + idle-timeout verification with concrete reproducible steps (Task 8). The two "accepted, not fixed" items from spec review (no push-token cleanup, no push-token-ownership validation) live in the push-notifications plan, not here.
+- **Spec coverage:** every Phase 2 architecture bullet from the spec maps to a task above — Redis container + `timeout tunnel` (Task 1), publish helper (Task 2), connection manager with a connection cap (Task 3), first-message-auth WS endpoint with token-type validation + subscriber reconnect loop (Task 4), all 7 message types including `especie_deleted`/`avistamiento_deleted` wired into every mutating endpoint with test coverage for all 7 (Task 5), mobile provider with reconnect + resync-on-reconnect (Task 6), per-screen merge with the merge-vs-refetch rule codified and pure-function test coverage (Task 7), cross-replica + idle-timeout verification with concrete reproducible steps (Task 8). Phase 1 of the original spec (push notifications) was dropped entirely — see the Note under the header above — so its spec section is intentionally uncovered by any task in this file.
 - **Type consistency check:** `publish_event(event_type: str, payload: dict)` signature (Task 2) matches every call site in Task 5. `manager.connect(websocket) -> bool` / `manager.broadcast(message: dict)` (Task 3) matches how `redis_bridge.py` and the WS endpoint (Task 4) call them. Mobile `subscribe(callback)` (Task 6) matches every screen's usage in Task 7 (`const unsubscribe = subscribe((message) => {...})`); `mergeAvistamientoCreated`/`removeById` (Task 7 Step 1) match their usage in Task 7 Step 3.
 - **No placeholders:** every step above contains complete, runnable code.
-- **Split from the original combined plan:** this file was split out of a single Phase 1 + Phase 2 plan document (`docs/superpowers/plans/2026-08-04-push-notifications-and-realtime-sync.md`, superseded by this file and `2026-08-04-push-notifications.md`) on tech-lead review recommendation — see that file's Global Constraints for the reasoning.
+- **Split from the original combined plan:** this file was split out of a single Phase 1 + Phase 2 plan document (`docs/superpowers/plans/2026-08-04-push-notifications-and-realtime-sync.md`) on tech-lead review recommendation. The Phase 1 half (`2026-08-04-push-notifications.md`) was later dropped entirely and deleted — see the Note under the header above — leaving this file as the only surviving implementation plan from that original spec.
 - **Specialist review findings folded in (multiple review rounds, most recent = exhaustive 4-agent pass covering security, QA, DevOps, and architecture):**
   - **Security:** `/api/ws` previously had no rate limit or connection cap (Starlette's `BaseHTTPMiddleware`, which is how `slowapi` is wired into this app, doesn't intercept the websocket ASGI scope at all) and didn't validate `token_type` — together, a real DoS path via one free self-registered account opening unbounded sockets. Fixed with a hard connection cap in `ConnectionManager` (Task 3) and a `token_type` check in the WS endpoint (Task 4).
   - **QA:** `avistamiento_deleted` was completely untested despite the plan's own coverage claim saying otherwise (6 of 7 call sites tested, claimed 7/7) — added in Task 5, now genuinely 8/8 including both the create-success and create-validation-failure cases. Task 7's manual verification checklist now explicitly includes a deletion check, not just creation. Task 8's cross-replica and idle-timeout verification steps were vague enough that two engineers could reach different pass/fail conclusions — both now specify exact commands, a known-good `id_especie` lookup, a fixed wait window, and a named tool (`websocat`).
   - **DevOps:** the HAProxy container restart (Task 8 Step 1) drops all in-flight traffic app-wide (not just websockets, since it's the single ingress for everything) — now flagged to happen during low-traffic hours, distinguished from the already-accepted `api1`/`api2` restart pattern. Rollback mechanics (trivial here, since this phase adds no DB schema) are now stated explicitly rather than left implicit. The new `redis` container got a `mem_limit: 64m` guardrail given this droplet's documented tight RAM headroom.
   - **Architecture/tech-lead:** the merge-vs-refetch asymmetry between `SightingsScreen` (merges) and `EventsScreen`/`CatalogScreen` (refetch) is now codified as an explicit rule in Global Constraints rather than left as three screens making three separate-looking calls — confirmed on review to be the *correct* response to a real difference in what each screen's realtime payload can support, not an arbitrary inconsistency. `EventsScreen`'s `[]` dependency array (an asymmetry vs. Sightings' `[showMineOnly]`) is now called out as intentional given today's param-free `getEventos()`, so it isn't "fixed" into unneeded complexity later. The single generic `/api/ws` channel and the hand-rolled reconnect logic were both reviewed and confirmed as the right-sized call for this project's actual scale (one developer, session-based iteration, no high-traffic evidence anywhere in this project's history) — no changes made there.
+- **Second review round (3-agent exhaustive pass, focused on local-first sequencing and prod downtime risk, after the plan split):**
+  - **Critical, rewrite-introduced bug:** Task 4's `ALLOWED_TOKEN_TYPES` originally included both `"colaborador"` and `"tienda"` — but the same task's own `test_ws_closes_with_wrong_token_type` test used `"tienda"` as its example of a *rejected* type, meaning the test would have hung (never gets the expected close) rather than failed cleanly, since there was no token type actually excluded by the allow-list it was written against. Fixed by narrowing `ALLOWED_TOKEN_TYPES` to `("colaborador",)` only — matches the realtime feed's actual data domain (avistamiento/evento/especie is colaborador-space, tienda/shop accounts have no reason to receive it).
+  - **Real bug, rewrite-introduced:** `realtimeMerge.js` was written with ES module `export function` syntax while its own test file used CommonJS `require()` — confirmed independently by two reviewers (one reproduced the actual `SyntaxError` on a pre-22.12 Node) that this would throw before a single assertion ran, defeating the entire point of a "cheap, zero-dependency regression guard." Fixed by writing the source file as CommonJS (`module.exports`) to match, removing any Node-version dependency.
+  - **Real gap (since superseded):** this round found the cross-plan gate ("realtime-sync waits for push-notifications to ship") was prose only with no enforcement point, and a Task 1 Step 0 precondition check was added to fix it. That gate itself is now moot — the push-notifications plan was dropped entirely after this review round (Expo Go's Android push-notification removal made it unverifiable in this project's actual test environment), so the Step 0 check was removed again along with the rest of the cross-plan dependency. Recorded here so the history isn't confusing if this file is diffed against an earlier commit.
+  - **Real gap:** Task 8's deploy had no check of the private droplet's actual free RAM before adding a 9th container to host documented elsewhere in this project as already tight on memory — added as a `free -h` check with an abort threshold at the start of Task 8 Step 1.
+  - **Real gap, directly against this round's stated priority:** Task 8's cross-replica and idle-timeout verification went straight at production with no local equivalent first — added as a new Task 8 Step 0 running the identical checks against local `docker-compose.yml`'s `api_1`/`api_2` + local Redis before any droplet is touched.
+  - **Minor:** confirmed this plan's rollback claim, the api1/api2 simultaneous-restart "accepted pattern" claim, the HAProxy blast-radius claim, and the Redis `service_started` readiness reasoning are all independently verified true against the real codebase/docs, not just re-asserted from the prior review round.
