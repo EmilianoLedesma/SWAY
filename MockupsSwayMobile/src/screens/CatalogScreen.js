@@ -34,6 +34,7 @@ import {
 } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
 import { useAuth } from '../context/AuthContext';
+import { useRealtime } from '../context/RealtimeContext';
 
 const ESTADO_SLUG_TO_STATUS = {
   'extincion-critica': 'CRITICAL',
@@ -139,6 +140,21 @@ export default function CatalogScreen() {
     return () => {
       active = false;
     };
+  }, []);
+
+  const { subscribe } = useRealtime();
+
+  useEffect(() => {
+    const unsubscribe = subscribe((message) => {
+      if (['resync', 'especie_created', 'especie_updated', 'especie_deleted'].includes(message.type)) {
+        getEspecies().then((data) => {
+          if (data?.success && Array.isArray(data.especies)) {
+            setSpecies(data.especies.map(mapEspecieFromApi));
+          }
+        });
+      }
+    });
+    return unsubscribe;
   }, []);
 
   const filtered = useMemo(() => {

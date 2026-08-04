@@ -13,6 +13,7 @@ from app.data.models import (
 )
 from app.security.auth import get_current_colaborador
 from app.config import AVISTAMIENTOS_UPLOAD_DIR
+from app.services.realtime_publish import publish_event
 from datetime import datetime
 
 router = APIRouter(prefix="/api", tags=["estadisticas"])
@@ -202,6 +203,19 @@ async def reportar_avistamiento(data: AvistamientoCreate, db: Session = Depends(
         db.commit()
         db.refresh(nuevo_avistamiento)
 
+        publish_event("avistamiento_created", {
+            "id": nuevo_avistamiento.id,
+            "id_especie": nuevo_avistamiento.id_especie,
+            "fecha": nuevo_avistamiento.fecha.isoformat(),
+            "notas": nuevo_avistamiento.notas,
+            "especie_nombre": especie.nombre_comun,
+            "especie_cientifica": especie.nombre_cientifico,
+            "email_usuario": user.email,
+            "latitud": float(nuevo_avistamiento.latitud) if nuevo_avistamiento.latitud else None,
+            "longitud": float(nuevo_avistamiento.longitud) if nuevo_avistamiento.longitud else None,
+            "foto_url": nuevo_avistamiento.foto_url,
+        })
+
         return {"success": True, "message": "Avistamiento reportado exitosamente", "id": nuevo_avistamiento.id}
 
     except HTTPException:
@@ -224,6 +238,8 @@ async def eliminar_avistamiento(
 
         db.delete(avistamiento)
         db.commit()
+
+        publish_event("avistamiento_deleted", {"id": avistamiento_id})
 
         return {"success": True, "message": "Avistamiento eliminado exitosamente"}
 

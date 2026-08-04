@@ -536,7 +536,7 @@ Auth is validated once at connect time via first-message JWT (never a `?token=` 
 Add the import (line ~15, alongside the other router imports):
 
 ```python
-from app.routers import auth, colaboradores, especies, productos, pedidos, eventos, estadisticas, direcciones, catalogos, push, realtime
+from app.routers import auth, colaboradores, especies, productos, pedidos, eventos, estadisticas, direcciones, catalogos, realtime
 ```
 
 Register the router **without** `dependencies=_api_key_dep` (React Native's native `WebSocket` can't reliably send the custom `x-api-key` header this project's REST clients use — auth here is the first-message JWT instead, now including a token-type check, per Step 4 above):
@@ -1179,18 +1179,19 @@ Near the existing `useFocusEffect` (line ~114), add a separate `useEffect`:
   useEffect(() => {
     const unsubscribe = subscribe((message) => {
       if (message.type === 'resync' || message.type === 'evento_created' || message.type === 'evento_deleted') {
-        getEventos().then((data) => {
+        const fetchEvents = showMineOnly ? getEventosMine : getEventos;
+        fetchEvents().then((data) => {
           if (data?.success) setEvents(sortEventos(data.eventos.map(mapEventoFromApi)));
         });
       }
     });
     return unsubscribe;
-  }, []);
+  }, [showMineOnly]);
 ```
 
 A full refetch (rather than a merge) is used here per the Global Constraints rule: `_serializar_eventos` computes `registrados`/`es_gratuito`/status server-side, and this screen already has a `sortEventos` helper expecting the full mapped shape — reconstructing that client-side from the smaller realtime payload would duplicate server logic and risk drifting from it.
 
-This effect's `[]` dependency array (unlike `SightingsScreen`'s `[showMineOnly]`-keyed one) is intentional today, not an oversight: `getEventos()` takes no filter argument the way `getAvistamientosMine`/`getAvistamientosAll` do. If a future change adds a filter-dependent variant to this screen (mirroring how Sightings has `showMineOnly`), this dependency array needs to grow to match, the same way Sightings' effect already does — don't "clean up" this asymmetry without checking whether a filter was added first.
+This effect's dependency array must include `showMineOnly`, mirroring `SightingsScreen`'s `[showMineOnly]`-keyed one: `getEventosMine` already exists and is used by this same screen's `useFocusEffect`, so a bare `getEventos()` call here would silently clobber the "Míos" filter every time a realtime event or resync fires while it's active.
 
 - [ ] **Step 5: Wire `CatalogScreen.js`**
 
