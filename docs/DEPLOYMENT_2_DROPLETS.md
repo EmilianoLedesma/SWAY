@@ -22,7 +22,7 @@ nano .env   # rellenar JWT_SECRET_KEY, API_KEY, CORS_ORIGINS=https://146.190.136
 docker compose -f docker-compose.private.yml up --build -d
 docker compose -f docker-compose.private.yml ps
 ```
-Verificar 8 contenedores `Up`: postgres, api1, api2, flask1, flask2, postgres_exporter, node_exporter, prometheus (sin cadvisor — descartado por RAM ajustada, ver Tarea 6).
+Verificar 9 contenedores `Up`: postgres, api1, api2, flask1, flask2, postgres_exporter, node_exporter, prometheus, redis (sin cadvisor — descartado por RAM ajustada, ver Tarea 6; `redis` agregado 2026-08-04 para pub/sub de realtime sync y storage compartido de rate limiting — `mem_limit: 64m`, RAM verificada antes de agregarlo, ver `docs/PI_REQUIREMENTS_VERIFICATION.md` sección 15).
 
 Nota UFW: `scripts/ufw_private.sh` borra explícitamente las reglas `80/tcp`, `443/tcp` y sus variantes `(v6)` que quedaron del despliegue de un solo droplet, antes de aplicar las reglas nuevas (`ufw default deny` no revierte un `allow` ya puesto). Después de correr el script, verificar con `ufw status numbered` que no sobrevivió ninguna regla `80/tcp`/`443/tcp` IPv6 residual — el `delete` de esas reglas `(v6)` puede ser un no-op según la versión de UFW instalada, así que confirmar a mano.
 
