@@ -1,10 +1,10 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import Optional
 
 
 class NewsletterSuscripcion(BaseModel):
-    email: str = Field(
-        ..., min_length=5, max_length=150,
+    email: EmailStr = Field(
+        ..., max_length=150,
         description="Correo electrónico para suscripción al newsletter",
         example="usuario@ejemplo.com"
     )
@@ -16,8 +16,8 @@ class ContactoMensaje(BaseModel):
         description="Nombre completo del remitente",
         example="Juan Pérez"
     )
-    email: str = Field(
-        ..., min_length=5, max_length=150,
+    email: EmailStr = Field(
+        ..., max_length=150,
         description="Correo electrónico de contacto",
         example="juan@ejemplo.com"
     )
@@ -55,8 +55,8 @@ class DonacionCreate(BaseModel):
         description="Nombre completo del donante",
         example="María García"
     )
-    contact_email: str = Field(
-        ..., min_length=5, max_length=150,
+    contact_email: EmailStr = Field(
+        ..., max_length=150,
         description="Correo electrónico del donante",
         example="maria@ejemplo.com"
     )

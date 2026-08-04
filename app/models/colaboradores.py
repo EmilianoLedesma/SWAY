@@ -1,6 +1,6 @@
 # Para los modelos de validaciones el nombre debe reflejar la entidad que protege.
 # Se usa Field para agregar validaciones adicionales: longitud, rangos, descripción y ejemplos.
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, field_validator
 
 
 class ColaboradorLogin(BaseModel):
@@ -78,6 +78,13 @@ class ColaboradorRegister(BaseModel):
         example="0000-0002-1825-0097"
     )
 
+    @field_validator("años_experiencia")
+    @classmethod
+    def validar_años_experiencia_digitos(cls, v):
+        if not v.isdigit():
+            raise ValueError("años_experiencia debe contener solo dígitos")
+        return v
+
 
 class CheckEmail(BaseModel):
     email: EmailStr = Field(
@@ -118,6 +125,13 @@ class ColaboradorPerfilUpdate(BaseModel):
     numero_cedula: str = Field("", max_length=20, description="Número de cédula profesional")
     orcid: str = Field("", max_length=50, description="Identificador ORCID")
     motivacion: str = Field("", max_length=1000, description="Motivación del colaborador")
+
+    @field_validator("años_experiencia")
+    @classmethod
+    def validar_años_experiencia_digitos(cls, v):
+        if v != "" and not v.isdigit():
+            raise ValueError("años_experiencia debe contener solo dígitos")
+        return v
 
 
 class ColaboradorPasswordChange(BaseModel):

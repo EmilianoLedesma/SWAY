@@ -2,7 +2,7 @@ import os
 import uuid
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Request
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -146,7 +146,7 @@ class AvistamientoCreate(BaseModel):
     latitud: float
     longitud: float
     nombre_usuario: str
-    email_usuario: str
+    email_usuario: EmailStr
     notas: Optional[str] = ""
     nombre: Optional[str] = None
     apellido_paterno: Optional[str] = None

@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -42,7 +43,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     print(f"[422] URL: {request.url}")
     print(f"[422] Body: {body.decode()}")
     print(f"[422] Errors: {exc.errors()}")
-    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    return JSONResponse(status_code=422, content=jsonable_encoder({"detail": exc.errors()}))
 
 _api_key_dep = [Security(require_api_key)]
 

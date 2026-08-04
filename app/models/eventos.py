@@ -1,5 +1,6 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
+from datetime import datetime
 
 
 class EventoCreate(BaseModel):
@@ -55,3 +56,23 @@ class EventoCreate(BaseModel):
         None, max_length=150,
         description="Correo o teléfono de contacto del organizador"
     )
+
+    @field_validator("fecha_evento")
+    @classmethod
+    def validar_fecha_evento(cls, v):
+        try:
+            datetime.strptime(v, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("fecha_evento debe tener formato YYYY-MM-DD válido")
+        return v
+
+    @field_validator("hora_inicio", "hora_fin")
+    @classmethod
+    def validar_hora(cls, v):
+        if v is None:
+            return v
+        try:
+            datetime.strptime(v, "%H:%M")
+        except ValueError:
+            raise ValueError("la hora debe tener formato HH:MM válido")
+        return v
