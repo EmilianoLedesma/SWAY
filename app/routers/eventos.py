@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date, time
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Optional
 from sqlalchemy import func
@@ -10,6 +10,7 @@ from app.data.models import (
 )
 from app.security.auth import get_optional_organizador_user
 from app.models.eventos import EventoCreate
+from app.services.realtime_publish import publish_event
 
 router = APIRouter(prefix="/api", tags=["eventos"])
 
@@ -165,12 +166,16 @@ async def crear_evento(
             db.commit()
             db.refresh(organizador)
 
+        fecha_obj = datetime.strptime(data.fecha_evento, "%Y-%m-%d").date()
+        hora_inicio_obj = datetime.strptime(data.hora_inicio, "%H:%M").time()
+        hora_fin_obj = datetime.strptime(data.hora_fin, "%H:%M").time() if data.hora_fin else None
+
         nuevo_evento = Evento(
             titulo=data.titulo,
             descripcion=data.descripcion,
-            fecha_evento=data.fecha_evento,
-            hora_inicio=data.hora_inicio,
-            hora_fin=data.hora_fin,
+            fecha_evento=fecha_obj,
+            hora_inicio=hora_inicio_obj,
+            hora_fin=hora_fin_obj,
             id_tipo_evento=data.id_tipo_evento,
             id_modalidad=data.id_modalidad,
             url_evento=data.url_evento if data.url_evento else None,
@@ -182,6 +187,8 @@ async def crear_evento(
         db.add(nuevo_evento)
         db.commit()
         db.refresh(nuevo_evento)
+
+        publish_event("evento_created", {"id": nuevo_evento.id, "titulo": nuevo_evento.titulo})
 
         return {
             "success": True,
@@ -218,6 +225,8 @@ async def eliminar_evento(
 
         evento.id_estatus = estatus_cancelado.id
         db.commit()
+
+        publish_event("evento_deleted", {"id": evento_id})
 
         return {"success": True, "message": "Evento eliminado exitosamente"}
 

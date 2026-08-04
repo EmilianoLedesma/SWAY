@@ -9,6 +9,7 @@ from app.data.models import (
 )
 from app.security.auth import get_current_colaborador
 from app.models.especies import EspecieCreate, EspecieUpdate
+from app.services.realtime_publish import publish_event
 
 router = APIRouter(prefix="/api", tags=["especies"])
 
@@ -468,6 +469,8 @@ async def create_especie(
             finally:
                 orm_db.close()
 
+        publish_event("especie_created", {"id": especie_id, "nombre_comun": nueva_especie.nombre_comun})
+
         return {"success": True, "especie_id": especie_id, "message": "Especie creada correctamente"}
 
     except HTTPException:
@@ -563,6 +566,8 @@ async def update_especie(
             finally:
                 orm_db.close()
 
+        publish_event("especie_updated", {"id": especie_id, "nombre_comun": especie.nombre_comun})
+
         return {"success": True, "message": "Especie actualizada correctamente"}
 
     except HTTPException:
@@ -591,6 +596,8 @@ async def delete_especie(
         db.query(EspecieCaracteristica).filter(EspecieCaracteristica.id_especie == especie_id).delete()
         db.delete(especie)
         db.commit()
+
+        publish_event("especie_deleted", {"id": especie_id})
 
         return {"success": True, "message": f'Especie "{nombre}" eliminada exitosamente'}
 
