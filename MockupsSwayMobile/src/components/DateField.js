@@ -81,7 +81,7 @@ export default function DateField({
           mode={stage}
           display="default"
           onChange={handlePicked}
-          maximumDate={maximumDate}
+          {...(maximumDate ? { maximumDate } : {})}
         />
       ) : null}
     </>
