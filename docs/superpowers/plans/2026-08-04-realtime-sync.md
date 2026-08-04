@@ -536,7 +536,7 @@ Auth is validated once at connect time via first-message JWT (never a `?token=` 
 Add the import (line ~15, alongside the other router imports):
 
 ```python
-from app.routers import auth, colaboradores, especies, productos, pedidos, eventos, estadisticas, direcciones, catalogos, push, realtime
+from app.routers import auth, colaboradores, especies, productos, pedidos, eventos, estadisticas, direcciones, catalogos, realtime
 ```
 
 Register the router **without** `dependencies=_api_key_dep` (React Native's native `WebSocket` can't reliably send the custom `x-api-key` header this project's REST clients use — auth here is the first-message JWT instead, now including a token-type check, per Step 4 above):
