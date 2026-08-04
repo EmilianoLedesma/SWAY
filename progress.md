@@ -602,4 +602,68 @@ Worktree aislado creado manualmente (`.claude/worktrees/realtime-sync`, rama `wo
    - Review final de rama completa (modelo más capaz).
    - Retomar reentrando al worktree existente: `.claude/worktrees/realtime-sync` (rama `worktree-realtime-sync`) — **no crear uno nuevo**, ya tiene Tasks 1-4 commiteadas. Ledger completo en `.superpowers/sdd/2026-08-04-realtime-sync/progress.md` dentro de ese worktree.
 2. **Task 8 (deploy a producción)** — explícitamente pendiente de aprobación separada del usuario antes de tocar los droplets reales, incluso después de que Tasks 5-7 estén listas y revisadas. No asumir luz verde automática.
-3. **Especial — explorar si el Redis ya agregado en Task 1 puede resolver también el bug ya documentado de rate limiting duplicado por réplica.** Encontrado en la sesión 2026-08-01: `slowapi` usa `storage_uri="memory://"`, y como hay 2 réplicas (`api1`/`api2`) balanceadas, cada una lleva su propio contador — el límite efectivo en producción es ~2x el nominal (ej. login permite ~10/min repartidos entre las 2 réplicas, no 5/min). En ese momento se documentó como "fix futuro: mover `storage_uri` a un backend compartido — típicamente Redis" pero se dejó fuera de alcance por requerir infraestructura nueva. **Esa infraestructura ya existe ahora** (el mismo contenedor `redis` de este plan). Vale la pena, en la próxima sesión, evaluar explícitamente: ¿cambiar `storage_uri="memory://"` a `storage_uri="redis://redis:6379"` en `app/security/rate_limit.py` cierra ese gap gratis, reusando el mismo Redis, o hay una razón para mantenerlos separados (namespacing de claves, impacto en el mismo contenedor de 64MB, etc.)? No implementado todavía — es una exploración pendiente, no una tarea del plan actual.
+3. ~~**Especial — explorar si el Redis ya agregado en Task 1 puede resolver también el bug ya documentado de rate limiting duplicado por réplica.**~~ ✅ **RESUELTO 2026-08-04** — ver sección siguiente.
+
+---
+
+## Sesión 2026-08-04 (continuación) — Tasks 5-7 + revisión final + rate limiting sobre Redis + Task 8 (deploy real a producción)
+
+### Tasks 5-7 vía `subagent-driven-development`, continuando desde Task 4
+
+Retomado el worktree existente (`worktree-realtime-sync`), sin recrear nada. Cada task con implementador + review independiente, fix loops normales.
+
+- **Task 5** (wire `publish_event` en 7 endpoints mutantes): implementador hizo 3 cambios fuera del brief literal — `EspecieUpdate.id_estado_conservacion` pasó de requerido a opcional (siguiendo el propio test del brief), parsing de fecha/hora en `crear_evento`, seed de `Estatus` en `conftest.py`. Reviewer marcó el primero como Important-plan-mandated (riesgo real de pérdida de datos — cualquier caller que omita el campo ahora borraría el estado de conservación silenciosamente). Presentado al usuario: eligió mantenerlo requerido. Revertido + test corregido, fix loop 1/1, limpio. Los otros 2 cambios confirmados como fixes legítimos de bugs latentes (SQLite vs Postgres), aceptados.
+- **Task 6** (`RealtimeProvider` móvil): implementación calzó con el brief carácter por carácter. Reviewer encontró un Important real: el timer de reconexión pendiente (`setTimeout`) nunca se guardaba ni limpiaba — un logout→login rápido podía dejar un socket duplicado sin rastrear. Fix loop 1/1, limpio.
+- **Task 7** (wiring de 3 pantallas + `realtimeMerge.js`): spec compliant, sin desviaciones. Único hallazgo (ausencia de `.catch()` en los nuevos `.then()`) confirmado como literal del brief y consistente con el patrón ya existente en esos mismos archivos — usuario confirmó dejarlo así, parked sin fix.
+
+### Review final de rama completa (opus) — 1 Critical + 4 Important + 1 Minor + 1 defecto de plan, todos bugs de integración cruzada invisibles para cualquier review por task
+
+1. **Critical — `avistamiento_deleted` no hacía nada en otros dispositivos.** `SightingsScreen.js` normaliza ids a string (`String(a.id)`), pero el handler de delete pasaba el id numérico crudo del payload a `removeById`, que compara con `!==` estricto — `"5" !== 5` siempre verdadero, nunca se borraba nada. Invisible en el dispositivo que hace el borrado (usa refetch local), solo se manifestaba en *otros* dispositivos — exactamente el feature que se estaba construyendo. Fix de una línea + test de regresión con ids string.
+2. **Important — socket rechazado (4001/1013) reseteaba el backoff y disparaba un resync storm, por siempre, a 1 Hz.** El endpoint WS acepta la conexión (`accept()`) antes de validar auth, así que `onopen` del cliente disparaba igual aunque el servidor fuera a rechazar. Cada 8 horas (expiración de JWT), cada cliente conectado entraba en un loop infinito de reconexión a 1 segundo, cada iteración disparando un resync que dispara refetch en 3 pantallas — ~180 peticiones/min contra un límite de `slowapi` de 100/min por IP. Fix: servidor manda un frame explícito `{"type":"auth_ok"}` solo tras éxito real de auth; cliente mueve el reset de backoff y el disparo de resync de `onopen` a ese mensaje específico.
+3. **Important — actualizaciones en tiempo real ignoraban el filtro "Míos" en 2 pantallas.** `EventsScreen` era el peor caso — no es que le faltara el filtro, es que el handler en tiempo real reemplazaba la lista ya filtrada por la lista completa sin filtrar. Fix: `EventsScreen` espeja el patrón del efecto de foco (`getEventosMine` vs `getEventos` según el toggle); `SightingsScreen` usa guard-and-merge (salta el merge si "Míos" está activo y el email del evento no coincide con el del usuario logueado).
+4. **Important — payload de `avistamiento_created` omitía `latitud`/`longitud`/`foto_url`**, violando la propia regla del plan (el payload debe bastar para reconstruir todo lo que la pantalla muestra) — las tarjetas merged mostraban "Sin coordenadas" hasta el siguiente refetch. Fix: agregados los 3 campos al payload.
+5. **Important — `publish_event` hacía una llamada Redis síncrona bloqueante en el event loop async, sin timeout.** Un Redis "agujero negro" (partición de red, contenedor colgado) podía bloquear el event loop de uvicorn entero, no solo la mutación — convirtiendo un problema de Redis en una caída total de la API. Fix: `socket_connect_timeout=2, socket_timeout=2`.
+6. **Minor + defecto de plan:** comentario engañoso en `realtime.py` sobre un keepalive del cliente que no existe; línea 1193 del plan afirmaba que `getEventos()` no tiene variante filtrada (falso — `getEventosMine` ya existía y ya se usaba en la misma pantalla), y encima instruía no corregir esa asimetría — corregido el texto del plan también.
+
+Fix wave único (los 6 items + corrección del plan) + re-review acotado: los 7 hallazgos verificados `ADDRESSED`, sin breakage nuevo. Commit `7fb7257` en el worktree.
+
+### Rate limiting migrado a Redis compartido (el pendiente especial de arriba)
+
+Investigado y confirmado: `slowapi`/`limits` soporta Redis nativamente con el mismo paquete `redis` ya agregado en Task 1, namespacing de claves limpio (`LIMITS:*`, sin colisión con el canal `sway:events`). Implementado en `app/security/rate_limit.py` con `storage_options` (timeouts) e `in_memory_fallback_enabled=True`.
+
+**Primer intento (`swallow_errors=True`) reveló un bug real de `slowapi`:** swallowea la excepción de conexión pero nunca fija `request.state.view_rate_limit`, y el middleware lo lee sin chequear después — crashea cada request con `AttributeError` apenas Redis no responde, exactamente lo opuesto a fail-open. Corregido usando `in_memory_fallback_enabled` en su lugar, que sí sigue el flujo normal.
+
+**Probado en vivo, dos veces:** (1) 2 réplicas locales reales en puertos distintos compartiendo un Redis real — intento 6 de login da `429` correcto pese a que cada réplica solo recibió 3 peticiones (imposible con contadores aislados); clave Redis compartida confirmada con conteo 6. (2) Redis matado a mitad de ejecución — sin 500s, requests se siguen sirviendo (limitación conocida y aceptada: el fallback es una lista global única, no por ruta, así que durante un corte el límite específico de `/login` se afloja al default global).
+
+Commit `ea26b13` en el worktree.
+
+### Bug real encontrado durante testing local end-to-end — subscriber de Redis nunca arrancaba
+
+Al levantar el stack completo localmente (2 réplicas + Redis + Postgres reales vía `docker compose`, no mockeado) para probar el relay cross-replica antes de tocar producción, **cero eventos llegaban a ninguno de los 2 clientes WS** pese a que el POST devolvía 200 y `publish_event` no tiraba ningún error. Log de ambas réplicas mostraba, justo al arrancar: `Task was destroyed but it is pending!` sobre la task de `start_subscriber()`.
+
+**Causa raíz:** `asyncio.create_task(start_subscriber())` en `app/main.py` no guardaba el objeto `Task` retornado — el event loop de asyncio solo mantiene una referencia débil, así que sin ninguna referencia propia el garbage collector la recolectaba antes de que corriera su primer `await`. La review final ya había marcado este patrón como un riesgo (M2) pero lo daba por poco probable, asumiendo que la task solía estar suspendida dentro de `pubsub.listen()` — en la práctica nunca llegaba tan lejos. Ninguna prueba automatizada lo detectó porque ninguna ejercita dos procesos reales corriendo en paralelo durante tiempo real — solo un test end-to-end contra la app real corriendo lo hubiera atrapado, y por eso se insistió en probar así antes de tocar producción.
+
+**Fix:** guardar la referencia en `app.state.realtime_subscriber_task`. Re-probado en vivo localmente: ambas réplicas reciben el evento correctamente. Commit `da40857` en el worktree.
+
+**Hallazgo colateral durante el testing local:** el Postgres local reusado (contenedor de sesiones anteriores) no tenía la columna `foto_url` en `avistamientos` — schema drift preexistente de la feature de fotos (sesión 2026-08-01), sin relación con esta rama. Corregido solo en la BD local de desarrollo (`ALTER TABLE`), no en producción (que sí tiene la columna, verificado).
+
+### Merge a `master` + fix adicional de validación de inputs (fuera del plan, pedido aparte por el usuario)
+
+Antes del merge, el usuario pidió una auditoría rápida de validación de inputs en toda la API (pregunta directa: "¿algún endpoint acepta tipo de dato incorrecto?"). Encontrados y corregidos 4 gaps reales, directo en `master` (no en el worktree): `NewsletterSuscripcion.email`/`ContactoMensaje.email`/`DonacionCreate.contact_email` eran `str` planos en vez de `EmailStr`; `AvistamientoCreate.email_usuario` (usado por mobile) igual; `años_experiencia` aceptaba no-dígitos; `fecha_evento`/`hora_inicio`/`hora_fin` de eventos solo validaban longitud, no formato real. 8 tests nuevos (`test/test_input_validation.py`). Efecto colateral encontrado al arreglar el último: un bug preexistente en el handler 422 de `app/main.py` — crasheaba con `TypeError` al serializar un `ValueError` crudo que Pydantic v2 mete en `ctx` cuando un `field_validator` falla (afectaba a *cualquier* validador futuro, no solo estos). Corregido con `jsonable_encoder`. Commit `581e1e9` en `master`.
+
+Merge no fast-forward (`master` había avanzado con el fix de validación mientras el worktree seguía su curso) — auto-merge limpio en los 2 archivos que ambas ramas tocaban (`app/main.py`, `app/routers/estadisticas.py`), 46/46 tests tras el merge. Commit `f5f984b`.
+
+### Task 8 — deploy real a producción, supervisado en vivo, todos los pasos verificados con evidencia real
+
+Ejecutado con el usuario mirando en vivo y aprobando cada acción real contra producción (varias quedaron bloqueadas por el clasificador de modo automático — SSH/curl mutando producción — aprobadas una por una en el momento).
+
+- **RAM del droplet privado verificada antes de desplegar** (`free -h`): 1.0GB disponible, muy por encima del umbral de aborto (~150MB). 8 contenedores corriendo antes, Redis sería el 9no.
+- **Droplet privado:** `git pull` + rebuild de `redis`/`api1`/`api2`. Sin warnings de `Task was destroyed`, sin tracebacks, Redis con `ping` `True` desde ambas réplicas.
+- **Droplet público — restart de HAProxy para el `timeout tunnel`.** Config validada con `haproxy -c` antes del restart (conectado a la red real `sway_edge_network` para que resolviera los hostnames de los backends). Restart ejecutado, los 4 servicios (web1, portal, docs de la API, endpoint real de la API) confirmados `200` inmediatamente después — sin daño colateral del par de segundos de caída total.
+- **Endpoint WS confirmado con upgrade real** (`101 Switching Protocols`) a través del dominio público con TLS real.
+- **Relay cross-replica confirmado en producción real** — cuenta de colaborador de prueba registrada real, JWT real, 2 clientes WS conectados directo a `api1`/`api2` (bypaseando HAProxy, vía la VPC), POST real vía el dominio público. Primer intento dio falso negativo por un error propio (background de SSH sin `nohup`, el listener moría al cerrarse la sesión SSH) — corregido corriendo todo en una sola sesión SSH continua, ambas réplicas confirmaron recepción del evento con el payload enriquecido intacto.
+- **Idle-timeout confirmado en producción real** — conexión autenticada sobrevivió 50s de inactividad (el límite viejo de HAProxy era 30s).
+- **Limpieza post-verificación:** cuenta de colaborador de prueba desactivada vía `DELETE /api/colaboradores/perfil`, archivos temporales de prueba borrados de ambos droplets.
+- **Documentación:** nueva sección 15 en `docs/PI_REQUIREMENTS_VERIFICATION.md` (funcionalidad más allá de los 14 puntos originales de la rúbrica), con los comandos reales de verificación y el bug del subscriber documentado como hallazgo real de la sesión.
+
+**Estado final:** feature de realtime sync (WebSocket + Redis) corriendo en producción real, verificada extremo a extremo con evidencia reproducible en cada paso — no "debería funcionar", sino confirmado funcionando. Sin pendientes abiertos de esta sesión.

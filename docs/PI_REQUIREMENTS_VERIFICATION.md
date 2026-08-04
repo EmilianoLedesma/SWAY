@@ -525,6 +525,37 @@ Esperado: líneas de log con peticiones reales (`GET /api/especies`, `POST /api/
 
 ---
 
+## 15. Realtime sync (WebSocket + Redis) — funcionalidad más allá de los 14 puntos originales
+
+**Qué se hizo:** dos dispositivos viendo la misma pantalla (avistamientos, eventos, catálogo de especies) ahora se ven en vivo entre sí sin navegar fuera y volver — antes solo refrescaba al enfocar la pantalla (`useFocusEffect`). Arquitectura: endpoint `WS /api/ws` con autenticación por primer mensaje (nunca en la URL, para no dejar el JWT en los logs de HAProxy), Redis pub/sub compartido entre `api1`/`api2` (necesario porque HAProxy balancea round-robin — sin Redis, un evento publicado en la réplica que recibió el POST nunca llegaría a un cliente WS conectado a la otra réplica), tope de 500 conexiones concurrentes por réplica (guardia anti-DoS, ya que `/api/ws` no pasa por el rate limiter de `slowapi`), y reconexión exponencial con backoff en el cliente móvil.
+
+**Cómo confirmarlo (verificado en vivo contra producción real, no solo local):**
+
+```bash
+# 1. Redis alcanzable desde ambas réplicas
+ssh sway-privado "docker exec sway_api1 python -c \"import redis; print(redis.from_url('redis://redis:6379').ping())\""
+ssh sway-privado "docker exec sway_api2 python -c \"import redis; print(redis.from_url('redis://redis:6379').ping())\""
+# Esperado: True, True
+
+# 2. Endpoint WS existe y hace upgrade correctamente
+curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" \
+  -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" https://proyecto-sway.site/api/ws
+# Esperado: HTTP/1.1 101 Switching Protocols
+
+# 3. Relay cross-replica real — dos clientes WS conectados directo a api1 y api2 (bypaseando
+# HAProxy), autenticados con un JWT de colaborador real, luego POST /api/reportar-avistamiento
+# vía el dominio público (HAProxy decide a qué réplica va). Ambos clientes deben recibir el
+# evento avistamiento_created dentro de ~10s.
+```
+
+**Resultado real (2026-08-04):** confirmado en producción — ambos clientes recibieron el evento con el payload enriquecido (`especie_nombre`, `latitud`, `longitud`, `foto_url`, etc.) necesario para que la pantalla móvil actualice la tarjeta sin tener que refrescar. Conexión autenticada probada con 50s de inactividad sin cerrarse (antes del fix de `timeout tunnel` en `haproxy.cfg`, HAProxy la hubiera cerrado a los 30s).
+
+**Bug real encontrado y corregido durante la verificación en vivo, no durante desarrollo:** `asyncio.create_task(start_subscriber())` en `app/main.py` no guardaba una referencia al task retornado — el event loop solo mantiene una referencia débil a las tasks, así que sin ninguna referencia propia el subscriber podía (y de hecho lo hacía, confirmado en logs de ambas réplicas: `Task was destroyed but it is pending!`) ser recolectado por el garbage collector antes de ejecutar su primer `await`. El subscriber nunca llegaba a `pubsub.listen()` — cero eventos relayados pese a que `publish_event()` corría sin error alguno. Ninguna prueba automatizada lo detectó porque ninguna ejercita dos procesos reales corriendo en paralelo durante un período de tiempo real; solo apareció al correr el stack completo (`docker compose`, 2 réplicas + Redis reales) antes de tocar producción. Corregido guardando la referencia en `app.state.realtime_subscriber_task`.
+
+**Mejora relacionada, misma sesión:** el rate limiting (`slowapi`) también fue migrado de `storage_uri="memory://"` a Redis compartido — antes cada réplica llevaba su propio contador, así que el límite efectivo en producción era ~2x el nominal (ej. login "5/minuto" era en la práctica ~10/minuto repartido entre las 2 réplicas). Probado en vivo localmente con 2 réplicas reales compartiendo un Redis real: intento 6 de login con credenciales falsas devuelve `429` correcto pese a que cada réplica solo recibió 3 peticiones — antes esto era estructuralmente imposible con contadores aislados. `in_memory_fallback_enabled` asegura que un corte de Redis degrada a protección por-proceso en vez de romper cada request (se descubrió que `swallow_errors=True` tiene un bug real en `slowapi` — nunca fija `request.state.view_rate_limit`, y el middleware lo lee sin chequear después, crasheando cada request igual).
+
+---
+
 ## Resumen ejecutivo
 
 | # | Requisito | Estado | Evidencia principal |
