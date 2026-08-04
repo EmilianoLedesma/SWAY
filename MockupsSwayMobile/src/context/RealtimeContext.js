@@ -17,6 +17,7 @@ export function RealtimeProvider({ children }) {
   const hasConnectedBeforeRef = useRef(false);
   const retryDelayRef = useRef(1000);
   const closedByUsRef = useRef(false);
+  const reconnectTimerRef = useRef(null);
 
   const notify = (message) => {
     listenersRef.current.forEach((cb) => cb(message));
@@ -25,6 +26,7 @@ export function RealtimeProvider({ children }) {
   useEffect(() => {
     if (!isLoggedIn) {
       closedByUsRef.current = true;
+      clearTimeout(reconnectTimerRef.current);
       socketRef.current?.close();
       socketRef.current = null;
       hasConnectedBeforeRef.current = false;
@@ -60,7 +62,7 @@ export function RealtimeProvider({ children }) {
 
       socket.onclose = () => {
         if (closedByUsRef.current) return;
-        setTimeout(connect, retryDelayRef.current);
+        reconnectTimerRef.current = setTimeout(connect, retryDelayRef.current);
         retryDelayRef.current = Math.min(retryDelayRef.current * 2, 30000);
       };
 
@@ -73,6 +75,7 @@ export function RealtimeProvider({ children }) {
 
     return () => {
       closedByUsRef.current = true;
+      clearTimeout(reconnectTimerRef.current);
       socketRef.current?.close();
       socketRef.current = null;
     };
