@@ -17,6 +17,12 @@
 - Every mutating endpoint touching avistamientos/eventos/especies must publish its typed event, including `DELETE /api/especies/{especie_id}` (`especie_deleted`) — easy to forget, explicitly in scope.
 - Realtime is best-effort: a Redis/publish/subscribe failure must never fail or roll back the underlying REST mutation.
 - Follow existing patterns: routers live in `app/routers/`, Pydantic schemas in `app/models/`, SQLAlchemy models in `app/data/models.py`, tests in `test/` using the sqlite-in-memory `conftest.py` override, dependency override for `get_current_colaborador` (not real JWTs) except where a task specifically needs a real token (the WS auth tests — no dependency-injection point exists there).
+- **Server health is the priority over speed.** Every task except Task 5 and Task 13 only touches local code/tests/local `docker-compose.yml` — never the real droplets. Do not skip ahead to a prod deploy step until every task before it (all local, all tested) is green. Task 5 deploys Phase 1 only; Task 13 deploys Phase 2 only, and only after Phase 1 has been running in prod without issue.
+- **Bastion access to the private droplet**, needed for Task 5 and Task 13's deploy/verification steps: the private droplet no longer accepts direct SSH from the internet (confirmed timeout, sesión 2026-08-02). All access goes through the public droplet as jump host, key `sway_deploy`:
+  ```bash
+  ssh -i ~/.ssh/sway_deploy -o ProxyCommand="ssh -i ~/.ssh/sway_deploy -W %h:%p root@146.190.136.236" root@10.124.0.3
+  ```
+  (`-J`/ProxyJump on the command line does not inherit `-i` for the intermediate hop — use `ProxyCommand` as above, not `-J`.) UFW on the private droplet only accepts port 22 from the public droplet's VPC IP (`10.124.0.2`); password auth is disabled there.
 
 ---
 
@@ -572,11 +578,30 @@ After the `postgres` service block, add:
       - data_network
 ```
 
-And add `REDIS_URL: redis://redis:6379` to both `api1` and `api2`'s `environment:` blocks (alongside the existing `DATABASE_URL`/`CORS_ORIGINS`/`UPLOAD_DIR`), and add `depends_on: redis:` (in addition to the existing `postgres: condition: service_healthy`) to both.
+And add `REDIS_URL: redis://redis:6379` to both `api1` and `api2`'s `environment:` blocks (alongside the existing `DATABASE_URL`/`CORS_ORIGINS`/`UPLOAD_DIR`), and add to both containers' `depends_on:` (in addition to the existing `postgres:` entry):
 
-- [ ] **Step 3: Mirror the same service in `docker-compose.yml`**
+```yaml
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+```
 
-Add the equivalent `redis` service block to the local reference `docker-compose.yml`, same pattern, so local Postgres+Redis testing (the established pattern from the RSVP/photo-upload sessions) works without touching prod.
+- [ ] **Step 3: Mirror the same service in `docker-compose.yml` — NOT a verbatim copy**
+
+`docker-compose.yml` (the local reference file) is structured differently from `docker-compose.private.yml`: it has **no top-level `networks:` block** (plain default bridge network) and its API services are named `api_1`/`api_2` (underscore, not `api1`/`api2`). Copying Step 2's redis block as-is — including `networks: - data_network` — fails compose validation here, since `data_network` doesn't exist in this file.
+
+Add this reduced block instead (no `networks:` key):
+
+```yaml
+  redis:
+    image: redis:alpine
+    container_name: sway_redis
+    restart: unless-stopped
+```
+
+And add `REDIS_URL: redis://redis:6379` + `depends_on: redis: condition: service_started` to `api_1`/`api_2` in this file, matching their actual service names.
 
 - [ ] **Step 4: Add `timeout tunnel` to HAProxy**
 
@@ -872,15 +897,21 @@ def test_ws_closes_with_invalid_token():
 
 
 def test_ws_accepts_valid_token_and_registers_connection():
+    import time
     token = _seed_usuario_and_token()
     with client.websocket_connect("/api/ws") as ws:
         ws.send_json({"type": "auth", "token": token})
-        # Give the server a moment to process the auth message and register the connection.
-        import time
-        time.sleep(0.2)
+        # send_json only enqueues the message — poll instead of a fixed sleep, since
+        # nothing guarantees the server coroutine has processed it within any fixed window.
+        for _ in range(40):
+            if manager.active:
+                break
+            time.sleep(0.05)
         assert len(manager.active) == 1
     assert len(manager.active) == 0  # cleaned up after the context manager closes the socket
 ```
+
+Note: `manager` is a process-wide singleton shared across every test in this file and in `test/test_realtime_manager.py` (Task 8). None of these tests reset it between runs — safe under default sequential `pytest`, but not safe under parallel execution (`pytest-xdist`) or a partial/selective test run, since a prior failing test could leave a stale connection that trips a later exact-count assertion. Run this suite sequentially.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -1102,7 +1133,112 @@ def test_delete_especie_publishes_especie_deleted():
         mock_publish.assert_called_once_with("especie_deleted", {"id": especie_id})
     finally:
         app.dependency_overrides.pop(get_current_colaborador, None)
+
+
+def test_create_especie_publishes_especie_created():
+    from app.security.auth import get_current_colaborador
+    app.dependency_overrides[get_current_colaborador] = lambda: {"colaborador_id": 1, "token_type": "colaborador"}
+    db = TestSession()
+    estado = EstadoConservacion(nombre="Vulnerable")
+    db.add(estado)
+    db.commit()
+    estado_id = estado.id
+    db.close()
+    try:
+        with patch("app.routers.especies.publish_event") as mock_publish:
+            resp = client.post("/api/especies", json={
+                "nombre_comun": "Ballena Jorobada",
+                "nombre_cientifico": "Megaptera novaeangliae",
+                "id_estado_conservacion": estado_id,
+            })
+        assert resp.status_code == 200
+        mock_publish.assert_called_once()
+        event_type, event_payload = mock_publish.call_args[0]
+        assert event_type == "especie_created"
+        assert event_payload["id"] == resp.json()["especie_id"]
+    finally:
+        app.dependency_overrides.pop(get_current_colaborador, None)
+
+
+def test_update_especie_publishes_especie_updated():
+    from app.security.auth import get_current_colaborador
+    especie_id = _seed_especie()
+    app.dependency_overrides[get_current_colaborador] = lambda: {"colaborador_id": 1, "token_type": "colaborador"}
+    try:
+        with patch("app.routers.especies.publish_event") as mock_publish:
+            resp = client.put(f"/api/especies/{especie_id}", json={
+                "nombre_comun": "Delfin Actualizado",
+                "nombre_cientifico": "Delphinus delphis",
+                "id_estado_conservacion": None,
+            })
+        assert resp.status_code == 200
+        mock_publish.assert_called_once_with("especie_updated", {"id": especie_id, "nombre_comun": "Delfin Actualizado"})
+    finally:
+        app.dependency_overrides.pop(get_current_colaborador, None)
+
+
+def test_crear_evento_publishes_evento_created():
+    from datetime import date, time
+    from app.data.models import TipoEvento, Modalidad
+
+    db = TestSession()
+    tipo = TipoEvento(nombre="Taller")
+    modalidad = Modalidad(nombre="Presencial")
+    db.add_all([tipo, modalidad])
+    db.commit()
+    tipo_id, modalidad_id = tipo.id, modalidad.id
+    db.close()
+
+    with patch("app.routers.eventos.publish_event") as mock_publish:
+        resp = client.post("/api/eventos/crear", json={
+            "titulo": "Limpieza de playa de prueba",
+            "descripcion": "Evento de prueba para wiring de realtime",
+            "fecha_evento": "2026-12-01",
+            "hora_inicio": "09:00",
+            "id_tipo_evento": tipo_id,
+            "id_modalidad": modalidad_id,
+            "contacto": "evento.wiring@demo-sway.com",
+        })
+    assert resp.status_code == 200
+    mock_publish.assert_called_once()
+    event_type, event_payload = mock_publish.call_args[0]
+    assert event_type == "evento_created"
+    assert event_payload["id"] == resp.json()["evento_id"]
+
+
+def test_eliminar_evento_publishes_evento_deleted():
+    from datetime import date, time
+    from app.data.models import TipoEvento, Modalidad, Estatus, Evento
+
+    db = TestSession()
+    tipo = TipoEvento(nombre="Conferencia")
+    modalidad = Modalidad(nombre="Virtual")
+    estatus = Estatus(nombre="Activo")
+    db.add_all([tipo, modalidad, estatus])
+    db.commit()
+    evento = Evento(
+        titulo="Evento a eliminar", descripcion="Prueba de wiring",
+        fecha_evento=date(2026, 12, 1), hora_inicio=time(10, 0),
+        id_tipo_evento=tipo.id, id_modalidad=modalidad.id,
+        capacidad_maxima=10, costo=0, id_estatus=estatus.id,
+    )
+    db.add(evento)
+    db.commit()
+    evento_id = evento.id
+    db.close()
+
+    from app.security.auth import get_optional_organizador_user
+    app.dependency_overrides[get_optional_organizador_user] = lambda: {"sub": "1", "token_type": "colaborador"}
+    try:
+        with patch("app.routers.eventos.publish_event") as mock_publish:
+            resp = client.delete(f"/api/eventos/{evento_id}")
+        assert resp.status_code == 200
+        mock_publish.assert_called_once_with("evento_deleted", {"id": evento_id})
+    finally:
+        app.dependency_overrides.pop(get_optional_organizador_user, None)
 ```
+
+These 4 additional tests close a real gap found in review: the plan's global constraint requires every one of the 7 mutating endpoints to publish, but only 3 were originally covered by tests here (`reportar_avistamiento` success + failure, `delete_especie`). A green suite with 4 of 7 call sites unverified would have given false confidence on exactly the thing this task exists to guarantee.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -1125,8 +1261,13 @@ In `reportar_avistamiento`, right after `db.refresh(nuevo_avistamiento)` and bef
             "id_especie": nuevo_avistamiento.id_especie,
             "fecha": nuevo_avistamiento.fecha.isoformat(),
             "notas": nuevo_avistamiento.notas,
+            "especie_nombre": especie.nombre_comun,
+            "especie_cientifica": especie.nombre_cientifico,
+            "email_usuario": user.email,
         })
 ```
+
+**Payload includes `especie_nombre`/`especie_cientifica`/`email_usuario`, not just the raw column values.** `especie` and `user` are already loaded a few lines above this exact insertion point in `reportar_avistamiento` — reuse them, don't re-query. This isn't optional enrichment: `SightingsScreen.js`'s `mapAvistamientoFromApi` reads `a.especie_nombre` into `species` and `a.reportado_por || a.email_usuario` into `reporter`, and the screen's search filter calls `s.species.toLowerCase()`/`s.reporter.toLowerCase()` unconditionally whenever the search box is non-empty. A thinner payload (just `id`/`id_especie`/`fecha`/`notas`) produces `species: undefined`, and a realtime event landing while the user has typed a search term crashes the tab on `undefined.toLowerCase()` — a real runtime bug, not a cosmetic gap. Task 12's merge code below relies on this richer shape.
 
 In `eliminar_avistamiento`, right after `db.commit()` and before the `return` (currently ~line 226):
 
@@ -1183,7 +1324,7 @@ In `delete_especie`, right before the final `return {"success": True, "message":
 - [ ] **Step 6: Run tests to verify they pass**
 
 Run: `pytest test/test_realtime_publish_wiring.py -v`
-Expected: PASS — 3/3.
+Expected: PASS — 7/7.
 
 - [ ] **Step 7: Run the full backend suite**
 
@@ -1400,7 +1541,7 @@ After the existing sightings-fetch `useEffect` (the one keyed on `[showMineOnly]
   }, [showMineOnly]);
 ```
 
-This mirrors the existing focus-refetch's `showMineOnly` dependency (a `resync` after reconnect should refetch honoring whichever toggle is currently active, same as the existing effect already does). `mapAvistamientoFromApi` expects the same shape the REST list endpoints return; the realtime payload from Task 10 (`id`, `id_especie`, `fecha`, `notas`) is a subset of that — check `mapAvistamientoFromApi`'s definition (top of this file) for which fields it reads and only rely on the ones present; if it reads `especie_nombre` (which the realtime payload does not include), leave that field absent/undefined rather than fabricating it, and note this as a known minor gap (the live card may show a blank species name until the next full refetch) rather than silently guessing a value.
+This mirrors the existing focus-refetch's `showMineOnly` dependency (a `resync` after reconnect should refetch honoring whichever toggle is currently active, same as the existing effect already does). `mapAvistamientoFromApi` reads `a.especie_nombre` (into `species`) and `a.reportado_por || a.email_usuario` (into `reporter`) — Task 10's payload was corrected to include `especie_nombre`/`especie_cientifica`/`email_usuario` specifically so this mapping doesn't produce `undefined`, which would otherwise crash this screen's search filter (`s.species.toLowerCase()` runs unconditionally once the user has typed anything). Do not slim the payload back down without also guarding the search filter against undefined fields.
 
 - [ ] **Step 2: Wire `EventsScreen.js`**
 
@@ -1513,6 +1654,7 @@ This is new functionality beyond the original 14-point rubric — add a short ne
 
 ## Self-Review Notes
 
-- **Spec coverage:** every architecture bullet from both phases of the spec maps to a task above — `push_tokens` table (Task 1), registration endpoint (Task 2), mobile registration (Task 3), standalone script (Task 4), production migration (Task 5), Redis container + `timeout tunnel` (Task 6), publish helper (Task 7), connection manager (Task 8), first-message-auth WS endpoint + subscriber reconnect loop (Task 9), all 7 message types including `especie_deleted` wired into every mutating endpoint (Task 10), mobile provider with reconnect + resync-on-reconnect (Task 11), per-screen merge (Task 12), cross-replica + idle-timeout verification (Task 13). The two "accepted, not fixed" items from spec review (no token cleanup, no token-ownership validation) are deliberately **not** tasks — the spec documents them as accepted tradeoffs, not defects to fix.
+- **Spec coverage:** every architecture bullet from both phases of the spec maps to a task above — `push_tokens` table (Task 1), registration endpoint (Task 2), mobile registration (Task 3), standalone script (Task 4), production migration (Task 5), Redis container + `timeout tunnel` (Task 6), publish helper (Task 7), connection manager (Task 8), first-message-auth WS endpoint + subscriber reconnect loop (Task 9), all 7 message types including `especie_deleted` wired into every mutating endpoint with test coverage for all 7 (Task 10), mobile provider with reconnect + resync-on-reconnect (Task 11), per-screen merge (Task 12), cross-replica + idle-timeout verification (Task 13). The two "accepted, not fixed" items from spec review (no token cleanup, no token-ownership validation) are deliberately **not** tasks — the spec documents them as accepted tradeoffs, not defects to fix.
 - **Type consistency check:** `publish_event(event_type: str, payload: dict)` signature (Task 7) matches every call site in Task 10. `manager.broadcast(message: dict)` (Task 8) matches how `redis_bridge.py` (Task 9) calls it (`await manager.broadcast(data)` where `data` is the parsed JSON, a dict). Mobile `subscribe(callback)` (Task 11) matches every screen's usage in Task 12 (`const unsubscribe = subscribe((message) => {...})`).
 - **No placeholders:** every step above contains complete, runnable code — no "add appropriate error handling" or "similar to Task N" shortcuts.
+- **Specialist review findings (folded in):** a Backend-API-Specialist review of this plan, cross-checking every snippet against the real files, found and this revision fixes: (1) Task 10's `avistamiento_created` payload was too thin for `SightingsScreen.js`'s actual `mapAvistamientoFromApi`/search-filter code, a real crash risk, not cosmetic — payload enriched with `especie_nombre`/`especie_cientifica`/`email_usuario`; (2) Task 10's tests only covered 3 of 7 wired endpoints — 4 tests added for `crear_evento`/`eliminar_evento`/`create_especie`/`update_especie`; (3) Task 6's `docker-compose.yml` mirror instruction would have failed compose validation (that file has no `networks:` block and uses `api_1`/`api_2` naming, not `api1`/`api2`) — corrected with a file-specific block; (4) `depends_on: redis:` was missing its `condition:` key — specified as `service_started`; (5) Task 9's connection-registration assertion used a fixed `time.sleep(0.2)` racing against an async server — replaced with a poll loop, and the shared-singleton test-isolation caveat (`manager.active` across test files) is now called out explicitly.
