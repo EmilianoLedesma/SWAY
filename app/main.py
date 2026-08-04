@@ -1,3 +1,4 @@
+import asyncio
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -13,7 +14,8 @@ from fastapi import Depends, Security
 from fastapi.openapi.utils import get_openapi
 from fastapi.staticfiles import StaticFiles
 from app.config import UPLOAD_DIR
-from app.routers import auth, colaboradores, especies, productos, pedidos, eventos, estadisticas, direcciones, catalogos
+from app.routers import auth, colaboradores, especies, productos, pedidos, eventos, estadisticas, direcciones, catalogos, realtime
+from app.realtime.redis_bridge import start_subscriber
 from app.security.rate_limit import limiter
 from app.security.api_key import require_api_key
 
@@ -55,6 +57,12 @@ app.include_router(eventos.router, dependencies=_api_key_dep)
 app.include_router(estadisticas.router, dependencies=_api_key_dep)
 app.include_router(direcciones.router, dependencies=_api_key_dep)
 app.include_router(catalogos.router, dependencies=_api_key_dep)
+app.include_router(realtime.router)
+
+
+@app.on_event("startup")
+async def _start_realtime_subscriber():
+    asyncio.create_task(start_subscriber())
 
 app.mount("/api/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
