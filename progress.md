@@ -546,3 +546,60 @@ Segundo dispatch (mismo especialista, con instrucciones explícitas de no tocar 
 
 **Estado del bastion:** privado ya no aceptable por SSH directo desde internet (timeout confirmado), todo acceso real pasa por el público vía agent forwarding o `ProxyJump`. IP pública del privado **no se removió** — decisión explícita del usuario de esperar a que el patrón nuevo esté probado unos días antes de considerar ese paso adicional (defensa en profundidad, no imprescindible ya que UFW cierra todos los puertos ahí).
 - Todos los cambios de esta sub-sesión: `scripts/verify_pi_requirements.sh` (test de rate limiting real), `docs/PI_REQUIREMENTS_VERIFICATION.md` (normalización de llave + texto actualizado sobre qué se prueba automatizado vs manual), `progress.md` (este registro). **Sin commitear todavía al cierre de esta sub-sección** — pendiente commit/push/pull en ambos droplets.
+
+---
+
+## Sesión 2026-08-04 — Push notifications (descartado) + Realtime sync: spec, plan, revisión exhaustiva, ejecución SDD Tasks 1-4
+
+### A — Brainstorming + spec + plan para 2 features nuevas
+
+Ciclo completo `brainstorming → writing-plans` a partir de una pregunta directa del usuario ("¿la app es realmente tiempo real?"). Se confirmó que "tiempo real" hoy es solo refetch en `useFocusEffect` al enfocar pantalla — dos dispositivos en la misma pantalla nunca se ven entre sí sin navegar fuera y volver. Se diseñaron 2 features relacionadas:
+
+1. **Push notifications** (registro de token Expo + script de broadcast manual único, sin auto-triggers, sin endpoint admin).
+2. **Realtime sync** (WebSocket + Redis pub/sub para avistamientos/eventos/especies, reemplazando el patrón de solo-refetch-en-focus).
+
+Spec: `docs/superpowers/specs/2026-08-04-push-notifications-and-realtime-sync-design.md` (commit `3eaaada`).
+
+### B — Push notifications: DESCARTADO POR COMPLETO, no implementado
+
+Después de escribir el plan completo (`docs/superpowers/plans/2026-08-04-push-notifications.md`, ya revisado por especialista y con hallazgos corregidos), el usuario preguntó explícitamente si los planes consideraban que la app solo se prueba vía Expo Go. Investigación vía Context7/docs oficiales de Expo confirmó: **Expo Go en Android no soporta notificaciones push remotas desde el SDK 53** (este proyecto está en `~54.0.34`), y `getExpoPushTokenAsync()` requiere un `projectId` de EAS que este proyecto nunca configuró (sin `eas.json`, sin `extra.eas.projectId` en `app.json`). Verificar esto en el dispositivo real hubiera requerido un development build (EAS o build nativo local) — el usuario decidió explícitamente **no** agregar esa infraestructura y **descartar la feature completa** en vez de dejarla sin poder verificarse nunca.
+
+- Plan borrado (`git rm docs/superpowers/plans/2026-08-04-push-notifications.md`).
+- Spec actualizado marcando la Fase 1 como DROPPED, con la razón documentada in-line.
+- El plan de realtime-sync se limpió de toda referencia cruzada a push-notifications (ya no depende de nada de esa fase).
+- **Nada de código de push se escribió** — se quedó en fase de spec/plan únicamente.
+
+### C — Realtime sync: revisión exhaustiva en 2 rondas antes de tocar código
+
+**Ronda 1** (4 agentes en paralelo — Backend-API-Specialist, Application-Security-Specialist, QA-Testing-Engineer, DevOps-CI-CD-Engineer, Tech-lead) sobre el plan combinado, luego repetida tras el split en 2 archivos. Hallazgos reales corregidos: payload de `avistamiento_created` insuficiente (crasheaba el filtro de búsqueda de `SightingsScreen` con `undefined.toLowerCase()`), cobertura de tests incompleta (6/7 endpoints, no 7/7 como afirmaba el plan), instrucción de mirror a `docker-compose.yml` que hubiera roto ese archivo (sin bloque `networks:`, nombres `api_1`/`api_2`), `depends_on` sin `condition:` explícito, test de WebSocket con `time.sleep(0.2)` en vez de polling (race real), y el plan se separó en 2 archivos independientes (push-notifications / realtime-sync) por recomendación de tech-lead — fases genuinamente separables con gate ya existente.
+
+**Ronda 2** (3 agentes — DevOps deploy-safety, QA local-test-first, Backend-API-Specialist rewrite-correctness) enfocada explícitamente en: probar todo local antes de tocar prod, y minimizar downtime. Hallazgos reales: `ALLOWED_TOKEN_TYPES` original permitía `("colaborador", "tienda")` pero su propio test esperaba que `tienda` fuera rechazado — contradicción que hubiera colgado el test — corregido a `("colaborador",)` únicamente; `realtimeMerge.js` mezclaba sintaxis ESM (`export function`) con test en CommonJS (`require()`) — hubiera lanzado `SyntaxError` real, corregido a `module.exports`; el gate cruzado entre planes no tenía ninguna verificación mecánica (luego irrelevante al descartarse push-notifications); sin chequeo de RAM libre antes de agregar Redis al droplet privado (documentado como ajustado de memoria) — agregado chequeo `free -h` con umbral; verificación cross-replica/idle-timeout del Task 8 iba directo a producción sin equivalente local — agregado dry-run local antes del deploy real.
+
+Todos los hallazgos de ambas rondas fueron corregidos e incorporados al plan (`docs/superpowers/plans/2026-08-04-realtime-sync.md`, commits `3184aa1`, `d9c7e8c`, `e4ee21c`).
+
+### D — Verificación read-only de ambos droplets antes de decidir ejecutar
+
+Conexión SSH real (solo lectura, sin cambios) vía bastión al privado y directo al público para confirmar estado real antes de comprometerse al plan: privado con 1.0GB disponible (de 1.9GB, sobra margen real para el contenedor Redis de 64MB), público con 404MB disponible (irrelevante, no se despliega nada nuevo ahí), ambos con 33GB/19GB de disco libre, HAProxy 3.2.22 corriendo (soporta `timeout tunnel` sin problema), ambos droplets un poco atrás en git (`5873530`, esperado — nada de código nuevo pendiente de desplegar todavía).
+
+### E — Ejecución `subagent-driven-development`, Tasks 1-4 de 8 completadas (todo local, cero contacto con droplets)
+
+Worktree aislado creado manualmente (`.claude/worktrees/realtime-sync`, rama `worktree-realtime-sync`) — el tool nativo `EnterWorktree` con base `fresh` (default) hubiera ramificado desde `origin/master`, que en ese momento no tenía los 6 commits de esta sesión (incluyendo el propio plan a ejecutar); se resolvió pusheando `master` primero y luego sí usando `EnterWorktree` normalmente. Ledger: `.superpowers/sdd/2026-08-04-realtime-sync/progress.md`.
+
+- **Task 1 (Redis infra):** servicio `redis` en ambos `docker-compose*.yml` (con `mem_limit: 64m`, cuidando la diferencia estructural entre archivos), `timeout tunnel 1h` en HAProxy, `redis>=5.0.0` en `requirements.txt`. Revisión limpia. El implementador arregló de paso un bug preexistente real (volumen `uploads_data` referenciado pero nunca declarado a nivel top-level en `docker-compose.yml`, hubiera fallado `docker compose config`).
+- **Task 2 (publish helper):** `app/services/realtime_publish.py`, `publish_event()` best-effort (nunca lanza, todo swallowed+logged). Revisión limpia, test de fallo de Redis confirmado no-vacuo.
+- **Task 3 (connection manager):** `app/realtime/manager.py`, `ConnectionManager` con tope de 500 conexiones (guardia contra DoS ya que `/api/ws` no tiene rate limiting propio). Revisión limpia.
+- **Task 4 (WS endpoint + subscriber):** `app/routers/realtime.py` (auth por primer mensaje, nunca query string; `ALLOWED_TOKEN_TYPES = ("colaborador",)`; cierre 1013 al tope de conexiones; cierre 4001 en cualquier falla de auth) + `app/realtime/redis_bridge.py` (subscriber con loop de reconexión real). Revisión de seguridad exhaustiva: los 8 puntos verificados de forma independiente (no solo confiados del reporte), incluyendo que el canal/URL de Redis coincide carácter por carácter entre publisher y subscriber. El implementador detectó y corrigió correctamente un artefacto obsoleto del propio brief (línea de import de ejemplo incluía un router `push` que ya no existe tras descartar esa feature) — se corrigió también el texto del plan para no repetir el error en el futuro.
+- **Incidente de proceso, ya resuelto:** el primer implementador (Task 1) trabajó por defecto en un worktree aislado propio distinto al de este plan — detectado, el commit se rescató con `cherry-pick` a la rama correcta, y los dispatches siguientes incluyeron instrucción explícita de `cd` a la ruta exacta del worktree del plan, sin que volviera a pasar.
+
+**Sin pendientes reales abiertos de Tasks 1-4** — 2 hallazgos Minor quedaron en el ledger como aceptados (fix de volumen no pedido pero correcto; reconnect loop de Redis no cierra el cliente viejo antes de reintentar, mismo patrón que el propio brief).
+
+### Pendiente para la próxima sesión
+
+1. **Continuar `subagent-driven-development` desde Task 5** (de 8) del plan `docs/superpowers/plans/2026-08-04-realtime-sync.md`:
+   - Task 5: wire `publish_event` en los 7 endpoints mutantes (avistamiento crear/eliminar, evento crear/eliminar, especie crear/actualizar/eliminar) + 8 tests.
+   - Task 6: `RealtimeProvider` mobile (reconexión exponencial + resync).
+   - Task 7: wiring de las 3 pantallas (`SightingsScreen`/`EventsScreen`/`CatalogScreen`) + extracción de `realtimeMerge.js` a funciones puras con test.
+   - Review final de rama completa (modelo más capaz).
+   - Retomar reentrando al worktree existente: `.claude/worktrees/realtime-sync` (rama `worktree-realtime-sync`) — **no crear uno nuevo**, ya tiene Tasks 1-4 commiteadas. Ledger completo en `.superpowers/sdd/2026-08-04-realtime-sync/progress.md` dentro de ese worktree.
+2. **Task 8 (deploy a producción)** — explícitamente pendiente de aprobación separada del usuario antes de tocar los droplets reales, incluso después de que Tasks 5-7 estén listas y revisadas. No asumir luz verde automática.
+3. **Especial — explorar si el Redis ya agregado en Task 1 puede resolver también el bug ya documentado de rate limiting duplicado por réplica.** Encontrado en la sesión 2026-08-01: `slowapi` usa `storage_uri="memory://"`, y como hay 2 réplicas (`api1`/`api2`) balanceadas, cada una lleva su propio contador — el límite efectivo en producción es ~2x el nominal (ej. login permite ~10/min repartidos entre las 2 réplicas, no 5/min). En ese momento se documentó como "fix futuro: mover `storage_uri` a un backend compartido — típicamente Redis" pero se dejó fuera de alcance por requerir infraestructura nueva. **Esa infraestructura ya existe ahora** (el mismo contenedor `redis` de este plan). Vale la pena, en la próxima sesión, evaluar explícitamente: ¿cambiar `storage_uri="memory://"` a `storage_uri="redis://redis:6379"` en `app/security/rate_limit.py` cierra ese gap gratis, reusando el mismo Redis, o hay una razón para mantenerlos separados (namespacing de claves, impacto en el mismo contenedor de 64MB, etc.)? No implementado todavía — es una exploración pendiente, no una tarea del plan actual.
