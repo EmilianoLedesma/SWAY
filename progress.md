@@ -690,3 +690,10 @@ Investigación completa de la cadena de la feature de foto (sesión 2026-08-01):
 **Verificación en vivo con datos frescos:** mientras se investigaba, el usuario subió una foto real desde la app (avistamiento id 25) — confirmado en producción real: archivo en disco, `foto_url` en la fila de la BD, presente en la respuesta de `GET /api/avistamientos`, la URL final sirve la imagen real (`200`, `image/jpeg`, tamaño correcto) sin necesitar ningún header de autenticación (el mount estático `/api/uploads` no pasa por el gate de `x-api-key`, a diferencia del resto de la API — esto es correcto por diseño, la imagen debe ser públicamente visible). **Usuario confirmó que esa misma tarjeta (id 25) sí muestra la foto correctamente tras recargar la app.**
 
 **Conclusión:** no se encontró ni reprodujo ningún bug real contra el código/deploy actual — toda la cadena (disco compartido → BD → GET → URL pública → cliente móvil) fue verificada funcionando de punta a punta con datos reales creados en el momento. El reporte original probablemente correspondía a una prueba hecha antes de que terminara el rebuild de `api1`/`api2` de Task 8, o a una carrera con el upload todavía en curso. Sin cambios de código — nada que corregir con la evidencia disponible.
+
+### Nuevos pendientes (reportados por el usuario, NO implementados todavía — solo registrados)
+
+1. **Registro de colaborador — feedback de validación genérico, no dice qué falta.** Al fallar la validación, la app solo muestra "Completa todos los campos necesarios" sin indicar cuál(es) campo(s) específico(s) faltan o están mal. Pedido: agregar `*` visible en cada campo obligatorio del formulario, y feedback visual real (no solo un alert genérico) señalando el/los campo(s) con error.
+2. **Crear especie — mismo patrón de feedback genérico.** El formulario indica correctamente que algo falló ("Error al crear especie") pero no da ninguna pista de qué salió mal específicamente.
+
+Ambos quedan como pendientes explícitos para una sesión futura — no se tocó código para esto en la sesión actual, a pedido directo del usuario.
