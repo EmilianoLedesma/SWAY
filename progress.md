@@ -801,3 +801,74 @@ Deploy real a ambos droplets, confirmado explícitamente con el usuario antes de
 2. **`contacto` (email) en creación de evento anónimo sin `EmailStr` server-side** — gap real encontrado en la sección B, excluido explícitamente por el usuario de esta ronda de fixes. Sigue pendiente.
 3. **Reportar resultados de esta sesión y guardar con `/ecc:save-session`** — en curso al momento de escribir este registro.
    - Nada implementado, ningún archivo tocado — pendiente de diseño (skill `ui-ux-pro-max`) + plan + implementación completos.
+
+---
+
+## Sesión 2026-08-05 — 4 bugs mobile + feature (SDD completo) + fixes rápidos + deploy real
+
+### A — Reconocimiento vía subagentes en paralelo (4 agentes `Explore`, solo lectura)
+
+Usuario reportó 4 problemas en mobile, pidió reconocimiento por subagentes antes de planear:
+1. Foto de avistamiento no se ve en otros clientes conectados por WebSocket (resto de datos sí llegan en tiempo real).
+2. Chip de racha en Home no navega a nada.
+3. Avistamientos usa botón "Ver" en vez de tarjeta completa tocable (como Eventos).
+4. Input "Buscar especie" en Reportes → Global parecía muerto.
+
+Hallazgos reales:
+- **Bug 1 — causa raíz confirmada:** `POST /reportar-avistamiento` publica `avistamiento_created` con `foto_url` todavía `null` (la foto se sube después, en un segundo request separado `POST /avistamientos/{id}/foto`), y ese segundo endpoint nunca publicaba ningún evento — otros clientes quedaban con la tarjeta congelada sin foto para siempre.
+- **Bug 2:** chip de racha (`HomeScreen.js`) era un `View` sin `onPress`. No existe pantalla "Actividad" separada — es una sección/tab dentro de `ProfileScreen.js`.
+- **Bug 3:** confirmado, patrón de `EventsScreen.js` (card completo `TouchableOpacity`) listo para replicar en `SightingsScreen.js`.
+- **Bug 4 — contradice el reporte del usuario:** el input **sí funciona** end-to-end (debounce 400ms → match por nombre → `especie_id` → filtro real en backend). Decisión del usuario tras presentárselo: mantenerlo y agregar feedback visual en vez de borrarlo.
+
+### B — Plan escrito (`docs/superpowers/plans/2026-08-05-mobile-bugs-fix.md`), extendido con 1 feature más
+
+Plan de 9 tasks vía skill `writing-plans`. Usuario pidió agregar, ya con el plan escrito: elegir cámara o galería al capturar foto de avistamiento (antes abría la cámara directo, sin opción). Investigado `handleCapturePhoto` (`SightingsScreen.js`), agregado como Task 8, renumerada verificación final a Task 9.
+
+### C — Ejecución completa vía `subagent-driven-development` + `caveman:cavecrew-reviewer`, worktree aislado
+
+Worktree `.claude/worktrees/mobile-bugs-fix` (rama `worktree-mobile-bugs-fix`). Implementadores: `general-purpose` (haiku para mecánico, sonnet para juicio/integración). Reviewers: mezcla de `caveman:cavecrew-reviewer` (tareas mecánicas de un archivo) y `general-purpose` sonnet (tareas de integración cruzada) — a pedido explícito del usuario de usar caveman crew también.
+
+- **Task 1** (backend): `avistamiento_updated` publicado tras subir la foto (`app/routers/estadisticas.py`), TDD real, test nuevo.
+- **Task 2:** helper puro `patchById` en `realtimeMerge.js` + tests.
+- **Task 3:** wireado en `SightingsScreen.js` — parchea `hasPhoto`/`photoUrl` en otros clientes al recibir el evento.
+- **Task 4:** tarjeta de avistamiento completa tocable, botón "Ver" eliminado.
+- **Task 5:** chip de racha navega a `Profile` con param `{initialTab: 'activity'}`.
+- **Task 6:** `ProfileScreen.js` consume el param vía `useFocusEffect` + `setParams` (se autolimpia, no fuerza el tab en visitas futuras sin re-tap).
+- **Task 7:** feedback visual "Filtrando: X" / "Sin coincidencias" bajo el input de especie.
+- **Task 8:** `handleCapturePhoto` dividido en chooser (`Alert.alert` 3 botones) + `handleTakePhoto`/`handlePickPhotoFromGallery`.
+
+**Review final de rama completa (opus) encontró 1 Important real de integración cruzada** (invisible para cualquier review de task individual): Task 8 agregó galería como fuente de fotos, pero `uploadAvistamientoFoto` en `client.js` (archivo que ningún task tocó) seguía hardcodeado a `image/jpeg` — un PNG de galería se guardaba mal etiquetado en disco (`.jpg` con bytes PNG), y WEBP/HEIC (comunes en galerías reales) fallaban el chequeo de magic-number del backend con 400 después de que el avistamiento ya se había creado. Un fix wave (mime type real threaded desde `ImagePicker` hasta el `FormData`, rechazo explícito de formatos no soportados en el picker de galería) + re-review acotado: `ADDRESSED`, sin breakage nuevo. 5 hallazgos Minor quedaron documentados como diferidos (no bloquean): scroll del tab strip a "Actividad" no confirmado en dispositivo, modal de detalle abierto no recoge parche de foto en vivo (patrón preexistente), sin accessibilityLabel en los nuevos touchables, race de refetch-vs-patch (preexistente), feedback de búsqueda de especie brevemente stale al cambiar de sub-tab (cosmético).
+
+**Mergeado a `master` fast-forward** (`b36e123..401d068`), worktree y rama limpiados (con un obstáculo de "Filename too long" de Windows en `node_modules` del worktree, resuelto con `Remove-Item -Recurse -Force` de PowerShell en vez de `git worktree remove`).
+
+### D — Fixes rápidos directos en `master` (sin SDD, cambios chicos de 1-2 archivos)
+
+Pedidos por el usuario después del merge, uno por uno:
+1. **Tarjeta completa de nivel/racha en Home** navega a Actividad (antes solo el chip 🔥) — `d4e0b75`.
+2. **Filas de "Actividad reciente"** (Home) ahora navegan a Avistamientos o Eventos según el prefijo de su `key` (`avistamiento-`/`evento-`) — `64ef76e`.
+3. **Abrir el detalle exacto al tocar una fila de Actividad reciente**, no solo la pantalla — agregado soporte de param `openId` en `SightingsScreen.js`/`EventsScreen.js` (`route`/`navigation` props nuevos en ambos, efecto que busca el item por id una vez cargada la lista y abre el modal) — `6ce958d`.
+4. **Foto tocable a pantalla completa** en detalle de Avistamiento y de Especie (Catálogo) — componente nuevo reusable `PhotoViewerModal.js` (modal negro, `resizeMode="contain"`, tap para cerrar) — `a0a3508`.
+
+**Bug real introducido y corregido en el mismo turno:** envolver el `Image` en `TouchableOpacity` (fix #4) sin darle tamaño explícito colapsó las fotos a 0×0 en ambos detalles (`width:'100%'/height:'100%'` del `Image` no tenía contra qué medirse) — quedaba solo el fondo celeste del contenedor visible, sin imagen ni tap funcionando. Reportado por el usuario con captura real. Corregido dándole al `TouchableOpacity` el mismo estilo de tamaño que la imagen — `0ffa6d8`.
+
+### E — Deploy real a ambos droplets
+
+`git push origin master` (14 commits). Privado: RAM verificada (987Mi libres) antes, `git pull` + rebuild real de `api1`/`api2` (`app/routers/estadisticas.py` cambió — el evento `avistamiento_updated`), ambos contenedores `Up` confirmados. Público: `git pull` (sin rebuild, no corre la API). El rebuild en producción fue bloqueado primero por el clasificador de modo automático (mutación de producción) — confirmado explícitamente por el usuario antes de ejecutar.
+
+### F — Verificación completa post-deploy
+
+- Backend: **59 passed, 0 failed** (excluyendo los 2 archivos rotos preexistentes, sin relación).
+- Mobile JS: `realtimeMerge.test.js` y `gamificationBadges.test.js` — ambos "all assertions passed".
+- Suite `scripts/verify_pi_requirements.sh` contra producción real: **31 pass, 0 fail, 1 skip** (mobile manual, por diseño) — sin regresiones tras el deploy de hoy.
+
+### Pendientes reales al cierre de esta sesión
+
+1. **Verificación manual en dispositivo real, nada de esto se probó en un simulador/teléfono todavía:**
+   - Bug 1 (foto en tiempo real entre 2 dispositivos Expo Go).
+   - Tarjeta de avistamiento tocable + selector cámara/galería (Task 4/8).
+   - Chip/tarjeta de racha y filas de Actividad reciente navegando y abriendo el detalle correcto (fixes D.1-D.3).
+   - Visor de foto a pantalla completa en Avistamientos y Catálogo, ya con el fix de tamaño aplicado (D.4 + su fix).
+   - Si el tab strip de Perfil hace scroll visible hasta "Actividad" al llegar por navegación (Minor diferido de la review final, sin confirmar).
+2. **`contacto` (email) en creación de evento anónimo sin `EmailStr` server-side** — gap ya conocido de sesión anterior (2026-08-04), excluido explícitamente por el usuario, sigue sin tocar.
+3. **Bug de logros v2 (guard `counters === seed`)** — de sesión anterior, tampoco confirmado en dispositivo real todavía.
+4. **Navegación por gestos estilo iOS** — de sesión anterior, solo exploración inicial, sin diseño ni plan, detenido a pedido del usuario.
