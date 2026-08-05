@@ -59,6 +59,22 @@ Una vez dentro del público, saltar al privado sin necesitar la llave ahí (el a
 ssh root@10.124.0.3
 ```
 
+**Atajo — alias `sway-publico` en `~/.ssh/config` (una sola vez), con `ForwardAgent yes` ya incluido:**
+```
+Host sway-publico
+    HostName 146.190.136.236
+    User root
+    IdentityFile ~/.ssh/sway_deploy
+    ForwardAgent yes
+
+Host sway-privado
+    HostName 10.124.0.3
+    User root
+    IdentityFile ~/.ssh/sway_deploy
+    ProxyJump root@146.190.136.236
+```
+Con esto, `ssh sway-publico` ya reenvía el agente automáticamente — sin `-A` a mano. Igual hay que correr `ssh-add ~/.ssh/sway_deploy` una vez por cada sesión nueva de terminal (el agente no persiste entre ventanas).
+
 **Con esta opción, ya estás ejecutando comandos DESDE DENTRO del público.** Cualquier comando de este documento que empiece con `ssh sway-privado "comando"` (pensado para correr desde tu máquina local) se reemplaza por `ssh root@10.124.0.3 "comando"` corrido ya desde dentro del público — mismo comando, sin `-i` porque el agente ya está reenviado. Si en cambio saltaste hasta quedar con la shell interactiva del privado (`ssh root@10.124.0.3` sin comando al final), corré el comando directo, sin el wrapper `ssh ... "..."`.
 
 Directo (`ssh root@165.232.146.240`) **ya no funciona** — da timeout de red. No usar ese patrón.
