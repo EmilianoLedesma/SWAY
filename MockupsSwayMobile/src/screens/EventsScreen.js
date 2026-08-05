@@ -93,7 +93,7 @@ function formatDate(dateStr) {
   return { day: d.getDate(), month: months[d.getMonth()] };
 }
 
-export default function EventsScreen({ navigation }) {
+export default function EventsScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { bumpStreak, setEventsAttended, celebrate } = useGamification();
   const { setIsLoggedIn } = useAuth();
@@ -148,6 +148,15 @@ export default function EventsScreen({ navigation }) {
       };
     }, [showMineOnly, celebrate])
   );
+
+  useEffect(() => {
+    if (!route?.params?.openId) return;
+    const found = events.find((e) => e.id === String(route.params.openId));
+    if (found) {
+      setDetailEvent(found);
+      navigation.setParams({ openId: undefined });
+    }
+  }, [events, route?.params?.openId, navigation]);
 
   const { subscribe } = useRealtime();
 

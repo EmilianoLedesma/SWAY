@@ -63,7 +63,7 @@ const initialSightingForm = {
   fotoMime: null,
 };
 
-export default function SightingsScreen() {
+export default function SightingsScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { incrementSightings, bumpStreak } = useGamification();
   const [sightings, setSightings] = useState(sightingsList);
@@ -104,6 +104,15 @@ export default function SightingsScreen() {
       active = false;
     };
   }, [showMineOnly]);
+
+  useEffect(() => {
+    if (!route?.params?.openId) return;
+    const found = sightings.find((s) => s.id === String(route.params.openId));
+    if (found) {
+      setDetailSighting(found);
+      navigation.setParams({ openId: undefined });
+    }
+  }, [sightings, route?.params?.openId, navigation]);
 
   const { subscribe } = useRealtime();
 

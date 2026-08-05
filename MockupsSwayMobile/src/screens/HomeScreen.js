@@ -154,9 +154,11 @@ export default function HomeScreen({ navigation }) {
               key={act.key}
               style={styles.activityRow}
               activeOpacity={0.7}
-              onPress={() =>
-                navigation.navigate(act.key.startsWith('avistamiento-') ? 'Sightings' : 'Events')
-              }
+              onPress={() => {
+                const isSighting = act.key.startsWith('avistamiento-');
+                const id = act.key.slice(isSighting ? 'avistamiento-'.length : 'evento-'.length);
+                navigation.navigate(isSighting ? 'Sightings' : 'Events', { openId: id });
+              }}
             >
               <View style={styles.activityDot} />
               <View style={styles.activityContent}>
