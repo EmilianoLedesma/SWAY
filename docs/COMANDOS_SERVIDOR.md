@@ -37,6 +37,30 @@ cd /root/sway
 ssh -i ~/.ssh/sway_deploy -o ProxyCommand="ssh -i ~/.ssh/sway_deploy -W %h:%p root@146.190.136.236" root@10.124.0.3
 ```
 
+**Opción C — SSH agent forwarding (conectarte al público primero, saltar desde ahí):**
+
+Preparación de una sola vez (en tu máquina local, Windows):
+```powershell
+# 1. Habilitar y arrancar el servicio ssh-agent de Windows (PowerShell como Administrador)
+Set-Service -Name ssh-agent -StartupType Manual
+Start-Service ssh-agent
+
+# 2. En una terminal normal (no admin), cargar la llave al agente
+ssh-add ~/.ssh/sway_deploy
+```
+El servicio queda habilitado permanentemente tras el paso 1 — no hace falta repetirlo en futuras sesiones, salvo reinicio de Windows (`ssh-add` sí hay que repetirlo cada sesión nueva de terminal).
+
+Conectar con el agente reenviado:
+```bash
+ssh -A -i ~/.ssh/sway_deploy root@146.190.136.236
+```
+Una vez dentro del público, saltar al privado sin necesitar la llave ahí (el agente reenvía la autenticación de vuelta a tu máquina):
+```bash
+ssh root@10.124.0.3
+```
+
+**Con esta opción, ya estás ejecutando comandos DESDE DENTRO del público.** Cualquier comando de este documento que empiece con `ssh sway-privado "comando"` (pensado para correr desde tu máquina local) se reemplaza por `ssh root@10.124.0.3 "comando"` corrido ya desde dentro del público — mismo comando, sin `-i` porque el agente ya está reenviado. Si en cambio saltaste hasta quedar con la shell interactiva del privado (`ssh root@10.124.0.3` sin comando al final), corré el comando directo, sin el wrapper `ssh ... "..."`.
+
 Directo (`ssh root@165.232.146.240`) **ya no funciona** — da timeout de red. No usar ese patrón.
 
 ---
