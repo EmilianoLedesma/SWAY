@@ -30,7 +30,7 @@ import { speciesList } from '../data/species';
 import { API_HOST, getAvistamientosAll, getAvistamientosMine, getProfile, crearAvistamiento, uploadAvistamientoFoto, deleteAvistamiento, getEspecies } from '../api/client';
 import { useGamification } from '../context/GamificationContext';
 import { useRealtime } from '../context/RealtimeContext';
-import { mergeAvistamientoCreated, removeById } from '../context/realtimeMerge';
+import { mergeAvistamientoCreated, removeById, patchById } from '../context/realtimeMerge';
 
 function mapEspecieFromApi(e) {
   return {
@@ -123,6 +123,15 @@ export default function SightingsScreen() {
       }
       if (message.type === 'avistamiento_deleted') {
         setSightings((prev) => removeById(prev, String(message.payload.id)));
+      }
+      if (message.type === 'avistamiento_updated') {
+        const { id, foto_url } = message.payload;
+        setSightings((prev) =>
+          patchById(prev, String(id), {
+            hasPhoto: !!foto_url,
+            photoUrl: foto_url ? `${API_HOST}${foto_url}` : null,
+          }),
+        );
       }
     });
     return unsubscribe;
