@@ -303,14 +303,14 @@ export async function crearAvistamiento(payload) {
   }
 }
 
-export async function uploadAvistamientoFoto(avistamientoId, fotoUri) {
+export async function uploadAvistamientoFoto(avistamientoId, fotoUri, mimeType = 'image/jpeg') {
   try {
     const formData = new FormData();
-    // Asume JPEG: la única fuente de fotoUri es ImagePicker.launchCameraAsync (sin opción de formato).
+    const name = mimeType === 'image/png' ? 'sighting.png' : 'sighting.jpg';
     formData.append('foto', {
       uri: fotoUri,
-      name: 'sighting.jpg',
-      type: 'image/jpeg',
+      name,
+      type: mimeType,
     });
     const res = await fetch(`${API_HOST}/api/avistamientos/${avistamientoId}/foto`, {
       method: 'POST',

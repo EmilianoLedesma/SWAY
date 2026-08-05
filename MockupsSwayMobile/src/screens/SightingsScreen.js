@@ -60,6 +60,7 @@ const initialSightingForm = {
   longitud: '',
   notas: '',
   fotoUri: null,
+  fotoMime: null,
 };
 
 export default function SightingsScreen() {
@@ -195,6 +196,7 @@ export default function SightingsScreen() {
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
     if (!result.canceled) {
       setField('fotoUri', result.assets[0].uri);
+      setField('fotoMime', result.assets[0].mimeType || 'image/jpeg');
     }
   };
 
@@ -205,9 +207,14 @@ export default function SightingsScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
-    if (!result.canceled) {
-      setField('fotoUri', result.assets[0].uri);
+    if (result.canceled) return;
+    const mimeType = result.assets[0].mimeType;
+    if (mimeType !== 'image/jpeg' && mimeType !== 'image/png') {
+      Alert.alert('Formato no soportado', 'Elige una imagen JPEG o PNG.');
+      return;
     }
+    setField('fotoUri', result.assets[0].uri);
+    setField('fotoMime', mimeType);
   };
 
   const handleCapturePhoto = () => {
@@ -275,7 +282,7 @@ export default function SightingsScreen() {
     hapticSuccess();
     let fotoSubida = false;
     if (sightingForm.fotoUri && result.id) {
-      const fotoResult = await uploadAvistamientoFoto(result.id, sightingForm.fotoUri);
+      const fotoResult = await uploadAvistamientoFoto(result.id, sightingForm.fotoUri, sightingForm.fotoMime);
       fotoSubida = !!fotoResult.success;
       if (!fotoResult.success) {
         Alert.alert('Avistamiento guardado', fotoResult.message || 'El avistamiento se reportó, pero la foto no se pudo subir. Puedes intentarlo de nuevo más tarde.');
