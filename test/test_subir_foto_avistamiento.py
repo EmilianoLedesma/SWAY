@@ -82,3 +82,24 @@ def test_upload_accepts_valid_jpeg_and_sets_foto_url():
     avistamiento = db.query(Avistamiento).filter(Avistamiento.id == avistamiento_id).first()
     assert avistamiento.foto_url == body["foto_url"]
     db.close()
+
+
+def test_upload_publishes_avistamiento_updated_event(monkeypatch):
+    published = []
+    monkeypatch.setattr(
+        "app.routers.estadisticas.publish_event",
+        lambda event_type, payload: published.append((event_type, payload)),
+    )
+
+    avistamiento_id = _seed_avistamiento()
+    resp = client.post(
+        f"/api/avistamientos/{avistamiento_id}/foto",
+        files={"foto": ("photo.jpg", io.BytesIO(b"\xff\xd8\xff\xe0fake-jpeg-bytes"), "image/jpeg")},
+    )
+    assert resp.status_code == 200
+    foto_url = resp.json()["foto_url"]
+
+    assert len(published) == 1
+    event_type, payload = published[0]
+    assert event_type == "avistamiento_updated"
+    assert payload == {"id": avistamiento_id, "foto_url": foto_url}

@@ -302,6 +302,11 @@ async def subir_foto_avistamiento(
         avistamiento.foto_url = f"/api/uploads/avistamientos/{nombre_archivo}"
         db.commit()
 
+        publish_event("avistamiento_updated", {
+            "id": avistamiento.id,
+            "foto_url": avistamiento.foto_url,
+        })
+
         return {"success": True, "foto_url": avistamiento.foto_url}
 
     except HTTPException:
