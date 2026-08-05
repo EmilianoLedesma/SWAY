@@ -18,6 +18,7 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { radii, shadows } from '../theme/spacing';
 import ScreenHeader from '../components/ScreenHeader';
+import PhotoViewerModal from '../components/PhotoViewerModal';
 import { hapticSuccess, hapticError, hapticWarning } from '../utils/haptics';
 import {
   speciesList,
@@ -108,6 +109,7 @@ export default function CatalogScreen() {
   const [search, setSearch] = useState('');
   const [selectedFilter, setSelectedFilter] = useState(null);
   const [selectedSpecies, setSelectedSpecies] = useState(null);
+  const [fullscreenPhoto, setFullscreenPhoto] = useState(null);
   const [formVisible, setFormVisible] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(initialForm);
@@ -460,7 +462,12 @@ export default function CatalogScreen() {
               >
                 <View style={styles.modalPhoto}>
                   {selectedSpecies.image ? (
-                    <Image source={{ uri: selectedSpecies.image }} style={styles.modalImage} resizeMode="cover" />
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => setFullscreenPhoto(selectedSpecies.image)}
+                    >
+                      <Image source={{ uri: selectedSpecies.image }} style={styles.modalImage} resizeMode="cover" />
+                    </TouchableOpacity>
                   ) : (
                     <Ionicons name="image-outline" size={72} color={colors.text3} />
                   )}
@@ -791,6 +798,8 @@ export default function CatalogScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <PhotoViewerModal uri={fullscreenPhoto} onClose={() => setFullscreenPhoto(null)} />
     </View>
   );
 }

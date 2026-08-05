@@ -25,6 +25,7 @@ import { radii, shadows } from '../theme/spacing';
 import ScreenHeader from '../components/ScreenHeader';
 import ShareCard from '../components/ShareCard';
 import DateField from '../components/DateField';
+import PhotoViewerModal from '../components/PhotoViewerModal';
 import { sightingsList } from '../data/sightings';
 import { speciesList } from '../data/species';
 import { API_HOST, getAvistamientosAll, getAvistamientosMine, getProfile, crearAvistamiento, uploadAvistamientoFoto, deleteAvistamiento, getEspecies } from '../api/client';
@@ -70,6 +71,7 @@ export default function SightingsScreen({ navigation, route }) {
   const [search, setSearch] = useState('');
   const [showMineOnly, setShowMineOnly] = useState(false);
   const [detailSighting, setDetailSighting] = useState(null);
+  const [fullscreenPhoto, setFullscreenPhoto] = useState(null);
   const [newModal, setNewModal] = useState(false);
   const [sightingForm, setSightingForm] = useState(initialSightingForm);
   const [gpsLoading, setGpsLoading] = useState(false);
@@ -525,11 +527,16 @@ export default function SightingsScreen({ navigation, route }) {
               >
                 <View style={styles.detailPhoto}>
                   {detailSighting.photoUrl ? (
-                    <Image
-                      source={{ uri: detailSighting.photoUrl }}
-                      style={styles.detailPhotoImage}
-                      onError={() => {}}
-                    />
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => setFullscreenPhoto(detailSighting.photoUrl)}
+                    >
+                      <Image
+                        source={{ uri: detailSighting.photoUrl }}
+                        style={styles.detailPhotoImage}
+                        onError={() => {}}
+                      />
+                    </TouchableOpacity>
                   ) : (
                     <Ionicons name="camera" size={48} color={colors.oceanDark} />
                   )}
@@ -758,6 +765,8 @@ export default function SightingsScreen({ navigation, route }) {
           />
         </View>
       )}
+
+      <PhotoViewerModal uri={fullscreenPhoto} onClose={() => setFullscreenPhoto(null)} />
     </View>
   );
 }
