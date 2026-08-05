@@ -312,7 +312,11 @@ export default function SightingsScreen() {
     return (
       <View key={item.id} style={styles.timelineItem}>
         <View style={[styles.timelineDot, { backgroundColor: colors.ocean }]} />
-        <View style={styles.timelineCard}>
+        <TouchableOpacity
+          style={styles.timelineCard}
+          onPress={() => setDetailSighting(item)}
+          activeOpacity={0.7}
+        >
           <View style={styles.cardHeader}>
             <View style={styles.cardHeaderLeft}>
               <View style={styles.cardIcon}>
@@ -357,15 +361,6 @@ export default function SightingsScreen() {
           </View>
 
           <View style={styles.cardActions}>
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={() => setDetailSighting(item)}
-            >
-              <Ionicons name="eye-outline" size={15} color={colors.blue} />
-              <Text style={[styles.actionLabel, { color: colors.blue }]}>
-                Ver
-              </Text>
-            </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn} onPress={() => handleShare(item)}>
               <Ionicons
                 name="share-outline"
@@ -386,7 +381,7 @@ export default function SightingsScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </TouchableOpacity>
       </View>
     );
   };
