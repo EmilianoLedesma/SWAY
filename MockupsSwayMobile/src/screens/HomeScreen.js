@@ -96,10 +96,14 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.levelCard}>
           <View style={styles.levelHeader}>
             <Text style={styles.levelTitle}>Nivel {level}</Text>
-            <View style={styles.streakChip}>
+            <TouchableOpacity
+              style={styles.streakChip}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('Profile', { initialTab: 'activity' })}
+            >
               <Animated.Text style={[styles.streakIcon, { opacity: streakPulse }]}>🔥</Animated.Text>
               <Text style={styles.streakText}>{streakCount}</Text>
-            </View>
+            </TouchableOpacity>
           </View>
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: `${levelProgress}%` }]} />
