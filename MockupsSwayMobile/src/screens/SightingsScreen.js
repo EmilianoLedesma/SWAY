@@ -245,7 +245,7 @@ export default function SightingsScreen() {
       const fotoResult = await uploadAvistamientoFoto(result.id, sightingForm.fotoUri);
       fotoSubida = !!fotoResult.success;
       if (!fotoResult.success) {
-        Alert.alert('Avistamiento guardado', 'El avistamiento se reportó, pero la foto no se pudo subir. Puedes intentarlo de nuevo más tarde.');
+        Alert.alert('Avistamiento guardado', fotoResult.message || 'El avistamiento se reportó, pero la foto no se pudo subir. Puedes intentarlo de nuevo más tarde.');
       }
     }
     const refreshed = await (showMineOnly ? getAvistamientosMine() : getAvistamientosAll());

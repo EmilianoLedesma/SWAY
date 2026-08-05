@@ -56,6 +56,10 @@ class EventoCreate(BaseModel):
         None, max_length=150,
         description="Correo o teléfono de contacto del organizador"
     )
+    terminos_aceptados: bool = Field(
+        ...,
+        description="Indica si el organizador aceptó los términos y condiciones"
+    )
 
     @field_validator("fecha_evento")
     @classmethod

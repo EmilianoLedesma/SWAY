@@ -65,42 +65,46 @@ function validateMotivacion(value) {
   return null;
 }
 
+// Returns a { campo: mensaje } object with only the fields that failed.
+// Empty object means the form is valid.
 function validateRegisterForm(fields) {
   const {
     nombre, apellidoPaterno, apellidoMaterno, especialidad, gradoAcademico,
     institucion, aniosExperiencia, numeroCedula, orcid, motivacion, termsAccepted,
   } = fields;
 
+  const errors = {};
+
   const nombreError = validateNombre(nombre, 'El nombre');
-  if (nombreError) return nombreError;
+  if (nombreError) errors.nombre = nombreError;
 
   const apellidoPaternoError = validateNombre(apellidoPaterno, 'El apellido paterno');
-  if (apellidoPaternoError) return apellidoPaternoError;
+  if (apellidoPaternoError) errors.apellidoPaterno = apellidoPaternoError;
 
   const apellidoMaternoError = validateApellidoMaterno(apellidoMaterno);
-  if (apellidoMaternoError) return apellidoMaternoError;
+  if (apellidoMaternoError) errors.apellidoMaterno = apellidoMaternoError;
 
-  if (!especialidad || !gradoAcademico || !institucion) {
-    return 'Completa todos los campos obligatorios';
-  }
+  if (!especialidad) errors.especialidad = 'Selecciona tu especialidad';
+  if (!gradoAcademico) errors.gradoAcademico = 'Selecciona tu grado académico';
+  if (!institucion) errors.institucion = 'La institución es obligatoria';
 
   const aniosError = validateAniosExperiencia(aniosExperiencia);
-  if (aniosError) return aniosError;
+  if (aniosError) errors.aniosExperiencia = aniosError;
 
   const cedulaError = validateCedula(numeroCedula);
-  if (cedulaError) return cedulaError;
+  if (cedulaError) errors.numeroCedula = cedulaError;
 
   const orcidError = validateOrcid(orcid);
-  if (orcidError) return orcidError;
+  if (orcidError) errors.orcid = orcidError;
 
   const motivacionError = validateMotivacion(motivacion);
-  if (motivacionError) return motivacionError;
+  if (motivacionError) errors.motivacion = motivacionError;
 
   if (!termsAccepted) {
-    return 'Debes aceptar los términos para colaboradores científicos';
+    errors.termsAccepted = 'Debes aceptar los términos para colaboradores científicos';
   }
 
-  return null;
+  return errors;
 }
 
 module.exports = {

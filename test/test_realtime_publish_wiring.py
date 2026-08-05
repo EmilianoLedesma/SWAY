@@ -161,6 +161,7 @@ def test_crear_evento_publishes_evento_created():
             "id_tipo_evento": tipo_id,
             "id_modalidad": modalidad_id,
             "contacto": "evento.wiring@demo-sway.com",
+            "terminos_aceptados": True,
         })
     assert resp.status_code == 200
     mock_publish.assert_called_once()

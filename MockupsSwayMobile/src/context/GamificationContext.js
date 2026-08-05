@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useMemo, useEffect, useRef } from 'react';
 import { getAvistamientosMine, getMisEventosRegistrados, getEspecies, getProfile, isBiometricLoginEnabled } from '../api/client';
 import { useAuth } from './AuthContext';
+import { diffUnlockedBadges } from './gamificationBadges';
 
 const LEVEL_THRESHOLDS = [0, 50, 150, 300];
 
@@ -118,13 +119,13 @@ export function GamificationProvider({ children }) {
 
   const prevUnlocked = useRef(null);
   useEffect(() => {
-    const unlocked = new Set(badges.filter((b) => b.unlocked).map((b) => b.label));
-    if (prevUnlocked.current === null) {
-      prevUnlocked.current = unlocked;
-      return;
-    }
-    const fresh = [...unlocked].filter((label) => !prevUnlocked.current.has(label));
-    prevUnlocked.current = unlocked;
+    // isLoggedIn can flip true before the counters fetch above resolves — badges
+    // computed from the still-seeded `counters` are placeholders, not real state.
+    // Skip those renders entirely so they never consume the baseline/diff slot,
+    // otherwise the real data arriving right after looks like a fresh unlock.
+    if (counters === seed) return;
+    const { fresh, nextUnlocked } = diffUnlockedBadges(prevUnlocked.current, badges, isLoggedIn);
+    prevUnlocked.current = nextUnlocked;
     if (fresh.length) {
       const badge = badges.find((b) => b.label === fresh[0]);
       celebrate({
@@ -133,7 +134,7 @@ export function GamificationProvider({ children }) {
         message: badge.label,
       });
     }
-  }, [badges]);
+  }, [badges, isLoggedIn, counters]);
 
   return (
     <GamificationContext.Provider

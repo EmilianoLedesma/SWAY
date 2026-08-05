@@ -1,12 +1,16 @@
 # Para los modelos de validaciones el nombre debe reflejar la entidad que protege.
 # Se usa Field para agregar validaciones adicionales: longitud, rangos, descripción y ejemplos.
+import re
 from pydantic import BaseModel, Field, EmailStr, field_validator
+
+CEDULA_RE = re.compile(r"^\d{7,8}$")
+ORCID_RE = re.compile(r"^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$")
 
 
 class ColaboradorLogin(BaseModel):
     # Ambos requeridos para autenticación
-    email: str = Field(
-        ..., min_length=5, max_length=150,
+    email: EmailStr = Field(
+        ..., max_length=150,
         description="Correo electrónico registrado del colaborador",
         example="colaborador@upq.edu.mx"
     )
@@ -129,8 +133,24 @@ class ColaboradorPerfilUpdate(BaseModel):
     @field_validator("años_experiencia")
     @classmethod
     def validar_años_experiencia_digitos(cls, v):
-        if v != "" and not v.isdigit():
-            raise ValueError("años_experiencia debe contener solo dígitos")
+        if v == "":
+            return v
+        if not v.isdigit() or not (0 <= int(v) <= 100):
+            raise ValueError("años_experiencia debe ser un número entre 0 y 100")
+        return v
+
+    @field_validator("numero_cedula")
+    @classmethod
+    def validar_numero_cedula(cls, v):
+        if v != "" and not CEDULA_RE.match(v):
+            raise ValueError("numero_cedula debe tener 7-8 dígitos")
+        return v
+
+    @field_validator("orcid")
+    @classmethod
+    def validar_orcid(cls, v):
+        if v != "" and not ORCID_RE.match(v):
+            raise ValueError("orcid debe tener el formato 0000-0000-0000-0000")
         return v
 
 

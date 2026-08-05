@@ -7,6 +7,7 @@ from app.data.models import (
 )
 from app.security.auth import get_current_tienda_user, get_current_colaborador
 from app.models.pedidos import PedidoCreate, CarritoAgregar
+from app.services.errors import safe_500
 
 router = APIRouter(prefix="/api", tags=["pedidos"])
 
@@ -159,7 +160,7 @@ async def crear_pedido(
     except Exception as e:
         import traceback
         print(f"Error en crear_pedido: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Ocurrió un error al procesar la solicitud.")
 
 
 @router.get("/pedidos/mis-pedidos")
@@ -190,7 +191,7 @@ async def get_mis_pedidos(current_user: dict = Depends(get_current_tienda_user),
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_mis_pedidos")
 
 
 @router.get("/pedidos/usuario/{user_id}")
@@ -226,7 +227,7 @@ async def get_pedidos_usuario(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_pedidos_usuario")
 
 
 @router.get("/pedidos/detalle/{pedido_id}")
@@ -291,7 +292,7 @@ async def get_pedido_detalle(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_pedido_detalle")
 
 
 @router.post("/pedidos/reordenar/{pedido_id}")
@@ -334,7 +335,7 @@ async def reordenar_pedido(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "reordenar_pedido")
 
 
 @router.post("/carrito/agregar")
@@ -358,7 +359,7 @@ async def agregar_al_carrito(data: CarritoAgregar, db: Session = Depends(get_db)
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "agregar_al_carrito")
 
 
 @router.get("/tipos-tarjeta")
@@ -368,4 +369,4 @@ async def get_tipos_tarjeta(db: Session = Depends(get_db)):
         tipos = db.query(TipoTarjeta).order_by(TipoTarjeta.nombre).all()
         return {"tipos_tarjeta": [{"id": t.id, "nombre": t.nombre} for t in tipos]}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_tipos_tarjeta")

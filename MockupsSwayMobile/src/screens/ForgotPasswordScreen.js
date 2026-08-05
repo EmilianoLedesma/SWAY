@@ -28,8 +28,8 @@ export default function ForgotPasswordScreen({ navigation }) {
       return;
     }
     Alert.alert(
-      'Revisa tu correo',
-      'Si el correo existe en nuestro sistema, recibirás un enlace para restablecer tu contraseña.',
+      'Recuperación no disponible',
+      'La recuperación automática de contraseña no está disponible todavía. Contacta a un administrador para restablecer tu contraseña.',
       [{ text: 'OK', onPress: () => navigation.goBack() }],
     );
   };
@@ -57,7 +57,7 @@ export default function ForgotPasswordScreen({ navigation }) {
           <View style={styles.formCard}>
             <Text style={styles.title}>Recuperar contraseña</Text>
             <Text style={styles.subtitle}>
-              Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.
+              La recuperación automática aún no está disponible. Ingresa tu correo y te indicaremos cómo continuar.
             </Text>
 
             <View style={styles.form}>
@@ -75,7 +75,7 @@ export default function ForgotPasswordScreen({ navigation }) {
               </View>
 
               <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
-                <Text style={styles.submitText}>Enviar enlace de recuperación</Text>
+                <Text style={styles.submitText}>Continuar</Text>
               </TouchableOpacity>
             </View>
 

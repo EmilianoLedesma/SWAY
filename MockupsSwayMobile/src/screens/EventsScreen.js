@@ -233,6 +233,10 @@ export default function EventsScreen({ navigation }) {
       Alert.alert('Contacto inválido', 'Ingresa un correo electrónico de contacto válido.');
       return;
     }
+    if (eventForm.horaFin <= eventForm.horaInicio) {
+      Alert.alert('Horario inválido', 'La hora de fin debe ser posterior a la hora de inicio.');
+      return;
+    }
     if (!eventForm.terminos) {
       Alert.alert('Términos y condiciones', 'Debes aceptar los términos para proponer un evento.');
       return;
@@ -260,6 +264,7 @@ export default function EventsScreen({ navigation }) {
       capacidad_maxima: Number(eventForm.capacidadMaxima),
       costo,
       contacto: eventForm.contacto,
+      terminos_aceptados: eventForm.terminos,
     });
     setSaving(false);
     if (!result.success) {

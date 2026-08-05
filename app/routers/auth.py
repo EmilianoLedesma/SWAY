@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api", tags=["auth"])
 
 
 class UserLogin(BaseModel):
-    email: str
+    email: EmailStr
     password: str
 
 
@@ -42,7 +42,7 @@ class UserRegister(BaseModel):
 
 
 class AuthLogin(BaseModel):
-    email: str
+    email: EmailStr
     password: str
 
 

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.data.database import get_db, construir_nombre_completo
 from app.data.models import Producto, CategoriaProducto, Material, ResenaProducto, Usuario
+from app.services.errors import safe_500
 
 router = APIRouter(prefix="/api", tags=["productos"])
 
@@ -101,7 +102,7 @@ async def get_productos(
     except Exception as e:
         import traceback
         print(f"Error en get_productos: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Ocurrió un error al procesar la solicitud.")
 
 
 @router.get("/producto/{producto_id}")
@@ -151,7 +152,7 @@ async def get_producto_detalle(producto_id: int, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_producto_detalle")
 
 
 @router.get("/reseñas/{producto_id}")
@@ -180,7 +181,7 @@ async def get_resenas_producto(producto_id: int, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_resenas_producto")
 
 
 @router.get("/materiales")
@@ -191,7 +192,7 @@ async def get_materiales(db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_materiales")
 
 
 @router.get("/categorias")
@@ -203,4 +204,4 @@ async def get_categories(db: Session = Depends(get_db)):
             "categories": [{"id": c.id, "name": c.nombre, "description": c.descripcion or ""} for c in cats],
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_categories")

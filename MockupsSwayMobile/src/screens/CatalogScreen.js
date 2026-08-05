@@ -212,6 +212,10 @@ export default function CatalogScreen() {
       Alert.alert('Datos incompletos', 'Selecciona un estado de conservación.');
       return;
     }
+    if (form.imagenUrl.trim() && !/^https?:\/\/\S+$/.test(form.imagenUrl.trim())) {
+      Alert.alert('Datos incompletos', 'La URL de la imagen debe comenzar con http:// o https://.');
+      return;
+    }
     const payload = {
       nombre_comun: form.commonName.trim(),
       nombre_cientifico: form.scientificName.trim(),
@@ -594,7 +598,7 @@ export default function CatalogScreen() {
               showsVerticalScrollIndicator={false}
             >
               <View style={styles.field}>
-                <Text style={styles.label}>Nombre común</Text>
+                <Text style={styles.label}>Nombre común *</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="Ej. Tortuga Carey"
@@ -605,7 +609,7 @@ export default function CatalogScreen() {
                 />
               </View>
               <View style={styles.field}>
-                <Text style={styles.label}>Nombre científico</Text>
+                <Text style={styles.label}>Nombre científico *</Text>
                 <TextInput
                   style={[styles.input, styles.italicInput]}
                   placeholder="Ej. Eretmochelys imbricata"
@@ -616,7 +620,7 @@ export default function CatalogScreen() {
                 />
               </View>
               <View style={styles.field}>
-                <Text style={styles.label}>Estado de conservación</Text>
+                <Text style={styles.label}>Estado de conservación *</Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}

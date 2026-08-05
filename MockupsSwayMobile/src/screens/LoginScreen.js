@@ -56,6 +56,7 @@ export default function LoginScreen({ onLogin, navigation }) {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [showBiometricUnlock, setShowBiometricUnlock] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
@@ -126,24 +127,18 @@ export default function LoginScreen({ onLogin, navigation }) {
 
   const handleSubmit = async () => {
     setError('');
-    if (!email || !password) {
-      notifyError('Completa todos los campos');
-      return;
-    }
-    if (!/^\S+@\S+\.\S+$/.test(email)) {
-      notifyError('Ingresa un correo electrónico válido');
-      return;
-    }
-    if (!isLogin) {
-      if (password.length < 6) {
-        notifyError('La contraseña debe tener al menos 6 caracteres');
+    setFieldErrors({});
+    if (isLogin) {
+      if (!email || !password) {
+        notifyError('Completa todos los campos');
         return;
       }
-      if (password !== confirmPassword) {
-        notifyError('Las contraseñas no coinciden');
+      if (!/^\S+@\S+\.\S+$/.test(email)) {
+        notifyError('Ingresa un correo electrónico válido');
         return;
       }
-      const registerError = validateRegisterForm({
+    } else {
+      const errors = validateRegisterForm({
         nombre: name,
         apellidoPaterno,
         apellidoMaterno,
@@ -156,8 +151,14 @@ export default function LoginScreen({ onLogin, navigation }) {
         motivacion,
         termsAccepted,
       });
-      if (registerError) {
-        notifyError(registerError);
+      if (!email) errors.email = 'El correo electrónico es obligatorio';
+      else if (!/^\S+@\S+\.\S+$/.test(email)) errors.email = 'Ingresa un correo electrónico válido';
+      if (!password) errors.password = 'La contraseña es obligatoria';
+      else if (password.length < 6) errors.password = 'La contraseña debe tener al menos 6 caracteres';
+      if (password !== confirmPassword) errors.confirmPassword = 'Las contraseñas no coinciden';
+      if (Object.keys(errors).length) {
+        hapticError();
+        setFieldErrors(errors);
         return;
       }
     }
@@ -185,12 +186,17 @@ export default function LoginScreen({ onLogin, navigation }) {
       checkCedula(trimmedCedula),
       trimmedOrcid ? checkOrcid(trimmedOrcid) : Promise.resolve({ exists: false, can_register: true }),
     ]);
-    const duplicate = [emailCheck, cedulaCheck, orcidCheck].find(
-      (check) => check.exists && !check.can_register
+    const duplicates = {};
+    [['email', emailCheck], ['numeroCedula', cedulaCheck], ['orcid', orcidCheck]].forEach(
+      ([field, check]) => {
+        if (check.exists && !check.can_register) {
+          duplicates[field] = check.message || 'Ya existe una solicitud con estos datos';
+        }
+      }
     );
-    if (duplicate) {
+    if (Object.keys(duplicates).length) {
       hapticError();
-      notifyError(duplicate.message || 'Ya existe una solicitud con estos datos');
+      setFieldErrors(duplicates);
       setLoading(false);
       return;
     }
@@ -309,7 +315,7 @@ export default function LoginScreen({ onLogin, navigation }) {
               {!isLogin && (
                 <>
                   <View style={styles.field}>
-                    <Text style={styles.label}>Nombre</Text>
+                    <Text style={styles.label}>Nombre <Text style={styles.required}>*</Text></Text>
                     <TextInput
                       style={styles.input}
                       placeholder="Juan"
@@ -319,9 +325,10 @@ export default function LoginScreen({ onLogin, navigation }) {
                       autoCapitalize="words"
                       maxLength={100}
                     />
+                    {fieldErrors.nombre ? <Text style={styles.fieldError}>{fieldErrors.nombre}</Text> : null}
                   </View>
                   <View style={styles.field}>
-                    <Text style={styles.label}>Apellido paterno</Text>
+                    <Text style={styles.label}>Apellido paterno <Text style={styles.required}>*</Text></Text>
                     <TextInput
                       style={styles.input}
                       placeholder="Pérez"
@@ -331,6 +338,7 @@ export default function LoginScreen({ onLogin, navigation }) {
                       autoCapitalize="words"
                       maxLength={100}
                     />
+                    {fieldErrors.apellidoPaterno ? <Text style={styles.fieldError}>{fieldErrors.apellidoPaterno}</Text> : null}
                   </View>
                   <View style={styles.field}>
                     <Text style={styles.label}>Apellido materno (opcional)</Text>
@@ -343,12 +351,15 @@ export default function LoginScreen({ onLogin, navigation }) {
                       autoCapitalize="words"
                       maxLength={100}
                     />
+                    {fieldErrors.apellidoMaterno ? <Text style={styles.fieldError}>{fieldErrors.apellidoMaterno}</Text> : null}
                   </View>
                 </>
               )}
 
               <View style={styles.field}>
-                <Text style={styles.label}>Correo electrónico</Text>
+                <Text style={styles.label}>
+                  Correo electrónico{!isLogin && <Text style={styles.required}> *</Text>}
+                </Text>
                 <TextInput
                   style={styles.input}
                   placeholder="colaborador@ejemplo.com"
@@ -360,10 +371,13 @@ export default function LoginScreen({ onLogin, navigation }) {
                   autoCorrect={false}
                   maxLength={150}
                 />
+                {fieldErrors.email ? <Text style={styles.fieldError}>{fieldErrors.email}</Text> : null}
               </View>
 
               <View style={styles.field}>
-                <Text style={styles.label}>Contraseña</Text>
+                <Text style={styles.label}>
+                  Contraseña{!isLogin && <Text style={styles.required}> *</Text>}
+                </Text>
                 <TextInput
                   style={styles.input}
                   placeholder="••••••••"
@@ -373,12 +387,13 @@ export default function LoginScreen({ onLogin, navigation }) {
                   secureTextEntry
                   maxLength={128}
                 />
+                {fieldErrors.password ? <Text style={styles.fieldError}>{fieldErrors.password}</Text> : null}
               </View>
 
               {!isLogin && (
                 <>
                   <View style={styles.field}>
-                    <Text style={styles.label}>Confirmar contraseña</Text>
+                    <Text style={styles.label}>Confirmar contraseña <Text style={styles.required}>*</Text></Text>
                     <TextInput
                       style={styles.input}
                       placeholder="••••••••"
@@ -388,12 +403,13 @@ export default function LoginScreen({ onLogin, navigation }) {
                       secureTextEntry
                       maxLength={128}
                     />
+                    {fieldErrors.confirmPassword ? <Text style={styles.fieldError}>{fieldErrors.confirmPassword}</Text> : null}
                   </View>
 
                   <Text style={styles.sectionTitle}>Acreditación académica</Text>
 
                   <View style={styles.field}>
-                    <Text style={styles.label}>Especialidad</Text>
+                    <Text style={styles.label}>Especialidad <Text style={styles.required}>*</Text></Text>
                     <View style={styles.chipRow}>
                       {ESPECIALIDADES.map((opt) => (
                         <TouchableOpacity
@@ -415,10 +431,11 @@ export default function LoginScreen({ onLogin, navigation }) {
                         </TouchableOpacity>
                       ))}
                     </View>
+                    {fieldErrors.especialidad ? <Text style={styles.fieldError}>{fieldErrors.especialidad}</Text> : null}
                   </View>
 
                   <View style={styles.field}>
-                    <Text style={styles.label}>Grado académico</Text>
+                    <Text style={styles.label}>Grado académico <Text style={styles.required}>*</Text></Text>
                     <View style={styles.chipRow}>
                       {GRADOS_ACADEMICOS.map((opt) => (
                         <TouchableOpacity
@@ -440,10 +457,11 @@ export default function LoginScreen({ onLogin, navigation }) {
                         </TouchableOpacity>
                       ))}
                     </View>
+                    {fieldErrors.gradoAcademico ? <Text style={styles.fieldError}>{fieldErrors.gradoAcademico}</Text> : null}
                   </View>
 
                   <View style={styles.field}>
-                    <Text style={styles.label}>Institución</Text>
+                    <Text style={styles.label}>Institución <Text style={styles.required}>*</Text></Text>
                     <TextInput
                       style={styles.input}
                       placeholder="Universidad o centro de investigación"
@@ -452,10 +470,11 @@ export default function LoginScreen({ onLogin, navigation }) {
                       onChangeText={setInstitucion}
                       maxLength={200}
                     />
+                    {fieldErrors.institucion ? <Text style={styles.fieldError}>{fieldErrors.institucion}</Text> : null}
                   </View>
 
                   <View style={styles.field}>
-                    <Text style={styles.label}>Años de experiencia</Text>
+                    <Text style={styles.label}>Años de experiencia <Text style={styles.required}>*</Text></Text>
                     <TextInput
                       style={styles.input}
                       placeholder="0-100"
@@ -465,12 +484,13 @@ export default function LoginScreen({ onLogin, navigation }) {
                       keyboardType="number-pad"
                       maxLength={3}
                     />
+                    {fieldErrors.aniosExperiencia ? <Text style={styles.fieldError}>{fieldErrors.aniosExperiencia}</Text> : null}
                   </View>
 
                   <Text style={styles.sectionTitle}>Documentación</Text>
 
                   <View style={styles.field}>
-                    <Text style={styles.label}>Número de cédula profesional</Text>
+                    <Text style={styles.label}>Número de cédula profesional <Text style={styles.required}>*</Text></Text>
                     <TextInput
                       style={styles.input}
                       placeholder="Número de cédula"
@@ -479,6 +499,7 @@ export default function LoginScreen({ onLogin, navigation }) {
                       onChangeText={setNumeroCedula}
                       maxLength={20}
                     />
+                    {fieldErrors.numeroCedula ? <Text style={styles.fieldError}>{fieldErrors.numeroCedula}</Text> : null}
                   </View>
 
                   <View style={styles.field}>
@@ -491,10 +512,11 @@ export default function LoginScreen({ onLogin, navigation }) {
                       onChangeText={(text) => setOrcid(formatOrcidInput(text))}
                       maxLength={19}
                     />
+                    {fieldErrors.orcid ? <Text style={styles.fieldError}>{fieldErrors.orcid}</Text> : null}
                   </View>
 
                   <View style={styles.field}>
-                    <Text style={styles.label}>Motivación para colaborar</Text>
+                    <Text style={styles.label}>Motivación para colaborar <Text style={styles.required}>*</Text></Text>
                     <TextInput
                       style={[styles.input, styles.textarea]}
                       placeholder="Describe tu motivación y experiencia relevante en especies marinas..."
@@ -507,6 +529,7 @@ export default function LoginScreen({ onLogin, navigation }) {
                     <Text style={styles.charCounter}>
                       {motivacion.length}/500 caracteres
                     </Text>
+                    {fieldErrors.motivacion ? <Text style={styles.fieldError}>{fieldErrors.motivacion}</Text> : null}
                   </View>
 
                   <TouchableOpacity
@@ -530,6 +553,7 @@ export default function LoginScreen({ onLogin, navigation }) {
                       es veraz
                     </Text>
                   </TouchableOpacity>
+                  {fieldErrors.termsAccepted ? <Text style={styles.fieldError}>{fieldErrors.termsAccepted}</Text> : null}
                 </>
               )}
 
@@ -669,6 +693,14 @@ const styles = StyleSheet.create({
     color: colors.text2,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
+  },
+  required: {
+    color: colors.red,
+  },
+  fieldError: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: colors.red,
   },
   input: {
     height: 46,

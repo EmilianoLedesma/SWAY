@@ -7,6 +7,7 @@ from app.data.models import (
 )
 from app.models.catalogos import NewsletterSuscripcion, ContactoMensaje, DonacionCreate
 from app.services.email_service import send_newsletter_confirmation, send_newsletter, send_donation_thanks
+from app.services.errors import safe_500
 
 
 async def _send_newsletter_after_delay(email: str, nombre: str, delay_seconds: int = 120):
@@ -67,8 +68,7 @@ async def suscribir_newsletter(data: NewsletterSuscripcion, background_tasks: Ba
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en suscribir_newsletter: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "suscribir_newsletter")
 
 
 @router.post("/newsletter/enviar")
@@ -91,8 +91,7 @@ async def enviar_newsletter(background_tasks: BackgroundTasks, db: Session = Dep
         return {"success": True, "message": f"Newsletter enviándose a {len(suscritos)} suscriptores", "total": len(suscritos)}
 
     except Exception as e:
-        print(f"Error en enviar_newsletter: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "enviar_newsletter")
 
 
 @router.post("/contacto")
@@ -214,8 +213,7 @@ async def procesar_donacion(data: DonacionCreate, background_tasks: BackgroundTa
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en procesar_donacion: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "procesar_donacion")
 
 
 @router.post("/setup-tienda")
@@ -246,4 +244,4 @@ async def setup_tienda(db: Session = Depends(get_db)):
         return {"success": True, "message": "Tienda configurada con datos de ejemplo"}
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "setup_tienda")

@@ -1,6 +1,6 @@
 # Verificación de requisitos del PI — SWAY
 
-Última actualización: 2026-08-02
+Última actualización: 2026-08-04 (verificado en vivo contra producción: 9 contenedores en privado incluyendo Redis, 3 en público, commit `f5f984b` en ambos droplets)
 
 Este documento resume el trabajo hecho en los últimos días (fusión de seguridad de aplicación + migración real a arquitectura de 2 droplets + SSL real de Let's Encrypt + dashboard de Grafana con 7 paneles + 3 bugs reales encontrados y corregidos durante la verificación en vivo) y da, para cada punto de la rúbrica: qué se hizo, dónde vive el código exacto (archivo:línea), y varias formas independientes de comprobarlo en vivo — `curl`, consultas SQL, `ping`, `openssl`, navegador real, capturas de pantalla. Todos los comandos son copiar/pegar directos, y cada afirmación de este documento fue efectivamente ejecutada y verificada contra la producción real (`https://proyecto-sway.site`), no es documentación aspiracional.
 
@@ -170,7 +170,7 @@ curl -m 5 http://165.232.146.240:8001/     # debe fallar, UFW solo permite la IP
 ssh sway-privado "docker ps --format '{{.Names}}: {{.Status}}'"
 ssh -i ~/.ssh/sway_deploy root@146.190.136.236 "docker ps --format '{{.Names}}: {{.Status}}'"
 ```
-Esperado privado: `sway_postgres`, `sway_api1`, `sway_api2`, `sway_flask1`, `sway_flask2`, `sway_prometheus`, `sway_node_exporter`, `sway_postgres_exporter` — 8 contenedores.
+Esperado privado: `sway_postgres`, `sway_api1`, `sway_api2`, `sway_flask1`, `sway_flask2`, `sway_prometheus`, `sway_node_exporter`, `sway_postgres_exporter`, `sway_redis` — 9 contenedores (Redis se agregó 2026-08-04 para pub/sub de realtime sync y rate limiting compartido, ver sección 15).
 Esperado público: `sway_haproxy`, `sway_nginx_portal`, `sway_grafana` — 3 contenedores.
 
 ---

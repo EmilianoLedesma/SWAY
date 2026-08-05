@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { useGamification } from '../context/GamificationContext';
+import { useRealtime } from '../context/RealtimeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -228,17 +229,28 @@ export default function ProfileScreen() {
     };
   }, [activeTab, filtros]);
 
+  const fetchEspeciesCatalog = () =>
+    getEspecies().then((r) => setEspeciesCatalog(r?.especies || []));
+
+  const fetchAvistamientosMineCount = (isActive = () => true) =>
+    getAvistamientosMine().then((data) => {
+      if (isActive() && data?.avistamientos) setAvistamientosMineCount(data.avistamientos.length);
+    });
+
+  const fetchEventosMineCount = (isActive = () => true) =>
+    getEventosMine().then((data) => {
+      if (isActive() && data?.eventos) setEventosMineCount(data.eventos.length);
+    });
+
   useEffect(() => {
     getEstadosConservacion().then((r) => setEstadosCatalog(r?.estados || []));
     getHabitats().then((r) => setHabitatsCatalog(r?.habitats || []));
-    getEspecies().then((r) => setEspeciesCatalog(r?.especies || []));
+    fetchEspeciesCatalog();
   }, []);
 
   useEffect(() => {
     let active = true;
-    getAvistamientosMine().then((data) => {
-      if (active && data?.avistamientos) setAvistamientosMineCount(data.avistamientos.length);
-    });
+    fetchAvistamientosMineCount(() => active);
     return () => {
       active = false;
     };
@@ -246,12 +258,27 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     let active = true;
-    getEventosMine().then((data) => {
-      if (active && data?.eventos) setEventosMineCount(data.eventos.length);
-    });
+    fetchEventosMineCount(() => active);
     return () => {
       active = false;
     };
+  }, []);
+
+  const { subscribe } = useRealtime();
+
+  useEffect(() => {
+    const unsubscribe = subscribe((message) => {
+      if (['resync', 'avistamiento_created', 'avistamiento_deleted'].includes(message.type)) {
+        fetchAvistamientosMineCount();
+      }
+      if (['resync', 'evento_created', 'evento_deleted'].includes(message.type)) {
+        fetchEventosMineCount();
+      }
+      if (['resync', 'especie_created', 'especie_updated', 'especie_deleted'].includes(message.type)) {
+        fetchEspeciesCatalog();
+      }
+    });
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
@@ -852,7 +879,11 @@ export default function ProfileScreen() {
                   {topEspecies.length > 0 ? (
                     <HBar bars={topEspecies} />
                   ) : (
-                    <Text style={styles.reportsDesc}>Sin avistamientos registrados</Text>
+                    <Text style={styles.reportsDesc}>
+                      {filtros.estado || filtros.habitat
+                        ? 'Ningún resultado con estos filtros'
+                        : 'Sin avistamientos registrados'}
+                    </Text>
                   )}
                 </View>
 

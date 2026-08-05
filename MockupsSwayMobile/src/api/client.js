@@ -43,6 +43,15 @@ async function buildErrorResult(res, data, fallback) {
     await SecureStore.deleteItemAsync(TOKEN_KEY);
     return { success: false, sessionExpired: true, message: 'Sesión expirada, inicia sesión de nuevo.' };
   }
+  // FastAPI responde 422 con detail como lista de errores por campo; sin esto
+  // se perdia el motivo real y solo se veia el mensaje generico.
+  if (Array.isArray(data.detail) && data.detail.length) {
+    const msgs = data.detail.map((e) => {
+      const campo = Array.isArray(e.loc) ? e.loc[e.loc.length - 1] : null;
+      return campo ? `${campo}: ${e.msg}` : e.msg;
+    });
+    return { success: false, message: msgs.join('\n') };
+  }
   return { success: false, message: typeof data.detail === 'string' ? data.detail : fallback };
 }
 

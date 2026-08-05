@@ -40,16 +40,31 @@ const validFields = {
   institucion: 'UPQ', aniosExperiencia: '5', numeroCedula: '1234567',
   orcid: '', motivacion: 'x'.repeat(60), termsAccepted: true,
 };
-assert.strictEqual(validateRegisterForm(validFields), null);
+assert.deepStrictEqual(validateRegisterForm(validFields), {});
 
-assert.strictEqual(
+assert.deepStrictEqual(
   validateRegisterForm({ ...validFields, termsAccepted: false }),
-  'Debes aceptar los términos para colaboradores científicos'
+  { termsAccepted: 'Debes aceptar los términos para colaboradores científicos' }
 );
 
-assert.strictEqual(
+assert.deepStrictEqual(
   validateRegisterForm({ ...validFields, numeroCedula: '123' }),
-  'Formato de cédula profesional inválido (7-8 dígitos)'
+  { numeroCedula: 'Formato de cédula profesional inválido (7-8 dígitos)' }
+);
+
+// Multiple bad fields report all at once, keyed by field.
+assert.deepStrictEqual(
+  validateRegisterForm({
+    ...validFields, nombre: '', especialidad: '', gradoAcademico: '',
+    institucion: '', orcid: 'bad-orcid',
+  }),
+  {
+    nombre: 'El nombre es obligatorio',
+    especialidad: 'Selecciona tu especialidad',
+    gradoAcademico: 'Selecciona tu grado académico',
+    institucion: 'La institución es obligatoria',
+    orcid: 'El ORCID debe tener el formato 0000-0000-0000-0000',
+  }
 );
 
 const { formatOrcidInput } = require('./collaboratorValidation');

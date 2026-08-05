@@ -11,6 +11,7 @@ from app.data.models import (
 from app.security.auth import get_optional_organizador_user
 from app.models.eventos import EventoCreate
 from app.services.realtime_publish import publish_event
+from app.services.errors import safe_500
 
 router = APIRouter(prefix="/api", tags=["eventos"])
 
@@ -118,8 +119,7 @@ async def get_eventos(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en get_eventos: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_eventos")
 
 
 @router.post("/eventos/crear")
@@ -129,6 +129,17 @@ async def crear_evento(
     db: Session = Depends(get_db)
 ):
     try:
+        if not data.terminos_aceptados:
+            raise HTTPException(status_code=400, detail="Debes aceptar los términos y condiciones")
+
+        tipo_evento = db.query(TipoEvento).filter(TipoEvento.id == data.id_tipo_evento).first()
+        if not tipo_evento:
+            raise HTTPException(status_code=400, detail="Tipo de evento no válido")
+
+        modalidad_obj = db.query(Modalidad).filter(Modalidad.id == data.id_modalidad).first()
+        if not modalidad_obj:
+            raise HTTPException(status_code=400, detail="Modalidad no válida")
+
         if current_user:
             user_id = int(current_user["sub"])
         else:
@@ -233,8 +244,7 @@ async def eliminar_evento(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en eliminar_evento: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "eliminar_evento")
 
 
 @router.post("/eventos/{evento_id}/registrar")
@@ -288,8 +298,7 @@ async def registrar_asistencia(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en registrar_asistencia: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "registrar_asistencia")
 
 
 @router.delete("/eventos/{evento_id}/registrar")
@@ -319,8 +328,7 @@ async def cancelar_asistencia(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en cancelar_asistencia: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "cancelar_asistencia")
 
 
 @router.get("/eventos/mis-registros")
@@ -347,8 +355,7 @@ async def get_mis_registros(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en get_mis_registros: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_mis_registros")
 
 
 @router.get("/tipos-evento")
@@ -359,7 +366,7 @@ async def get_tipos_evento(db: Session = Depends(get_db)):
             {"id": t.id, "nombre": t.nombre, "descripcion": t.descripcion} for t in tipos
         ]}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_tipos_evento")
 
 
 @router.get("/modalidades")
@@ -370,4 +377,4 @@ async def get_modalidades(db: Session = Depends(get_db)):
             {"id": m.id, "nombre": m.nombre} for m in modalidades
         ]}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_modalidades")

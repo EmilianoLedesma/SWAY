@@ -10,6 +10,7 @@ from app.data.models import (
 from app.security.auth import get_current_colaborador
 from app.models.especies import EspecieCreate, EspecieUpdate
 from app.services.realtime_publish import publish_event
+from app.services.errors import safe_500
 
 router = APIRouter(prefix="/api", tags=["especies"])
 
@@ -302,8 +303,7 @@ async def get_especies(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en get_especies: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_especies")
 
 
 @router.get("/especies/{especie_id}")
@@ -378,8 +378,7 @@ async def get_especie(especie_id: int, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en get_especie: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_especie")
 
 
 @router.post("/especies")
@@ -476,8 +475,7 @@ async def create_especie(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en create_especie: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "create_especie")
 
 
 @router.put("/especies/{especie_id}")
@@ -573,8 +571,7 @@ async def update_especie(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en update_especie: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "update_especie")
 
 
 @router.delete("/especies/{especie_id}")
@@ -604,8 +601,7 @@ async def delete_especie(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en delete_especie: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "delete_especie")
 
 
 @router.get("/estados-conservacion")
@@ -616,7 +612,7 @@ async def get_estados_conservacion(db: Session = Depends(get_db)):
             {"id": e.id, "nombre": e.nombre, "descripcion": e.descripcion} for e in estados
         ]}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_estados_conservacion")
 
 
 @router.get("/amenazas")
@@ -627,7 +623,7 @@ async def get_amenazas(db: Session = Depends(get_db)):
             {"id": a.id, "nombre": a.nombre, "descripcion": a.descripcion} for a in amenazas
         ]}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_amenazas")
 
 
 @router.get("/habitats")
@@ -638,4 +634,4 @@ async def get_habitats(db: Session = Depends(get_db)):
             {"id": h.id, "nombre": h.nombre, "descripcion": h.descripcion} for h in habitats
         ]}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_habitats")

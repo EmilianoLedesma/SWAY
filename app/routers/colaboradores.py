@@ -10,6 +10,7 @@ from app.models.colaboradores import (
     CheckOrcid, CheckCedula, ColaboradorPerfilUpdate, ColaboradorPasswordChange
 )
 from app.services.email_service import send_welcome_email
+from app.services.errors import safe_500
 
 router = APIRouter(prefix="/api/colaboradores", tags=["colaboradores"])
 
@@ -74,8 +75,7 @@ async def colaborador_login(request: Request, data: ColaboradorLogin, db: Sessio
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en colaborador_login: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "colaborador_login")
 
 
 @router.post("/register")
@@ -171,8 +171,7 @@ async def colaborador_register(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en colaborador_register: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "colaborador_register")
 
 
 @router.post("/logout")
@@ -238,8 +237,7 @@ async def get_colaborador_profile(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en get_colaborador_profile: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_colaborador_profile")
 
 
 @router.get("/status")
@@ -284,8 +282,7 @@ async def check_collaborator_email(request: Request, data: CheckEmail, db: Sessi
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en check_collaborator_email: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "check_collaborator_email")
 
 
 @router.post("/check-orcid")
@@ -312,8 +309,7 @@ async def check_collaborator_orcid(request: Request, data: CheckOrcid, db: Sessi
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en check_collaborator_orcid: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "check_collaborator_orcid")
 
 
 @router.post("/check-cedula")
@@ -340,8 +336,7 @@ async def check_collaborator_cedula(request: Request, data: CheckCedula, db: Ses
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en check_collaborator_cedula: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "check_collaborator_cedula")
 
 
 @router.put("/perfil")
@@ -392,8 +387,7 @@ async def update_colaborador_perfil(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en update_colaborador_perfil: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "update_colaborador_perfil")
 
 
 @router.put("/perfil/password")
@@ -418,8 +412,7 @@ async def change_colaborador_password(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en change_colaborador_password: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "change_colaborador_password")
 
 
 @router.delete("/perfil")
@@ -446,8 +439,7 @@ async def delete_colaborador_perfil(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en delete_colaborador_perfil: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "delete_colaborador_perfil")
 
 
 @router.get("/avistamientos")
@@ -489,5 +481,4 @@ async def get_colaborador_avistamientos(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en get_colaborador_avistamientos: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_colaborador_avistamientos")

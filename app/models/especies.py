@@ -26,8 +26,8 @@ class EspecieCreate(BaseModel):
         description="Esperanza de vida en años (None = no especificada, máx. 500)"
     )
     poblacion_estimada: Optional[int] = Field(
-        None, ge=0,
-        description="Número estimado de individuos en la naturaleza (None = no especificado)"
+        None, ge=0, le=2147483647,
+        description="Número estimado de individuos en la naturaleza (None = no especificado, máx. Postgres INTEGER)"
     )
     id_estado_conservacion: int = Field(
         ..., ge=1,
@@ -72,8 +72,8 @@ class EspecieUpdate(BaseModel):
         description="Esperanza de vida en años (None = no especificada, máx. 500)"
     )
     poblacion_estimada: Optional[int] = Field(
-        None, ge=0,
-        description="Número estimado de individuos en la naturaleza (None = no especificado)"
+        None, ge=0, le=2147483647,
+        description="Número estimado de individuos en la naturaleza (None = no especificado, máx. Postgres INTEGER)"
     )
     id_estado_conservacion: int = Field(
         ..., ge=1,

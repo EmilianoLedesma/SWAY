@@ -2,7 +2,7 @@ import os
 import uuid
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Request
 from fastapi.responses import Response
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -14,11 +14,16 @@ from app.data.models import (
 from app.security.auth import get_current_colaborador
 from app.config import AVISTAMIENTOS_UPLOAD_DIR
 from app.services.realtime_publish import publish_event
+from app.services.errors import safe_500
 from datetime import datetime
 
 router = APIRouter(prefix="/api", tags=["estadisticas"])
 
 ALLOWED_FOTO_CONTENT_TYPES = {"image/jpeg": ".jpg", "image/png": ".png"}
+FOTO_MAGIC_NUMBERS = {
+    b"\xff\xd8\xff": ".jpg",
+    b"\x89PNG\r\n\x1a\n": ".png",
+}
 MAX_FOTO_SIZE = 5 * 1024 * 1024  # 5MB
 
 
@@ -138,20 +143,29 @@ async def get_avistamientos(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_avistamientos")
 
 
 class AvistamientoCreate(BaseModel):
     id_especie: int
     fecha_avistamiento: str
-    latitud: float
-    longitud: float
+    latitud: float = Field(..., ge=-90, le=90)
+    longitud: float = Field(..., ge=-180, le=180)
     nombre_usuario: str
     email_usuario: EmailStr
     notas: Optional[str] = ""
     nombre: Optional[str] = None
     apellido_paterno: Optional[str] = None
     apellido_materno: Optional[str] = None
+
+    @field_validator("fecha_avistamiento")
+    @classmethod
+    def validar_fecha_avistamiento(cls, v):
+        try:
+            datetime.fromisoformat(v.replace("T", " "))
+        except ValueError:
+            raise ValueError("fecha_avistamiento debe tener un formato de fecha/hora ISO válido")
+        return v
 
 
 @router.post("/reportar-avistamiento")
@@ -221,8 +235,7 @@ async def reportar_avistamiento(data: AvistamientoCreate, db: Session = Depends(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en reportar_avistamiento: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "reportar_avistamiento")
 
 
 @router.delete("/avistamientos/{avistamiento_id}")
@@ -246,8 +259,7 @@ async def eliminar_avistamiento(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en eliminar_avistamiento: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "eliminar_avistamiento")
 
 
 # Sin verificación de propiedad: cualquier colaborador autenticado puede
@@ -278,6 +290,9 @@ async def subir_foto_avistamiento(
         if len(contenido) > MAX_FOTO_SIZE:
             raise HTTPException(status_code=413, detail="La imagen supera el límite de 5MB")
 
+        if not any(contenido.startswith(magic) for magic in FOTO_MAGIC_NUMBERS):
+            raise HTTPException(status_code=400, detail="El contenido del archivo no es una imagen JPEG o PNG válida")
+
         nombre_archivo = f"{uuid.uuid4().hex}{extension}"
         os.makedirs(AVISTAMIENTOS_UPLOAD_DIR, exist_ok=True)
         ruta_absoluta = os.path.join(AVISTAMIENTOS_UPLOAD_DIR, nombre_archivo)
@@ -292,8 +307,7 @@ async def subir_foto_avistamiento(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error en subir_foto_avistamiento: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "subir_foto_avistamiento")
 
 
 @router.get("/reportes/especies")

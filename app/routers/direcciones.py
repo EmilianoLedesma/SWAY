@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from app.data.database import get_db
 from app.data.models import Estado, Municipio, Colonia, Calle
+from app.services.errors import safe_500
 
 router = APIRouter(prefix="/api/direcciones", tags=["direcciones"])
 
@@ -14,7 +15,7 @@ async def get_estados(db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_estados")
 
 
 @router.get("/municipios/{estado_id}")
@@ -30,7 +31,7 @@ async def get_municipios(estado_id: int, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_municipios")
 
 
 @router.get("/colonias/{municipio_id}")
@@ -46,7 +47,7 @@ async def get_colonias(municipio_id: int, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_colonias")
 
 
 @router.get("/calles/{colonia_id}")
@@ -62,4 +63,4 @@ async def get_calles(colonia_id: int, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise safe_500(e, "get_calles")
