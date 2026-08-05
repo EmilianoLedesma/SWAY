@@ -528,6 +528,7 @@ export default function SightingsScreen({ navigation, route }) {
                 <View style={styles.detailPhoto}>
                   {detailSighting.photoUrl ? (
                     <TouchableOpacity
+                      style={styles.detailPhotoImage}
                       activeOpacity={0.85}
                       onPress={() => setFullscreenPhoto(detailSighting.photoUrl)}
                     >

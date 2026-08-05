@@ -463,6 +463,7 @@ export default function CatalogScreen() {
                 <View style={styles.modalPhoto}>
                   {selectedSpecies.image ? (
                     <TouchableOpacity
+                      style={styles.modalImage}
                       activeOpacity={0.85}
                       onPress={() => setFullscreenPhoto(selectedSpecies.image)}
                     >
