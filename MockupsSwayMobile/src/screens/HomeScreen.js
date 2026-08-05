@@ -150,13 +150,20 @@ export default function HomeScreen({ navigation }) {
         <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Actividad reciente</Text>
         <View style={styles.activityCard}>
           {recentActivity.map((act) => (
-            <View key={act.key} style={styles.activityRow}>
+            <TouchableOpacity
+              key={act.key}
+              style={styles.activityRow}
+              activeOpacity={0.7}
+              onPress={() =>
+                navigation.navigate(act.key.startsWith('avistamiento-') ? 'Sightings' : 'Events')
+              }
+            >
               <View style={styles.activityDot} />
               <View style={styles.activityContent}>
                 <Text style={styles.activityText}>{act.text}</Text>
                 <Text style={styles.activityDate}>{relativeDate(act.date)}</Text>
               </View>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
       </ScrollView>
