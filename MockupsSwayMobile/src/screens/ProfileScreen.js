@@ -290,6 +290,8 @@ export default function ProfileScreen({ navigation, route }) {
     return unsubscribe;
   }, []);
 
+  const [especieMatchName, setEspecieMatchName] = useState(null);
+
   useEffect(() => {
     if (reportesSubTab !== 'global') return;
     const handle = setTimeout(() => {
@@ -299,6 +301,7 @@ export default function ProfileScreen({ navigation, route }) {
           )
         : null;
       setFiltros((f) => ({ ...f, especieId: match?.id }));
+      setEspecieMatchName(match?.nombre_comun ?? null);
     }, 400);
     return () => clearTimeout(handle);
   }, [especieSearch, especiesCatalog, reportesSubTab]);
@@ -816,6 +819,11 @@ export default function ProfileScreen({ navigation, route }) {
                   value={especieSearch}
                   onChangeText={setEspecieSearch}
                 />
+                {especieSearch.trim() !== '' && (
+                  <Text style={[styles.reportsDesc, { marginTop: 4, marginBottom: 0 }]}>
+                    {especieMatchName ? `Filtrando: ${especieMatchName}` : 'Sin coincidencias'}
+                  </Text>
+                )}
               </>
             )}
             {reportesLoading && !reportesData ? (
