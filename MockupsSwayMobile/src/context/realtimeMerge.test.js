@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { mergeAvistamientoCreated, removeById } = require('./realtimeMerge');
+const { mergeAvistamientoCreated, removeById, patchById } = require('./realtimeMerge');
 
 // mergeAvistamientoCreated: prepends a new item
 {
@@ -35,6 +35,23 @@ const { mergeAvistamientoCreated, removeById } = require('./realtimeMerge');
   const prev = [{ id: '1' }, { id: '2' }];
   const result = removeById(prev, '1');
   assert.deepStrictEqual(result, [{ id: '2' }]);
+}
+
+// patchById: merges patch into the matching item, leaves others untouched
+{
+  const prev = [{ id: '1', hasPhoto: false, photoUrl: null }, { id: '2', hasPhoto: false, photoUrl: null }];
+  const result = patchById(prev, '1', { hasPhoto: true, photoUrl: 'http://x/photo.jpg' });
+  assert.deepStrictEqual(result, [
+    { id: '1', hasPhoto: true, photoUrl: 'http://x/photo.jpg' },
+    { id: '2', hasPhoto: false, photoUrl: null },
+  ]);
+}
+
+// patchById: no-op (same reference) if id not present
+{
+  const prev = [{ id: '1', hasPhoto: false }];
+  const result = patchById(prev, '999', { hasPhoto: true });
+  assert.strictEqual(result, prev);
 }
 
 console.log('realtimeMerge.test.js: all assertions passed');

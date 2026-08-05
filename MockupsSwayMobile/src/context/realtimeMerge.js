@@ -7,4 +7,9 @@ function removeById(prev, id) {
   return prev.filter((s) => s.id !== id);
 }
 
-module.exports = { mergeAvistamientoCreated, removeById };
+function patchById(prev, id, patch) {
+  if (!prev.some((s) => s.id === id)) return prev;
+  return prev.map((s) => (s.id === id ? { ...s, ...patch } : s));
+}
+
+module.exports = { mergeAvistamientoCreated, removeById, patchById };
