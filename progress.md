@@ -708,7 +708,7 @@ Ambos quedan como pendientes explícitos para una sesión futura — no se tocó
 
 ---
 
-## Sesión 2026-08-05 — Auditoría exhaustiva de validación de inputs (4 agentes paralelos), fixes reales, bug de logros v2, deploy completo, simulación de ataques
+## Sesión 2026-08-04 (continuación 2) — Auditoría exhaustiva de validación de inputs (4 agentes paralelos), fixes reales, bug de logros v2, deploy completo, simulación de ataques
 
 ### A — Fixes rápidos de los pendientes registrados ayer (#1, #2 del bloque anterior)
 
