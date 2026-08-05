@@ -39,6 +39,8 @@ ssh -i ~/.ssh/sway_deploy -o ProxyCommand="ssh -i ~/.ssh/sway_deploy -W %h:%p ro
 
 **Opción C — SSH agent forwarding (conectarte al público primero, saltar desde ahí):**
 
+**TL;DR (una vez configurado):** `ssh-add ~/.ssh/sway_deploy` (una vez por terminal nueva) → `ssh sway-publico` → ya dentro, `ssh root@10.124.0.3` sin flags. O saltar directo al privado sin pasar por público: `ssh sway-privado`.
+
 Preparación de una sola vez (en tu máquina local, Windows):
 ```powershell
 # 1. Habilitar y arrancar el servicio ssh-agent de Windows (PowerShell como Administrador)
