@@ -93,17 +93,17 @@ export default function HomeScreen({ navigation }) {
       >
         <ScreenHeader title={`Hola, ${firstName}`} subtitle="Tu actividad en SWAY" />
 
-        <View style={styles.levelCard}>
+        <TouchableOpacity
+          style={styles.levelCard}
+          activeOpacity={0.7}
+          onPress={() => navigation.navigate('Profile', { initialTab: 'activity' })}
+        >
           <View style={styles.levelHeader}>
             <Text style={styles.levelTitle}>Nivel {level}</Text>
-            <TouchableOpacity
-              style={styles.streakChip}
-              activeOpacity={0.7}
-              onPress={() => navigation.navigate('Profile', { initialTab: 'activity' })}
-            >
+            <View style={styles.streakChip}>
               <Animated.Text style={[styles.streakIcon, { opacity: streakPulse }]}>🔥</Animated.Text>
               <Text style={styles.streakText}>{streakCount}</Text>
-            </TouchableOpacity>
+            </View>
           </View>
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: `${levelProgress}%` }]} />
@@ -113,7 +113,7 @@ export default function HomeScreen({ navigation }) {
               ? `${points} pts · faltan ${levelCeil - points} para el nivel ${level + 1}`
               : `${points} pts · nivel máximo alcanzado`}
           </Text>
-        </View>
+        </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>Acciones rápidas</Text>
         <View style={styles.actionsGrid}>
