@@ -166,6 +166,37 @@ else
 fi
 
 # ---------------------------------------------------------------
+section "15. Validaciones agregadas en sesion 2026-08-05 (bounds server-side)"
+# Bug real reportado por el usuario: poblacion_estimada sin limite superior
+# overflowaba el INTEGER de Postgres y filtraba el SQL crudo al cliente.
+# Estos checks no requieren auth (avistamiento/evento son endpoints anonimos).
+
+LAT_OOR=$(curl_dom -X POST "https://$DOMAIN/api/reportar-avistamiento" \
+  -H "Content-Type: application/json" -H "x-api-key: $API_KEY" \
+  -d '{"id_especie":1,"fecha_avistamiento":"2026-08-01T10:00:00","latitud":999,"longitud":-20.5,"nombre_usuario":"Suite","email_usuario":"suite-attack@demo-sway.com"}')
+echo "$LAT_OOR" | grep -q '"detail"' && echo "$LAT_OOR" | grep -qv '"success":true' && pass "latitud fuera de rango (999) rechazada" || fail "latitud fuera de rango no fue rechazada: $LAT_OOR"
+
+FECHA_MALFORMADA=$(curl_dom -X POST "https://$DOMAIN/api/reportar-avistamiento" \
+  -H "Content-Type: application/json" -H "x-api-key: $API_KEY" \
+  -d '{"id_especie":1,"fecha_avistamiento":"no-es-una-fecha","latitud":10.5,"longitud":-20.5,"nombre_usuario":"Suite","email_usuario":"suite-attack@demo-sway.com"}')
+echo "$FECHA_MALFORMADA" | grep -qv '"success":true' && pass "fecha_avistamiento malformada rechazada" || fail "fecha malformada no fue rechazada: $FECHA_MALFORMADA"
+
+EVENTO_SIN_TERMINOS=$(curl_dom -X POST "https://$DOMAIN/api/eventos/crear" \
+  -H "Content-Type: application/json" -H "x-api-key: $API_KEY" \
+  -d '{"titulo":"Suite attack test","descripcion":"Descripcion de prueba con longitud suficiente.","fecha_evento":"2026-12-01","hora_inicio":"09:00","id_tipo_evento":1,"id_modalidad":1,"contacto":"suite-attack@demo-sway.com","terminos_aceptados":false}')
+echo "$EVENTO_SIN_TERMINOS" | grep -q "términos" && pass "evento sin aceptar terminos rechazado" || fail "evento sin terminos no fue rechazado: $EVENTO_SIN_TERMINOS"
+
+EVENTO_FK_INVALIDA=$(curl_dom -X POST "https://$DOMAIN/api/eventos/crear" \
+  -H "Content-Type: application/json" -H "x-api-key: $API_KEY" \
+  -d '{"titulo":"Suite attack test","descripcion":"Descripcion de prueba con longitud suficiente.","fecha_evento":"2026-12-01","hora_inicio":"09:00","id_tipo_evento":999999,"id_modalidad":1,"contacto":"suite-attack@demo-sway.com","terminos_aceptados":true}')
+echo "$EVENTO_FK_INVALIDA" | grep -q "no válid" && pass "tipo_evento inexistente rechazado con 400 limpio (no 500 crudo)" || fail "tipo_evento invalido no fue rechazado limpiamente: $EVENTO_FK_INVALIDA"
+
+LOGIN_EMAIL_MAL=$(curl_dom -X POST "https://$DOMAIN/api/colaboradores/login" \
+  -H "Content-Type: application/json" -H "x-api-key: $API_KEY" \
+  -d '{"email":"no-es-email","password":"x"}')
+echo "$LOGIN_EMAIL_MAL" | grep -q "not a valid email" && pass "login colaborador con email malformado rechazado (422)" || fail "login con email malformado no fue rechazado: $LOGIN_EMAIL_MAL"
+
+# ---------------------------------------------------------------
 echo ""
 echo "=================================="
 echo "RESULTADO: $PASS pass, $FAIL fail, $SKIP skip (manual)"

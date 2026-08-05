@@ -705,4 +705,99 @@ Ambos quedan como pendientes explícitos para una sesión futura — no se tocó
    - **Dato relevante para cuando se retome:** `native-stack` ya envuelve `UINavigationController` nativo en iOS — el swipe-back en el borde para volver de Notifications/MisAsistencias probablemente **ya funciona gratis** sin código adicional; falta confirmar en dispositivo. El gap real es **swipe entre tabs**, que `bottom-tabs` no trae de fábrica.
    - `@react-navigation/material-top-tabs` (`^7.6.6`) ya está en `package.json` pero **no se usa en ningún lado del código** — dependencia instalada sin wiring, candidato natural para el swipe-entre-tabs si se decide usarla.
    - `react-native-gesture-handler` y `react-native-reanimated` — **no confirmados instalados** (chequeo interrumpido antes de terminar); `material-top-tabs` y cualquier gesto custom fluido normalmente los requieren como peer dependencies. Verificar esto es el primer paso real al retomar.
+
+---
+
+## Sesión 2026-08-05 — Auditoría exhaustiva de validación de inputs (4 agentes paralelos), fixes reales, bug de logros v2, deploy completo, simulación de ataques
+
+### A — Fixes rápidos de los pendientes registrados ayer (#1, #2 del bloque anterior)
+
+- **Pendiente #3 de ayer (logro "Colaborador Aprobado" repetido) investigado con `systematic-debugging`.** Causa raíz real: `GamificationContext.js` reseteaba `counters` a `seed` en cada logout, lo que también borraba `prevUnlocked.current` (ref de insignias ya vistas) en la práctica — el siguiente login veía el badge "aprobado" como recién desbloqueado y volvía a celebrar. Extraída la lógica pura a `src/context/gamificationBadges.js` (`diffUnlockedBadges`), testeada con `node assert` (4 casos: primer login, logout no debe celebrar, re-login no debe re-celebrar, unlock real sí debe celebrar). Wireado en el context — fix v1 completo y testeado.
+- **Pendientes #1/#2 (feedback genérico en registro de colaborador y crear especie)** resueltos vía 2 agentes `caveman:cavecrew-builder` en paralelo:
+  - Registro: `validateRegisterForm()` cambia de devolver un solo string a un objeto `{campo: mensaje}`; `LoginScreen.js` ahora muestra asterisco en campos obligatorios + error inline por campo (incluye los duplicate-checks de email/cédula/orcid, que antes solo mostraban un alert genérico).
+  - Crear especie: investigado — `buildErrorResult()` en `client.js` **ya parseaba** el detalle 422 de FastAPI campo por campo (no era un gap real, solo faltaban los asteriscos visuales). Agente correctamente redujo el alcance a solo agregar `*` en los labels obligatorios, sin tocar lo que ya funcionaba.
+
+### B — Auditoría de validación de inputs, 3 agentes `Explore` en paralelo, solo lectura
+
+A pedido del usuario, sin tocar código: verificar client+server validation y feedback de error en **todas** las pantallas mobile con formularios. Hallazgos reales priorizados:
+
+**Alto (seguridad/integridad de datos):**
+1. Avistamiento lat/lon sin bounds server-side.
+2. Foto de avistamiento: content-type spoofable (servidor solo confiaba en el header, no en los bytes reales).
+3. `terminos_aceptados` en crear evento — solo client-side, sin campo equivalente en el modelo backend.
+4. `contacto` (email) en evento anónimo — validado solo cliente, se vuelve `Usuario.email` real sin validar formato server-side. **Excluido explícitamente por el usuario de esta ronda de fixes.**
+5. `ForgotPasswordScreen` — completamente falso (alert de éxito sin backend, sin llamada a API, sin endpoint en ningún lado del código).
+6. Login (3 endpoints: colaboradores/user/auth) usan `str` en vez de `EmailStr`.
+
+**Medio:** foto de avistamiento — mensaje real del servidor descartado, se mostraba un string genérico hardcodeado; perfil profesional (años_experiencia/cédula/orcid) validado solo cliente en `PUT /perfil`; `id_tipo_evento`/`id_modalidad` sin chequeo de existencia (500 crudo en vez de 400 limpio); `fecha_avistamiento` sin validador de formato server-side.
+
+**Minor:** `imagen_url` sin validación de formato; filtros de Reportes sin mensaje explícito "sin resultados"; `horaFin` no validado contra `horaInicio`.
+
+Decisión del usuario sobre `ForgotPasswordScreen`: no construir backend real (ya decidido en sesión previa) — en cambio, cambiar el copy para no prometer un email que nunca llega.
+
+### C — Fix de los gaps encontrados (excepto #4), 2 agentes en paralelo, todo verificado directo por el controlador (no solo confiado del reporte)
+
+**Backend (`Backend-API-Specialist`, 7 fixes en `app/models/`+`app/routers/`):**
+1. `latitud`/`longitud` con `Field(ge=-90,le=90)`/`Field(ge=-180,le=180)`.
+2. Magic-number real (bytes `\xff\xd8\xff` / `\x89PNG...`) antes de aceptar una foto, además del check de `Content-Type` existente.
+3. `terminos_aceptados: bool` agregado a `EventoCreate`, rechazado con 400 si no es `True`.
+4. `EmailStr` en `ColaboradorLogin`, `UserLogin`, `AuthLogin`.
+5. Revalidación server-side de perfil profesional (rango años_experiencia, patrón cédula 7-8 dígitos, patrón ORCID) en `PUT /perfil`.
+6. `id_tipo_evento`/`id_modalidad` verificados contra la tabla real antes de insertar — 400 limpio en vez de 500 crudo.
+7. `fecha_avistamiento` con el mismo validador de formato ISO que ya usaba `fecha_evento`.
+
+11 tests nuevos en `test_input_validation.py`, suite completa **57→58 pass** tras merge con el fix de bug real de abajo, 0 fail (excluyendo los 2 archivos de test pre-existentes rotos y ya documentados, sin relación).
+
+**Frontend (`caveman:cavecrew-builder`, 6 fixes en pantallas mobile):**
+1. `ForgotPasswordScreen` — copy honesto ("contacta a un administrador"), sin llamada a API.
+2. Foto de avistamiento — usa `fotoResult.message` real en vez de string genérico.
+3. `imagen_url` — validación de formato `http(s)://` antes de enviar.
+4. Reportes Global — distingue "sin datos" de "ningún resultado con estos filtros".
+5. `horaFin <= horaInicio` — rechazado client-side antes de enviar.
+6. `terminos_aceptados: eventForm.terminos` agregado al payload de `crearEvento` — coordinado en vivo con el agente de backend vía `SendMessage` para confirmar el nombre exacto del campo nuevo (coincidió con el adivinado).
+
+Ambos verificados por el controlador leyendo el diff real (no solo el reporte del agente) antes de darlos por buenos — confirmado que `buildErrorResult`/asteriscos/estilos coinciden con el patrón ya existente en cada archivo.
+
+### D — Feature: KPIs de Perfil en tiempo real (brainstorming corto → implementación directa, sin plan/SDD)
+
+Usuario preguntó si los 3 KPIs de `ProfileScreen` (avistamientos/especies/eventos míos) podían wirearse a WebSocket como ya hacen Sightings/Events/Catalog — antes solo se fetcheaban una vez al montar. Brainstorming corto (una pregunta: refetch completo vs incremento local — usuario eligió refetch completo, mismo patrón ya usado en las otras 3 pantallas, evita los bugs de drift que esta misma sesión ya encontró en gamification). Evaluado explícitamente como "small change, no SDD" antes de ejecutar (1 archivo, patrón 3x ya probado, sin decisiones de diseño nuevas). Dispatch directo a `caveman:cavecrew-builder`, verificado por el controlador vía `git diff` — las 3 funciones de fetch extraídas y reusadas, un solo `useEffect` nuevo con `subscribe()`, sin lógica de ownership por payload (según lo pedido).
+
+### E — Bug real reportado por el usuario en testing manual: overflow de `poblacion_estimada` al crear especie
+
+Screenshot real del error crudo de Postgres (`psycopg.errors.NumericValueOutOfRange`) mostrando el SQL completo y los parámetros del formulario en un Alert. `systematic-debugging` completo:
+- **Causa raíz #1:** `poblacion_estimada` tenía `ge=0` pero sin `le=` — cualquier entero de Python pasaba Pydantic, pero la columna real es `Integer` de Postgres (máx. 2,147,483,647). Fix: `le=2147483647` en `EspecieCreate` y `EspecieUpdate` (mismo gap en ambos, confirmado por el audit de la sección B). TDD real: test que reproduce el valor exacto del screenshot, confirmado en rojo primero (200 en vez de 422 — SQLite del test suite no tiene el límite de 32 bits que sí tiene Postgres, así que el bug solo se manifestaba contra el backend real), luego verde tras el fix.
+- **Causa raíz #2, encontrada pero NO corregida todavía en esta sesión (solo diagnosticada y confirmada como sistémica):** el `except Exception as e: raise HTTPException(status_code=500, detail=str(e))` en `especies.py` filtra el string crudo de la excepción (incluye el SQL fallido completo) al cliente. Grep reveló el mismo patrón en **49 sitios** de 8 routers distintos (`especies`, `productos`, `pedidos`, `eventos`, `estadisticas`, `colaboradores`, `catalogos`, `direcciones`) — no es un bug puntual, es un patrón repetido en toda la API.
+
+Usuario decidió explícitamente arreglarlo (no solo documentarlo) antes de desplegar, en un solo pase junto con el resto. Evaluado como "small change, no SDD" (patrón mecánico repetido, sin decisiones de diseño más allá del mensaje genérico y el helper compartido).
+
+### F — Fix del error leak sistémico (agente `Backend-API-Specialist`, verificado directo)
+
+`app/services/errors.py` nuevo con `safe_500(e, context)` — loguea `print(f"Error en {context}: {e}")` server-side (mismo estilo ya usado en el codebase, sin introducir el módulo `logging`), devuelve al cliente `detail="Ocurrió un error al procesar la solicitud."` genérico. Los 49 sitios (el agente re-grepeó y confirmó 49, no 48 como decía el brief inicial — números de línea habían cambiado por los fixes de la sección C) reemplazados. 2 sitios (`productos.py::get_productos`, `pedidos.py::crear_pedido`) mantuvieron su `print` con traceback completo en vez de pasar por `safe_500` — decisión del agente, justificada (diagnóstico server-side más rico, comportamiento client-facing idéntico), aceptada sin cambios. Verificado por el controlador: `grep detail=str(e)` → 0 resultados, `grep safe_500(` → 47 (más los 2 con traceback propio = 49 reales). Suite completa: **58 pass, 0 fail**, confirmado independientemente por el controlador (no solo el reporte del agente).
+
+### G — Bug de logros v2: la fix de la sección A no cubría el reload de la app
+
+Usuario probó en Expo Go (sesión ya logueada, solo recargar la app) y el popup de "Colaborador Aprobado" seguía apareciendo. `systematic-debugging` de nuevo:
+- **Causa raíz:** al recargar la app con un token ya persistido, `isLoggedIn` se pone `true` *antes* de que el `Promise.all` de `GamificationContext` resuelva — el primer render de `badges` usa los datos `seed` (placeholder, todo bloqueado) mientras `isLoggedIn` ya es `true`. El efecto de diff de insignias corre sobre ese render falso y consume el "primera vez, no celebres" (el `prevUnlocked.current === null` inicial) con datos falsos. Cuando el fetch real resuelve un instante después y `approved` pasa a `true`, parece un desbloqueo nuevo genuino → celebra otra vez.
+- **Fix:** guard `if (counters === seed) return;` al inicio del efecto de diff — comparación por identidad de referencia (el objeto `seed` es el mismo tanto en el estado inicial como en el reset de logout), así ningún render con datos placeholder participa nunca del baseline/diff.
+- **No verificado en dispositivo real** (sin simulador en este entorno) — pendiente de que el usuario confirme recargando Expo Go con una cuenta aprobada.
+
+### H — Commit, push, deploy real a ambos droplets con rebuild
+
+29 archivos (26 modificados + 3 nuevos: `gamificationBadges.js`/`.test.js`, `app/services/errors.py`) commiteados (`cf83568`) y pusheados a `origin/master`. Confirmado antes de mergear que local y `origin/master` estaban exactamente sincronizados (sin riesgo de diverger).
+
+Deploy real a ambos droplets, confirmado explícitamente con el usuario antes de tocar producción (pull-only vs pull+rebuild — usuario eligió pull+rebuild):
+- Público: `git pull` (trajo también un commit de ayer que nunca se había desplegado ahí). Sin rebuild necesario (no corre código de la API).
+- Privado: RAM verificada antes (996Mi disponibles), `git pull`, `docker compose -f docker-compose.private.yml up -d --build api1 api2` — rebuild real, contenedores recreados y confirmados `Up` sin errores.
+
+### I — Suite PI extendida (sección 15 nueva) + simulación de ataques reales contra prod
+
+- **`scripts/verify_pi_requirements.sh` ganó una sección 15** cubriendo en vivo, sin autenticación, los fixes de hoy: latitud fuera de rango, fecha de avistamiento malformada, evento sin aceptar términos, `tipo_evento` inexistente (confirma 400 limpio, no 500 crudo), login con email malformado. Corrida completa post-deploy: **31 pass, 0 fail, 1 skip** (mobile manual, sin cambios).
+- **Simulación de ataques reales** (cuenta de colaborador temporal, creada y eliminada al final, contra `https://proyecto-sway.site` real): overflow de `poblacion_estimada` (bloqueado, 422), cédula/ORCID/años_experiencia malformados en `PUT /perfil` (bloqueados, 422), **inyección SQL real** en `nombre_comun` (`Robert'); DROP TABLE especies;--`) — guardado como texto literal, tabla intacta, confirma que el ORM parametriza correctamente y no hay vector de inyección; creación de especie sin token (401); JWT forjado con firma inválida (401); foto con `Content-Type: image/jpeg` pero bytes de texto plano (bloqueada, 400, magic-number real); foto con bytes JPEG reales (aceptada, confirma que el fix no rompió el caso válido). Todo limpiado después (especie, avistamiento, colaborador y usuario de prueba borrados vía SQL directo).
+- **Simulación de saturación/DDoS**, repetida post-redeploy de hoy (ya se había hecho una vez en la sesión anterior, antes del rebuild): 300 requests concurrentes reales contra `/api/colaboradores/login`. Primer intento con bash lanzando 300 procesos `curl` en background localmente falló (solo 12 completaron, límite del entorno Git Bash/Windows, no del servidor) — repetido con un script Python (`ThreadPoolExecutor`, 100 workers) para una medición confiable: **300/300 bloqueados con 429** (mejor que el 288/300 de la vez anterior — el rate limiting compartido por Redis, ya fijado en sesión previa, sigue funcionando después del rebuild de hoy, sin ninguna filtración esta vez). Contenedores confirmados sanos después (`docker stats`, sin picos, `sway_postgres` healthy), endpoint legítimo confirmado respondiendo 200 inmediatamente después (usuarios reales no afectados).
+
+### Pendientes reales al cierre de esta sesión
+
+1. **Verificar en dispositivo real que el fix v2 del bug de logros (sección G) funciona** — recargar Expo Go con una cuenta ya aprobada y confirmar que el popup no vuelve a aparecer.
+2. **`contacto` (email) en creación de evento anónimo sin `EmailStr` server-side** — gap real encontrado en la sección B, excluido explícitamente por el usuario de esta ronda de fixes. Sigue pendiente.
+3. **Reportar resultados de esta sesión y guardar con `/ecc:save-session`** — en curso al momento de escribir este registro.
    - Nada implementado, ningún archivo tocado — pendiente de diseño (skill `ui-ux-pro-max`) + plan + implementación completos.
