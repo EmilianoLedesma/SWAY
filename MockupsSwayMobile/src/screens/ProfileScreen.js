@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import {
   StyleSheet,
@@ -98,7 +99,7 @@ const relativeDate = (date) => {
   return `hace ${w} ${w === 1 ? 'semana' : 'semanas'}`;
 };
 
-export default function ProfileScreen() {
+export default function ProfileScreen({ navigation, route }) {
   const { setIsLoggedIn } = useAuth();
   const {
     points,
@@ -112,6 +113,14 @@ export default function ProfileScreen() {
   } = useGamification();
   const recentActivity = useRecentActivity(5);
   const [activeTab, setActiveTab] = useState('personal');
+  useFocusEffect(
+    useCallback(() => {
+      if (route?.params?.initialTab) {
+        setActiveTab(route.params.initialTab);
+        navigation.setParams({ initialTab: undefined });
+      }
+    }, [route?.params?.initialTab, navigation]),
+  );
   const [editingPersonal, setEditingPersonal] = useState(false);
   const [editingProfesional, setEditingProfesional] = useState(false);
   const [reporteLoading, setReporteLoading] = useState(false);
