@@ -8,6 +8,8 @@ Arquitectura real: **droplet público** (`146.190.136.236`, VPC `10.124.0.2`) co
 
 ## Conexión a los servidores
 
+**Importante — dónde correr esto:** todos los comandos `ssh` de esta sección corren desde **tu propia máquina local** (la PC donde vive `~/.ssh/sway_deploy`), nunca desde dentro de un droplet. La llave privada nunca se copia a ningún servidor — por diseño, el público solo hace de bastion vía SSH agent forwarding o `ProxyJump`/`ProxyCommand` iniciado desde afuera. Si ya estás conectado por SSH dentro del público y tratás de saltar al privado desde ahí sin agent forwarding, va a fallar (`Permission denied (publickey)` o `Identity file ... not accessible`) — eso es esperado, no un bug. El bloque `Host sway-privado ...` tampoco es un comando: va dentro del archivo `~/.ssh/config` de tu PC, no se pega en una terminal.
+
 ### Público (directo, sí acepta SSH externo)
 ```bash
 ssh -i ~/.ssh/sway_deploy root@146.190.136.236
