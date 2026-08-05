@@ -186,7 +186,7 @@ export default function SightingsScreen() {
     }
   };
 
-  const handleCapturePhoto = async () => {
+  const handleTakePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permiso denegado', 'Activa el permiso de cámara para usar esta función.');
@@ -196,6 +196,30 @@ export default function SightingsScreen() {
     if (!result.canceled) {
       setField('fotoUri', result.assets[0].uri);
     }
+  };
+
+  const handlePickPhotoFromGallery = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso denegado', 'Activa el permiso de galería para usar esta función.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+    if (!result.canceled) {
+      setField('fotoUri', result.assets[0].uri);
+    }
+  };
+
+  const handleCapturePhoto = () => {
+    Alert.alert(
+      'Foto de la especie',
+      '¿Cómo quieres agregar la foto?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Elegir de galería', onPress: handlePickPhotoFromGallery },
+        { text: 'Tomar foto', onPress: handleTakePhoto },
+      ],
+    );
   };
 
   const handleReportSighting = async () => {
