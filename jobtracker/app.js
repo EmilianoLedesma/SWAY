@@ -35,8 +35,8 @@ async function doRegister(){
     document.getElementById('registerError').classList.add('show');
     return;
   }
-  document.getElementById('registerSuccess').classList.add('show');
   toggleAuthMode();
+  document.getElementById('registerSuccess').classList.add('show');
 }
 
 async function doLogin(){
