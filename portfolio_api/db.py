@@ -108,13 +108,6 @@ def init_db(conn: sqlite3.Connection) -> None:
           created_at TEXT,
           updated_at TEXT
         );
-        CREATE TABLE IF NOT EXISTS contact_messages (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT,
-          email TEXT,
-          message TEXT,
-          created_at TEXT
-        );
         """
     )
     conn.commit()

@@ -95,11 +95,3 @@ def test_update_unknown_postulation_returns_404():
         json={"status": "oferta"},
     )
     assert res.status_code == 404
-
-
-def test_contact_endpoint_accepts_valid_payload():
-    res = client.post(
-        "/portfolio-api/contact",
-        json={"name": "Ada", "email": "ada@example.com", "message": "Hola!"},
-    )
-    assert res.status_code == 201

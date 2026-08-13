@@ -26,7 +26,6 @@ def test_init_db_creates_tables(conn):
         )
     }
     assert "postulations" in tables
-    assert "contact_messages" in tables
 
 
 def test_seed_postulations_inserts_eleven_rows(conn):

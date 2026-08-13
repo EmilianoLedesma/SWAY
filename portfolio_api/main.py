@@ -5,7 +5,7 @@ from fastapi import Depends, FastAPI, HTTPException
 
 from auth import create_token, get_current_user, verify_password
 from db import get_conn, init_db, seed_postulations
-from models import ContactMessage, LoginRequest, PostulationIn, PostulationUpdate
+from models import LoginRequest, PostulationIn, PostulationUpdate
 
 app = FastAPI(title="Portfolio API")
 
@@ -122,15 +122,3 @@ def delete_postulation(postulation_id: str, user: dict = Depends(get_current_use
     conn.commit()
     conn.close()
     return None
-
-
-@app.post("/portfolio-api/contact", status_code=201)
-def contact(payload: ContactMessage):
-    conn = _conn()
-    conn.execute(
-        "INSERT INTO contact_messages (name, email, message, created_at) VALUES (?, ?, ?, ?)",
-        (payload.name, payload.email, payload.message, datetime.now(timezone.utc).isoformat()),
-    )
-    conn.commit()
-    conn.close()
-    return {"status": "received"}

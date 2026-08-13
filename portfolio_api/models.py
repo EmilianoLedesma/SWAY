@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
 
 class LoginRequest(BaseModel):
@@ -33,9 +33,3 @@ class PostulationUpdate(BaseModel):
     requirements: Optional[str] = None
     notes: Optional[str] = None
     status: Optional[str] = None
-
-
-class ContactMessage(BaseModel):
-    name: str
-    email: EmailStr
-    message: str
