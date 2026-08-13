@@ -46,4 +46,8 @@ def get_current_user(
 ) -> dict:
     if credentials is None:
         raise HTTPException(status_code=401, detail="No autenticado")
-    return decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
+    sub = payload.get("sub")
+    if sub is None or not str(sub).isdigit():
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")
+    return payload

@@ -69,8 +69,13 @@ async function showApp(){
 }
 
 async function loadApps(){
-  const res = await fetch(`${API_BASE}/postulations`, {headers: authHeaders()});
-  if(res.status === 401){
+  let res;
+  try {
+    res = await fetch(`${API_BASE}/postulations`, {headers: authHeaders()});
+  } catch(e) {
+    res = null;
+  }
+  if(!res || !res.ok){
     token = null;
     localStorage.removeItem('portfolio_token');
     document.getElementById('appRoot').classList.add('hidden');

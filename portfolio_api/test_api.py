@@ -76,6 +76,28 @@ def test_postulations_requires_auth():
     assert res.status_code == 401
 
 
+def test_legacy_username_token_returns_401_not_500():
+    from datetime import datetime, timedelta, timezone
+
+    from jose import jwt as jose_jwt
+
+    from auth import ALGORITHM, SECRET_KEY
+
+    legacy = jose_jwt.encode(
+        {
+            "sub": "emiliano",
+            "exp": datetime.now(timezone.utc) + timedelta(hours=1),
+        },
+        SECRET_KEY,
+        algorithm=ALGORITHM,
+    )
+    res = client.get(
+        "/portfolio-api/postulations",
+        headers={"Authorization": f"Bearer {legacy}"},
+    )
+    assert res.status_code == 401
+
+
 def test_postulations_crud_roundtrip():
     token = _register_and_login("dave", "dave-password-123")
     headers = {"Authorization": f"Bearer {token}"}
