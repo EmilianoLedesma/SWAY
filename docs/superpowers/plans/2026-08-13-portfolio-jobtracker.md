@@ -1230,6 +1230,7 @@ docker compose -f docker-compose.public.yml up -d --force-recreate nginx-portal
 
 ```bash
 curl -k -s -o /dev/null -w "%{http_code}\n" https://proyecto-sway.site/portfolio/           # 200
+curl -k -s -o /dev/null -w "%{http_code}\n" https://proyecto-sway.site/portfolio/app.js     # 200 — try_files falls back to index.html for missing paths, so /portfolio/ alone can't catch a broken static mount
 curl -k -s -X POST https://proyecto-sway.site/portfolio-api/login \
   -H "Content-Type: application/json" \
   -d '{"username":"YOUR_USER","password":"YOUR_REAL_PASSWORD"}'                              # {"access_token": "...", ...}
