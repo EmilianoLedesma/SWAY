@@ -2,7 +2,10 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 
-DB_PATH = os.environ.get("PORTFOLIO_DB_PATH", "/data/portfolio.db")
+def _default_db_path() -> str:
+    # Read fresh, not captured once at import time, so whichever test module
+    # imports this file first doesn't freeze the path for every caller.
+    return os.environ.get("PORTFOLIO_DB_PATH", "/data/portfolio.db")
 
 SEED_POSTULATIONS = [
     dict(id="eos", company="EOS Soluciones", role="Desarrollador (Estadía)",
@@ -79,9 +82,10 @@ SEED_POSTULATIONS = [
 ]
 
 
-def get_conn() -> sqlite3.Connection:
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+def get_conn(db_path: str | None = None) -> sqlite3.Connection:
+    db_path = db_path or _default_db_path()
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
 
