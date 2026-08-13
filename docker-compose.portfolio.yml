@@ -1,0 +1,24 @@
+services:
+  portfolio-api:
+    build: ./portfolio_api
+    container_name: sway_portfolio_api
+    restart: unless-stopped
+    environment:
+      PORTFOLIO_JWT_SECRET: ${PORTFOLIO_JWT_SECRET}
+      PORTFOLIO_USER: ${PORTFOLIO_USER}
+      PORTFOLIO_PASSWORD_HASH: ${PORTFOLIO_PASSWORD_HASH}
+      PORTFOLIO_DB_PATH: /data/portfolio.db
+    volumes:
+      - portfolio_data:/data
+    expose:
+      - "8100"
+    networks:
+      - edge_network
+
+networks:
+  edge_network:
+    name: sway_edge_network
+    external: true
+
+volumes:
+  portfolio_data:
