@@ -11,6 +11,10 @@ app = FastAPI(title="Portfolio API")
 
 PORTFOLIO_USER = os.environ.get("PORTFOLIO_USER", "")
 PORTFOLIO_PASSWORD_HASH = os.environ.get("PORTFOLIO_PASSWORD_HASH", "")
+if not PORTFOLIO_USER or not PORTFOLIO_PASSWORD_HASH:
+    raise RuntimeError(
+        "PORTFOLIO_USER/PORTFOLIO_PASSWORD_HASH no configuradas — revisar .env"
+    )
 # Captured once at import time so this module keeps using the same DB file
 # even if some other module (e.g. a differently-configured test file
 # imported later in the same process) changes PORTFOLIO_DB_PATH afterward.
