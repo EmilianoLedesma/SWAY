@@ -766,7 +766,7 @@ PORTFOLIO_PASSWORD_HASH=REEMPLAZAR_CON_HASH_BCRYPT
 Run: `docker compose -f docker-compose.portfolio.yml build`
 Expected: build succeeds with no errors.
 
-Note: `docker compose -f docker-compose.portfolio.yml up` will fail locally unless a `sway_edge_network` network already exists (it's created by `docker-compose.public.yml` on the droplet) — that's expected here; full up/down is verified in Task 6's deploy step on the actual droplet.
+Note: `docker compose -f docker-compose.portfolio.yml up` will fail locally unless a `sway_edge_network` network already exists (it's created by `docker-compose.public.yml` on the droplet) — that's expected here; full up/down is verified in Task 7's deploy step on the actual droplet.
 
 - [ ] **Step 5: Commit**
 
