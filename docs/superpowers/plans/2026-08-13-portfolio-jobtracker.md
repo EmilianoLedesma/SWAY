@@ -20,6 +20,8 @@
 
 ### Task 1: Database layer (`portfolio_api/db.py`)
 
+`SEED_POSTULATIONS` combines 8 postulations from the provided MVP HTML mockup with 3 more sourced from `docs/postulaciones_fuera_bitacora.md` (EQUINIX, More Pepper, Arrendadora Thermo Logística — a fourth entry there, EOS Soluciones, duplicates the `eos` entry already sourced from the MVP HTML and was intentionally not duplicated).
+
 **Files:**
 - Create: `portfolio_api/db.py`
 - Create: `portfolio_api/requirements.txt`
