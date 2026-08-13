@@ -108,9 +108,25 @@ def init_db(conn: sqlite3.Connection) -> None:
           created_at TEXT,
           updated_at TEXT
         );
+        CREATE TABLE IF NOT EXISTS users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          username TEXT UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          created_at TEXT
+        );
         """
     )
     conn.commit()
+    _ensure_user_id_column(conn)
+
+
+def _ensure_user_id_column(conn: sqlite3.Connection) -> None:
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(postulations)")}
+    if "user_id" not in cols:
+        conn.execute(
+            "ALTER TABLE postulations ADD COLUMN user_id INTEGER REFERENCES users(id)"
+        )
+        conn.commit()
 
 
 def seed_postulations(conn: sqlite3.Connection) -> int:
