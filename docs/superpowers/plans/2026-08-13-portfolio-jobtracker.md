@@ -1196,28 +1196,37 @@ cd /home/sway/sway
 git pull
 ```
 
-- [ ] **Step 2: Fill in the new `.env` values**
+- [ ] **Step 2: Fill in the `.env` values that don't need the image built yet**
 
 ```bash
 python3 -c "import secrets; print(secrets.token_hex(32))"   # → PORTFOLIO_JWT_SECRET
-python3 -c "from passlib.context import CryptContext; print(CryptContext(schemes=['bcrypt']).hash('YOUR_REAL_PASSWORD'))"   # → PORTFOLIO_PASSWORD_HASH
-nano .env   # add PORTFOLIO_JWT_SECRET, PORTFOLIO_USER, PORTFOLIO_PASSWORD_HASH
+nano .env   # add PORTFOLIO_JWT_SECRET, PORTFOLIO_USER (leave PORTFOLIO_PASSWORD_HASH for Step 4)
 ```
 
-- [ ] **Step 3: Bring up the new isolated stack**
+- [ ] **Step 3: Build and bring up the new isolated stack**
 
 ```bash
 docker compose -f docker-compose.portfolio.yml up --build -d
 docker compose -f docker-compose.portfolio.yml ps   # expect sway_portfolio_api Up
 ```
 
-- [ ] **Step 4: Restart nginx-portal to pick up the new routes and static mount**
+- [ ] **Step 4: Generate the password hash using the built image, then set it and restart**
+
+`passlib` lives inside the `portfolio_api` image, not on the droplet host, so this must run via `docker run` against the image built in Step 3 — a bare `python3 -c ...` on the host will fail with `ModuleNotFoundError`.
+
+```bash
+docker run --rm sway_portfolio_api python -c "from passlib.context import CryptContext; print(CryptContext(schemes=['bcrypt']).hash('YOUR_REAL_PASSWORD'))"   # → PORTFOLIO_PASSWORD_HASH
+nano .env   # add PORTFOLIO_PASSWORD_HASH
+docker compose -f docker-compose.portfolio.yml up -d --force-recreate
+```
+
+- [ ] **Step 5: Restart nginx-portal to pick up the new routes and static mount**
 
 ```bash
 docker compose -f docker-compose.public.yml up -d --force-recreate nginx-portal
 ```
 
-- [ ] **Step 5: Verify end-to-end**
+- [ ] **Step 6: Verify end-to-end**
 
 ```bash
 curl -k -s -o /dev/null -w "%{http_code}\n" https://proyecto-sway.site/portfolio/           # 200
@@ -1227,7 +1236,7 @@ curl -k -s -X POST https://proyecto-sway.site/portfolio-api/login \
 curl -k -s -o /dev/null -w "%{http_code}\n" https://proyecto-sway.site/portfolio-api/postulations   # 401 (no token)
 ```
 
-- [ ] **Step 6: Confirm SWAY's own stacks are unaffected**
+- [ ] **Step 7: Confirm SWAY's own stacks are unaffected**
 
 ```bash
 docker compose -f docker-compose.public.yml ps    # haproxy, nginx-portal, grafana still Up
