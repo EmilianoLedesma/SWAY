@@ -1,3 +1,5 @@
+name: portfolio
+
 services:
   portfolio-api:
     build: ./portfolio_api
@@ -15,6 +17,10 @@ services:
     networks:
       - edge_network
 
+# sway_edge_network is the auto-generated <project>_edge_network name from
+# docker-compose.public.yml's own (directory-derived) project; if the droplet's
+# checkout directory is ever renamed, this external network reference breaks
+# silently. Known, accepted coupling — not fixed here.
 networks:
   edge_network:
     name: sway_edge_network
