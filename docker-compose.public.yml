@@ -25,6 +25,7 @@ services:
       - ./web2/dist:/usr/share/nginx/html/portal:ro
       - ./assets:/usr/share/nginx/html/static:ro
       - ./nginx/portal.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./portfolio:/usr/share/nginx/html/portfolio:ro
     expose:
       - "80"
     networks:
