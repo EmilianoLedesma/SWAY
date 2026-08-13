@@ -7,8 +7,6 @@ services:
     restart: unless-stopped
     environment:
       PORTFOLIO_JWT_SECRET: ${PORTFOLIO_JWT_SECRET}
-      PORTFOLIO_USER: ${PORTFOLIO_USER}
-      PORTFOLIO_PASSWORD_HASH: ${PORTFOLIO_PASSWORD_HASH}
       PORTFOLIO_DB_PATH: /data/portfolio.db
     volumes:
       - portfolio_data:/data

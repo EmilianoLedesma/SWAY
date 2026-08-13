@@ -8,6 +8,11 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+
+
 class PostulationIn(BaseModel):
     id: str
     company: str
