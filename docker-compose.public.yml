@@ -26,6 +26,7 @@ services:
       - ./assets:/usr/share/nginx/html/static:ro
       - ./nginx/portal.conf:/etc/nginx/conf.d/default.conf:ro
       - ./portfolio:/usr/share/nginx/html/portfolio:ro
+      - ./jobtracker:/usr/share/nginx/html/jobtracker:ro
     expose:
       - "80"
     networks:
