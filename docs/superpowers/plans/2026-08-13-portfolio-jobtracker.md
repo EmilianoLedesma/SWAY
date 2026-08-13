@@ -1217,16 +1217,45 @@ docker compose -f docker-compose.portfolio.yml ps   # expect sway_portfolio_api 
 ```bash
 docker run --rm sway_portfolio_api python -c "from passlib.context import CryptContext; print(CryptContext(schemes=['bcrypt']).hash('YOUR_REAL_PASSWORD'))"   # → PORTFOLIO_PASSWORD_HASH
 nano .env   # add PORTFOLIO_PASSWORD_HASH
-docker compose -f docker-compose.portfolio.yml up -d --force-recreate
 ```
 
-- [ ] **Step 5: Restart nginx-portal to pick up the new routes and static mount**
+**IMPORTANT — escape every `$` as `$$` in the pasted hash.** The bcrypt hash starts with `$2b$12$...`; `docker compose` interpolates `$VAR` inside `.env` values, so any letter-only fragment after a `$` (e.g. `$al`) is read as an unset variable and silently deleted — corrupting the hash so no password will ever verify against it, with no error at container-start time. Write it as `PORTFOLIO_PASSWORD_HASH=$$2b$$12$$restOfHash...` in `.env`. Verify after starting the container:
+
+```bash
+docker compose -f docker-compose.portfolio.yml up -d --force-recreate
+docker exec sway_portfolio_api printenv PORTFOLIO_PASSWORD_HASH   # must match the hash Step 4 generated, unescaped and uncorrupted
+```
+
+- [ ] **Step 5: Route `/portfolio/` and `/portfolio-api/` through HAProxy**
+
+`nginx-portal` only receives traffic HAProxy forwards to it — Task 5's nginx changes are invisible to the outside world until HAProxy's frontend ACL knows about the new paths too. `haproxy/haproxy.cfg`'s `https_front` currently routes only `path_portal`/`path_static` (and `path_api`/`path_docs`/`path_openapi`/`path_grafana`) to `portal_back`; anything unmatched falls through to `default_backend flask_back` (SWAY's Flask app), which is why an unpatched HAProxy returns SWAY's own 404 page for `/portfolio/` instead of reaching nginx-portal at all.
+
+Add one ACL and extend the existing `portal_back` condition (this file is not built from a docker image — edit it directly, then reload):
+
+```
+    acl path_static    path_beg /static
+    acl path_portfolio  path_beg /portfolio
+    acl path_grafana   path_beg /grafana
+
+    use_backend api_back    if path_api or path_docs or path_openapi
+    use_backend portal_back if path_portal or path_static or path_portfolio
+    use_backend grafana_back if path_grafana
+```
+
+(`path_beg /portfolio` matches both `/portfolio/...` and `/portfolio-api/...` since it's a plain string-prefix match, not path-segment-aware — both need to reach nginx-portal, so this is correct as one ACL.)
+
+```bash
+docker exec sway_haproxy haproxy -c -f /usr/local/etc/haproxy/haproxy.cfg   # validate syntax first
+docker compose -f docker-compose.public.yml restart haproxy
+```
+
+- [ ] **Step 6: Restart nginx-portal to pick up the new routes and static mount**
 
 ```bash
 docker compose -f docker-compose.public.yml up -d --force-recreate nginx-portal
 ```
 
-- [ ] **Step 6: Verify end-to-end**
+- [ ] **Step 7: Verify end-to-end**
 
 ```bash
 curl -k -s -o /dev/null -w "%{http_code}\n" https://proyecto-sway.site/portfolio/           # 200
@@ -1237,7 +1266,7 @@ curl -k -s -X POST https://proyecto-sway.site/portfolio-api/login \
 curl -k -s -o /dev/null -w "%{http_code}\n" https://proyecto-sway.site/portfolio-api/postulations   # 401 (no token)
 ```
 
-- [ ] **Step 7: Confirm SWAY's own stacks are unaffected**
+- [ ] **Step 8: Confirm SWAY's own stacks are unaffected**
 
 ```bash
 docker compose -f docker-compose.public.yml ps    # haproxy, nginx-portal, grafana still Up
