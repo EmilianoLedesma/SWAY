@@ -14,9 +14,9 @@ def test_hash_and_verify_password_roundtrip():
 
 
 def test_create_and_decode_token_roundtrip():
-    token = create_token("emiliano")
+    token = create_token(42)
     payload = decode_token(token)
-    assert payload["sub"] == "emiliano"
+    assert payload["sub"] == "42"
 
 
 def test_decode_token_rejects_garbage():
