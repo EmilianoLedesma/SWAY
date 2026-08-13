@@ -2,9 +2,42 @@ const API_BASE = '/portfolio-api';
 let apps = [];
 let currentId = null;
 let token = localStorage.getItem('portfolio_token') || null;
+let authMode = 'login';
 
 const statusLabels = {postulado:'Postulado', entrevista:'Entrevista', oferta:'Oferta', rechazado:'Rechazado'};
 const statusOrder = ['postulado','entrevista','oferta','rechazado'];
+
+function toggleAuthMode(){
+  authMode = authMode === 'login' ? 'register' : 'login';
+  document.getElementById('authTitle').textContent = authMode === 'login' ? 'Acceso bitácora' : 'Crear cuenta';
+  document.getElementById('authSubmitBtn').textContent = authMode === 'login' ? 'Entrar' : 'Registrarme';
+  document.getElementById('authToggle').textContent = authMode === 'login' ? 'Crear cuenta nueva' : 'Ya tengo cuenta';
+  document.getElementById('authSubmitBtn').onclick = submitAuth;
+  ['loginError','registerError','registerSuccess'].forEach(id => document.getElementById(id).classList.remove('show'));
+}
+
+function submitAuth(){
+  if(authMode === 'login') return doLogin();
+  return doRegister();
+}
+
+async function doRegister(){
+  const username = document.getElementById('login-user').value.trim();
+  const password = document.getElementById('login-pass').value;
+  const res = await fetch(`${API_BASE}/register`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({username, password})
+  });
+  document.getElementById('registerError').classList.remove('show');
+  document.getElementById('registerSuccess').classList.remove('show');
+  if(!res.ok){
+    document.getElementById('registerError').classList.add('show');
+    return;
+  }
+  document.getElementById('registerSuccess').classList.add('show');
+  toggleAuthMode();
+}
 
 async function doLogin(){
   const username = document.getElementById('login-user').value.trim();
@@ -15,9 +48,10 @@ async function doLogin(){
     body: JSON.stringify({username, password})
   });
   if(!res.ok){
-    document.getElementById('loginError').style.display = 'block';
+    document.getElementById('loginError').classList.add('show');
     return;
   }
+  document.getElementById('loginError').classList.remove('show');
   const data = await res.json();
   token = data.access_token;
   localStorage.setItem('portfolio_token', token);
